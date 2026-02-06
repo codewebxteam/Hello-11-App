@@ -1,190 +1,116 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    KeyboardAvoidingView,
-    Platform,
-} from 'react-native';
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Text,
+  TouchableOpacity,
+  View,
+  ScrollView,
+} from "react-native";
+import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import Button from '../components/Button';
-import Input from '../components/Input';
-import { COLORS } from '../constants/colors';
-import { FONT_SIZES, SPACING, COMMON_STYLES } from '../constants/theme';
+import { StatusBar } from 'expo-status-bar';
+import Input from "../../components/Input";
+import Button from "../../components/Button";
 
-export default function LoginScreen() {
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const router = useRouter();
+const LoginScreen = () => {
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [password, setPassword] = useState("");
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const router = useRouter();
 
-    const handleContinue = () => {
-        if (phoneNumber.length === 10) {
-            router.push('/screens/HomeScreen');
-        }
-    };
+  const handleLogin = () => {
+    if (!phoneNumber || !password) {
+      Alert.alert("Error", "Please enter both mobile number and password.");
+      return;
+    }
+    router.push("/screens/HomeScreen");
+  };
 
-    return (
-        <SafeAreaView style={COMMON_STYLES.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+  return (
+    <View className="flex-1 bg-white">
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.content}
-            >
-                {/* Logo Section */}
-                <View style={styles.header}>
-                    <View style={styles.logoContainer}>
-                        <Ionicons name="car-sport" size={60} color={COLORS.primary} />
-                    </View>
-                    <Text style={styles.appName}>RideNow</Text>
-                    <Text style={styles.tagline}>Your ride, your way</Text>
-                </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
+        <ScrollView
+          contentContainerClassName="flex-grow pt-[12vh]"
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Top Yellow Curve - Responsive */}
+          <View className="absolute -top-[62%] self-center w-[170%] aspect-square rounded-full bg-[#FFD700] -z-10" />
 
-                {/* Login Form */}
-                <View style={styles.formContainer}>
-                    <Text style={styles.title}>Welcome!</Text>
-                    <Text style={styles.subtitle}>Enter your phone number to continue</Text>
+          <View className="flex-1 px-8 pb-10">
+            <View className="mb-8 items-center mt-3">
+              <Text className="text-3xl font-black text-slate-800 text-center leading-10">
+                Welcome to{"\n"}<Text className="text-slate-800">Hello 11</Text>
+              </Text>
+              <View className="w-9 h-1 bg-slate-800 rounded-full my-3" />
+              <Text className="text-sm text-slate-800 font-medium text-center">Login to continue your premium journey</Text>
+            </View>
 
-                    <View style={styles.phoneInputWrapper}>
-                        <View style={styles.countryCode}>
-                            <Text style={styles.countryCodeText}>+91</Text>
-                        </View>
-                        <Input
-                            placeholder="Phone Number"
-                            keyboardType="phone-pad"
-                            maxLength={10}
-                            value={phoneNumber}
-                            onChangeText={setPhoneNumber}
-                            style={styles.phoneInput}
-                        />
-                    </View>
+            <View className="mb-3 mt-[5vh]">
+              <Input
+                placeholder="Mobile Number"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                maxLength={10}
+                isFocused={focusedInput === 'phone'}
+                onFocus={() => setFocusedInput('phone')}
+                onBlur={() => setFocusedInput(null)}
+                icon={
+                  <View className="bg-[#FFD700] px-2.5 py-1.5 rounded-lg">
+                    <Text className="text-sm font-extrabold text-slate-800">+91</Text>
+                  </View>
+                }
+              />
 
-                    <Button
-                        title="Continue"
-                        onPress={handleContinue}
-                        disabled={phoneNumber.length !== 10}
-                        style={styles.continueButton}
-                    />
+              <Input
+                placeholder="Security Password"
+                secureTextEntry={!isPasswordVisible}
+                value={password}
+                onChangeText={setPassword}
+                isFocused={focusedInput === 'password'}
+                onFocus={() => setFocusedInput('password')}
+                onBlur={() => setFocusedInput(null)}
+                rightIcon={
+                  <Ionicons
+                    name={isPasswordVisible ? "eye-outline" : "eye-off-outline"}
+                    size={20}
+                    color={focusedInput === 'password' ? "#1E293B" : "#94A3B8"}
+                  />
+                }
+                onRightIconPress={() => setIsPasswordVisible(!isPasswordVisible)}
+              />
 
-                    <Text style={styles.termsText}>
-                        By continuing, you agree to our Terms of Service and Privacy Policy
-                    </Text>
-                </View>
+              <TouchableOpacity
+                className="self-end mb-4"
+                onPress={() => Alert.alert("Security", "Link sent.")}
+              >
+                <Text className="text-orange-500 font-bold text-xs">Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
 
-                {/* Features */}
-                <View style={styles.features}>
-                    <View style={styles.featureItem}>
-                        <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
-                        <Text style={styles.featureText}>Safe & Secure</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                        <Ionicons name="flash" size={24} color={COLORS.primary} />
-                        <Text style={styles.featureText}>Quick Booking</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                        <Ionicons name="wallet" size={24} color={COLORS.primary} />
-                        <Text style={styles.featureText}>Best Prices</Text>
-                    </View>
-                </View>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
-    );
-}
+            <Button title="Continue" onPress={handleLogin} />
 
-const styles = StyleSheet.create({
-    content: {
-        flex: 1,
-        paddingHorizontal: SPACING.lg,
-    },
-    header: {
-        alignItems: 'center',
-        marginTop: 40,
-        marginBottom: 40,
-    },
-    logoContainer: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: COLORS.black,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: SPACING.md,
-    },
-    appName: {
-        fontSize: FONT_SIZES.xxl,
-        fontWeight: 'bold',
-        color: COLORS.black,
-        marginBottom: SPACING.sm,
-    },
-    tagline: {
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.gray400,
-    },
-    formContainer: {
-        flex: 1,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: COLORS.black,
-        marginBottom: SPACING.sm,
-    },
-    subtitle: {
-        fontSize: FONT_SIZES.md,
-        color: COLORS.gray400,
-        marginBottom: SPACING.xl,
-    },
-    phoneInputWrapper: {
-        flexDirection: 'row',
-        marginBottom: SPACING.lg,
-    },
-    countryCode: {
-        backgroundColor: COLORS.gray100,
-        paddingHorizontal: SPACING.md,
-        paddingVertical: 18,
-        borderWidth: 2,
-        borderColor: COLORS.gray200,
-        borderRadius: 12,
-        borderTopRightRadius: 0,
-        borderBottomRightRadius: 0,
-        borderRightWidth: 0,
-        justifyContent: 'center',
-    },
-    countryCodeText: {
-        fontSize: FONT_SIZES.md,
-        fontWeight: '600',
-        color: COLORS.black,
-    },
-    phoneInput: {
-        flex: 1,
-        borderTopLeftRadius: 0,
-        borderBottomLeftRadius: 0,
-    },
-    continueButton: {
-        marginBottom: SPACING.md,
-    },
-    termsText: {
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.gray300,
-        textAlign: 'center',
-        lineHeight: 18,
-    },
-    features: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        paddingVertical: SPACING.lg,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.gray100,
-    },
-    featureItem: {
-        alignItems: 'center',
-    },
-    featureText: {
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.gray400,
-        marginTop: SPACING.sm,
-        fontWeight: '500',
-    },
-});
+            <View className="flex-row justify-center mt-6">
+              <Text className="text-slate-400 text-sm">New to Hello 11? </Text>
+              <TouchableOpacity onPress={() => router.push("/screens/registerScreen")}>
+                <Text className="text-orange-500 font-extrabold text-sm">Create Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+};
+
+export default LoginScreen;
