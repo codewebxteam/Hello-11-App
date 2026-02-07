@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -7,105 +7,185 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  TextInput,
+  Dimensions,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import Input from "../../components/Input";
-import Button from "../../components/Button";
+
+const { width, height } = Dimensions.get('window');
+const isTablet = width > 768; // Tablet detection logic
 
 const LoginScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const router = useRouter();
 
   const handleLogin = () => {
     if (!phoneNumber || !password) {
-      Alert.alert("Error", "Please enter both mobile number and password.");
+      Alert.alert("Access Denied", "Please verify your security keys.");
       return;
     }
     router.push("/screens/HomeScreen");
   };
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-[#F8FAFC]">
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style="dark" translucent backgroundColor="transparent" />
+      <StatusBar style="dark" />
+
+      {/* --- RESPONSIVE AMBIENT GLOW --- */}
+      <View 
+        className="absolute rounded-full bg-[#FFD700] opacity-20" 
+        style={{ 
+          top: -height * 0.1, 
+          right: -width * 0.2, 
+          width: width * 0.9, 
+          height: width * 0.9 
+        }} 
+      />
+      <View 
+        className="absolute rounded-full bg-[#FFD700] opacity-10" 
+        style={{ 
+          top: height * 0.4, 
+          left: -width * 0.1, 
+          width: width * 0.4, 
+          height: width * 0.4 
+        }} 
+      />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="flex-grow pt-[12vh]"
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Top Yellow Curve - Responsive */}
-          <View className="absolute -top-[62%] self-center w-[170%] aspect-square rounded-full bg-[#FFD700] -z-10" />
-
-          <View className="flex-1 px-8 pb-10">
-            <View className="mb-8 items-center mt-3">
-              <Text className="text-3xl font-black text-slate-800 text-center leading-10">
-                Welcome to{"\n"}<Text className="text-slate-800">Hello 11</Text>
-              </Text>
-              <View className="w-9 h-1 bg-slate-800 rounded-full my-3" />
-              <Text className="text-sm text-slate-800 font-medium text-center">Login to continue your premium journey</Text>
-            </View>
-
-            <View className="mb-3 mt-[5vh]">
-              <Input
-                placeholder="Mobile Number"
-                keyboardType="phone-pad"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                maxLength={10}
-                isFocused={focusedInput === 'phone'}
-                onFocus={() => setFocusedInput('phone')}
-                onBlur={() => setFocusedInput(null)}
-                icon={
-                  <View className="bg-[#FFD700] px-2.5 py-1.5 rounded-lg">
-                    <Text className="text-sm font-extrabold text-slate-800">+91</Text>
-                  </View>
-                }
-              />
-
-              <Input
-                placeholder="Security Password"
-                secureTextEntry={!isPasswordVisible}
-                value={password}
-                onChangeText={setPassword}
-                isFocused={focusedInput === 'password'}
-                onFocus={() => setFocusedInput('password')}
-                onBlur={() => setFocusedInput(null)}
-                rightIcon={
-                  <Ionicons
-                    name={isPasswordVisible ? "eye-outline" : "eye-off-outline"}
-                    size={20}
-                    color={focusedInput === 'password' ? "#1E293B" : "#94A3B8"}
-                  />
-                }
-                onRightIconPress={() => setIsPasswordVisible(!isPasswordVisible)}
-              />
-
-              <TouchableOpacity
-                className="self-end mb-4"
-                onPress={() => Alert.alert("Security", "Link sent.")}
+          {/* Main Content Wrapper: Tablet par width control karta hai */}
+          <View 
+            className="self-center w-full px-8 py-10"
+            style={{ maxWidth: isTablet ? 550 : '100%' }}
+          >
+            
+            {/* --- BRANDING SECTION --- */}
+            <View className="items-center mb-10">
+              <View 
+                className="bg-[#FFD700] items-center justify-center shadow-2xl shadow-yellow-500/50"
+                style={{ 
+                  width: isTablet ? 110 : 85, 
+                  height: isTablet ? 110 : 85, 
+                  borderRadius: isTablet ? 35 : 28,
+                  transform: [{ rotate: '-10deg' }] 
+                }}
               >
-                <Text className="text-orange-500 font-bold text-xs">Forgot Password?</Text>
+                <Ionicons name="car-sport" size={isTablet ? 55 : 42} color="#1E293B" />
+              </View>
+              
+              <Text className="text-4xl font-black text-slate-900 mt-6 tracking-tighter italic">
+                Hello <Text className="text-[#FFB800]">11</Text>
+              </Text>
+              <Text className="text-slate-400 font-bold text-[10px] mt-2 tracking-[3px] uppercase">
+                Premium Ride Experience
+              </Text>
+              <View className="w-10 h-1 bg-[#FFD700] rounded-full mt-4 opacity-50" />
+            </View>
+
+            {/* --- FORM SECTION --- */}
+            <View className="space-y-6">
+              
+              {/* Mobile Identity Input */}
+              <View>
+                <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
+                  Mobile Identity
+                </Text>
+                <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'phone' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
+                  <View className="border-r border-slate-100 pr-3 mr-3">
+                    <Ionicons name="call-outline" size={18} color={focusedInput === 'phone' ? "#FFD700" : "#94A3B8"} />
+                  </View>
+                  <TextInput
+                    placeholder="Enter Number"
+                    className="flex-1 font-bold text-slate-800 text-base"
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    onFocus={() => setFocusedInput('phone')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                </View>
+              </View>
+
+              {/* Password Section */}
+              <View>
+                <View className="flex-row justify-between items-center mb-2 px-1">
+                  <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px]">
+                    Access Key
+                  </Text>
+                  {password.length > 0 && (
+                    <Text className={`text-[10px] font-black ${password.length < 6 ? 'text-orange-400' : 'text-green-500'}`}>
+                      {password.length < 6 ? 'WEAK' : 'SECURE'}
+                    </Text>
+                  )}
+                </View>
+                
+                <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'pass' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
+                  <View className="mr-3">
+                    <Ionicons 
+                      name={focusedInput === 'pass' ? "lock-open-outline" : "lock-closed-outline"} 
+                      size={20} 
+                      color={focusedInput === 'pass' ? "#FFD700" : "#94A3B8"} 
+                    />
+                  </View>
+                  
+                  <TextInput
+                    placeholder="••••••••"
+                    secureTextEntry={!isPasswordVisible}
+                    className="flex-1 font-black text-slate-800 text-lg tracking-widest"
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setFocusedInput('pass')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                  
+                  <TouchableOpacity 
+                    onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                    className="bg-slate-50 p-2 rounded-xl"
+                  >
+                    <Ionicons name={isPasswordVisible ? "eye-off" : "eye"} size={20} color={isPasswordVisible ? "#FFD700" : "#CBD5E1"} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity className="self-end">
+                <Text className="text-slate-400 font-bold text-xs underline">Forgot Key?</Text>
               </TouchableOpacity>
             </View>
 
-            <Button title="Continue" onPress={handleLogin} />
+            {/* --- ACTIONS --- */}
+            <View className="mt-10">
+              <TouchableOpacity 
+                activeOpacity={0.8}
+                onPress={handleLogin}
+                className="bg-[#FFD700] py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40"
+              >
+                <Text className="text-slate-900 font-black text-lg tracking-[2px]">UNLOCK RIDE</Text>
+              </TouchableOpacity>
 
-            <View className="flex-row justify-center mt-6">
-              <Text className="text-slate-400 text-sm">New to Hello 11? </Text>
-              <TouchableOpacity onPress={() => router.push("/screens/registerScreen")}>
-                <Text className="text-orange-500 font-extrabold text-sm">Create Account</Text>
+              <TouchableOpacity 
+                onPress={() => router.push("/screens/registerScreen")}
+                className="mt-8 self-center"
+              >
+                <Text className="text-slate-400 font-bold text-[11px] uppercase tracking-widest text-center">
+                  New Member? <Text className="text-[#FFB800] font-black">Join Hello 11</Text>
+                </Text>
               </TouchableOpacity>
             </View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

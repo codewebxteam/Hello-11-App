@@ -1,4 +1,3 @@
-//ha home screen hai
 import React, { useState, useEffect, useRef } from "react";
 import {
   Text,
@@ -15,7 +14,7 @@ import {
   ToastAndroid
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router"; //
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import ProfileScreen from "./ProfileScreen";
@@ -24,6 +23,7 @@ const { width, height } = Dimensions.get('window');
 
 const HomeScreen = () => {
   const params = useLocalSearchParams();
+  const router = useRouter(); // router initialize kiya
   const displayName = params.userName || "Shiv";
 
   const [source, setSource] = useState("");
@@ -39,26 +39,23 @@ const HomeScreen = () => {
     let backPressCount = 0;
 
     const backAction = () => {
-      // Agar user Home tab par nahi hai, toh pehle Home par le jayein
       if (activeTab !== "Home") {
         setActiveTab("Home");
         return true;
       }
 
-      // Double tap logic
       if (backPressCount === 0) {
         backPressCount++;
         if (Platform.OS === 'android') {
           ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
         }
 
-        // 2 second ke andar dusra press hona chahiye
         setTimeout(() => {
           backPressCount = 0;
         }, 2000);
         return true;
       } else {
-        BackHandler.exitApp(); // App ko band karna ka liya 
+        BackHandler.exitApp(); 
         return true;
       }
     };
@@ -86,8 +83,15 @@ const HomeScreen = () => {
 
   const TabItem = ({ name, icon, label }: { name: string, icon: any, label: string }) => (
     <TouchableOpacity
-      className={`items-center justify-center pt-2 w-1/4 ${activeTab === name ? "" : ""}`}
-      onPress={() => setActiveTab(name)}
+      className="items-center justify-center pt-2 w-1/4"
+      onPress={() => {
+        if (name === "Booking") {
+          // Folder structure ke hisaab se redirection
+          router.push("/screens/BookingScreen");
+        } else {
+          setActiveTab(name);
+        }
+      }}
     >
       <Ionicons
         name={activeTab === name ? icon : `${icon}-outline`}
@@ -109,13 +113,10 @@ const HomeScreen = () => {
 
       {activeTab === "Home" && (
         <>
-          {/* Header Wrapper */}
           <View className="h-[45vh] bg-[#FFD700] rounded-b-[50px] z-10 relative overflow-hidden">
-            {/* Yellow Curve */}
             <View className="absolute -bottom-[20%] self-center w-[150%] h-[20%] bg-white rounded-[100%] scale-x-[1.3] opacity-10" />
 
             <SafeAreaView className="flex-1 px-6 pt-4">
-              {/* Top Bar */}
               <View className="flex-row justify-between items-center mt-2">
                 <View>
                   <Text className="text-base text-slate-800 font-medium opacity-70">Hello,</Text>
@@ -127,7 +128,6 @@ const HomeScreen = () => {
                 </TouchableOpacity>
               </View>
 
-              {/* Hero Section */}
               <View className="mt-8">
                 <Text className="text-4xl font-black text-slate-800 leading-[44px] italic">Where are you{"\n"}going today?</Text>
                 <Text className="text-base text-slate-800 mt-3 mb-5 font-semibold opacity-75">Book your ride with Hello11</Text>
@@ -150,7 +150,6 @@ const HomeScreen = () => {
                 style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
               >
                 <View className="mb-4">
-                  {/* Input Row 1 */}
                   <View className="flex-row items-center mb-2.5">
                     <View className="w-8 items-center">
                       <View className="w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-blue-200" />
@@ -169,7 +168,6 @@ const HomeScreen = () => {
                     </View>
                   </View>
 
-                  {/* Input Row 2 */}
                   <View className="flex-row items-center mb-2.5">
                     <View className="w-8 items-center pt-1"><Ionicons name="location" size={20} color="#F97316" /></View>
                     <View className="flex-1 ml-3 border-b border-slate-100 pb-2">
@@ -216,12 +214,6 @@ const HomeScreen = () => {
       {activeTab === "Activity" && (
         <View className="flex-1 justify-center items-center">
           <Text className="text-lg text-slate-500 font-bold">Activity Coming Soon!</Text>
-        </View>
-      )}
-
-      {activeTab === "Booking" && (
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-lg text-slate-500 font-bold">Bookings Coming Soon!</Text>
         </View>
       )}
 
