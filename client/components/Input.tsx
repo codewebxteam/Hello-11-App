@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TextInput, Text, TextInputProps } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 
 interface InputProps extends TextInputProps {
     icon?: any;
