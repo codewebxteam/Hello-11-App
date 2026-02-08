@@ -7,10 +7,17 @@ import { useRouter, Stack } from "expo-router";
 
 
 
+
+import SearchingRideOverlay from '../../components/SearchingRideOverlay';
+
 const BookingScreen = () => {
+
   const [rideMode, setRideMode] = useState<'normal' | 'long'>('normal');
 
   const [bookingType, setBookingType] = useState<'now' | 'schedule'>('now');
+  const [isSearching, setIsSearching] = useState(false);
+  const [dropLocation, setDropLocation] = useState('');
+
 
   const router = useRouter();
 
@@ -83,7 +90,13 @@ const BookingScreen = () => {
               <Text className="text-[10px] font-black text-slate-400 uppercase mb-2">Destination</Text>
               <View className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex-row items-center">
                 <Ionicons name="search" size={20} color="#94A3B8" />
-                <TextInput placeholder="Where are you going?" className="flex-1 ml-3 font-bold text-slate-800" />
+                <TextInput
+                  placeholder="Where are you going?"
+                  className="flex-1 ml-3 font-bold text-slate-800"
+                  value={dropLocation}
+                  onChangeText={setDropLocation}
+                />
+
               </View>
             </View>
 
@@ -125,14 +138,27 @@ const BookingScreen = () => {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity className="bg-white py-5 rounded-2xl items-center shadow-lg active:scale-95">
+          <TouchableOpacity
+            onPress={() => setIsSearching(true)}
+            className="bg-white py-5 rounded-2xl items-center shadow-lg active:scale-95"
+          >
             <Text className="text-black font-black text-lg tracking-[2px]">
               CONFIRM {rideMode.toUpperCase()} RIDE
             </Text>
           </TouchableOpacity>
+
         </View>
       </ScrollView>
+
+      {/* Ride Searching Overlay */}
+      <SearchingRideOverlay
+        isVisible={isSearching}
+        onCancel={() => setIsSearching(false)}
+        dropLocation={dropLocation || "Select Destination"}
+        rideMode={rideMode === 'normal' ? 'Normal' : 'Long Distance'}
+      />
     </View>
+
   );
 };
 

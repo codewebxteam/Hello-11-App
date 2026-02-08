@@ -18,8 +18,12 @@ import { useLocalSearchParams, useRouter } from "expo-router"; //
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import ProfileScreen from "./ProfileScreen";
+import SearchingRideOverlay from "../../components/SearchingRideOverlay";
+import DriverAssignedOverlay from "../../components/DriverAssignedOverlay";
+
 
 const { width, height } = Dimensions.get('window');
+
 
 const HomeScreen = () => {
   const params = useLocalSearchParams();
@@ -28,7 +32,11 @@ const HomeScreen = () => {
 
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [isDriverAssigned, setIsDriverAssigned] = useState(false);
+
   const [activeTab, setActiveTab] = useState("Home");
+
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -55,7 +63,7 @@ const HomeScreen = () => {
         }, 2000);
         return true;
       } else {
-        BackHandler.exitApp(); 
+        BackHandler.exitApp();
         return true;
       }
     };
@@ -187,11 +195,24 @@ const HomeScreen = () => {
                 <TouchableOpacity
                   className="bg-slate-800 py-4 rounded-[18px] items-center flex-row justify-center active:opacity-90"
                   activeOpacity={0.8}
-                  onPress={() => Keyboard.dismiss()}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    if (destination.trim()) {
+                      setIsSearching(true);
+                      // After 3 seconds, show driver assigned overlay
+                      setTimeout(() => {
+                        setIsSearching(false);
+                        setIsDriverAssigned(true);
+                      }, 3000);
+                    } else {
+                      ToastAndroid.show("Please enter a destination", ToastAndroid.SHORT);
+                    }
+                  }}
                 >
                   <Text className="text-white text-lg font-extrabold tracking-wide">Search Ride</Text>
                   <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ marginLeft: 8 }} />
                 </TouchableOpacity>
+
               </Animated.View>
 
               <Animated.View className="mt-8" style={[{ opacity: fadeAnim }]}>
@@ -227,7 +248,29 @@ const HomeScreen = () => {
         <TabItem name="Booking" icon="calendar" label="Booking" />
         <TabItem name="Profile" icon="person" label="Profile" />
       </View>
+
+      {/* Ride Searching Overlay */}
+      <SearchingRideOverlay
+        isVisible={isSearching}
+        onCancel={() => setIsSearching(false)}
+        pickupLocation={source || "Current Location"}
+        dropLocation={destination || "Select Destination"}
+        rideMode="Standard"
+      />
+
+      {/* Driver Assigned Overlay */}
+      <DriverAssignedOverlay
+        isVisible={isDriverAssigned}
+        onClose={() => setIsDriverAssigned(false)}
+        onCallDriver={() => console.log("Call driver")}
+        onCancel={() => setIsDriverAssigned(false)}
+        onBookRide={() => {
+          setIsDriverAssigned(false);
+          router.push("/screens/LiveRideTrackingScreen");
+        }}
+      />
     </View>
+
   );
 };
 
