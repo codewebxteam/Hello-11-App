@@ -1,140 +1,150 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, TouchableOpacity, ScrollView, Dimensions, Switch, BackHandler 
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Dimensions,
+  Switch,
+  SafeAreaView,
+  StatusBar as RNStatusBar,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, Stack } from "expo-router";
+import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
+const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function DriverDashboard() {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
   const router = useRouter();
 
-  // --- SMART BACK NAVIGATION TO PASSENGER APP (Optional) OR EXIT ---
-  useEffect(() => {
-    const backAction = () => {
-      // Kyunki ye independent app hai, back exit karega ya alert dega
-      return false; 
-    };
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-    return () => backHandler.remove();
-  }, []);
-
   return (
-    <View className="flex-1 bg-[#F8FAFC]">
+    <View className="flex-1 bg-slate-100">
       <StatusBar style="dark" />
 
-      {/* --- RESPONSIVE PREMIUM HEADER --- */}
-      <View className="bg-[#FFD700] pt-16 pb-10 px-6 rounded-b-[50px] shadow-2xl shadow-yellow-500/30">
-        <View className={`self-center w-full flex-row justify-between items-start ${isTablet ? 'max-w-2xl' : ''}`}>
-          <View>
-            <Text className="text-slate-800 text-[11px] font-black uppercase tracking-[3px] opacity-60">Revenue Today</Text>
-            <Text className="text-slate-900 text-4xl font-black mt-2 tracking-tighter italic">₹3,450.50</Text>
-            <View className="flex-row items-center mt-3 bg-white/40 self-start px-3 py-1.5 rounded-full">
-              <Ionicons name="trending-up" size={14} color="#0F172A" />
-              <Text className="text-[#0F172A] text-[11px] font-extrabold ml-1.5">+15% Peak hour</Text>
-            </View>
-          </View>
-          
-          <View className="items-center bg-white/20 p-3 rounded-3xl border border-white/30">
-            <Text className={`text-[10px] font-black mb-2 tracking-widest ${isOnline ? 'text-slate-900' : 'text-slate-500'}`}>
-              {isOnline ? 'ONLINE' : 'OFFLINE'}
-            </Text>
-            <Switch 
-              value={isOnline} 
-              onValueChange={setIsOnline}
-              thumbColor={isOnline ? "#000" : "#f4f3f4"}
-              trackColor={{ false: "#D1D5DB", true: "#00000044" }}
-            />
-          </View>
+      {/* --- MAP BACKGROUND (Global) --- */}
+      <View className="absolute inset-0 bg-[#E2E8F0] items-center justify-center overflow-hidden">
+        {/* Soft Modern Pattern */}
+        <View className="absolute w-[150%] h-[150%] opacity-[0.03]">
+          <View className="absolute top-[30%] left-[10%] w-[800px] h-[800px] border-[50px] border-slate-900 rounded-full" />
+          <View className="absolute top-[20%] right-[20%] w-[400px] h-[400px] bg-slate-900 rounded-full" />
         </View>
-
-        {/* DRIVER STATS CARD */}
-        <View className={`self-center w-full flex-row justify-between mt-10 bg-white/50 p-5 rounded-[30px] border border-white/40 ${isTablet ? 'max-w-2xl' : ''}`}>
-          <View className="items-center flex-1">
-            <Ionicons name="star" size={18} color="#000" />
-            <Text className="text-slate-900 font-black text-lg mt-1">4.9</Text>
-            <Text className="text-slate-600 text-[9px] font-black uppercase tracking-widest">Rating</Text>
-          </View>
-          <View className="w-[1px] h-8 bg-black/10 self-center" />
-          <View className="items-center flex-1">
-            <Ionicons name="time" size={18} color="#000" />
-            <Text className="text-slate-900 font-black text-lg mt-1">7.5h</Text>
-            <Text className="text-slate-600 text-[9px] font-black uppercase tracking-widest">Duty</Text>
-          </View>
-          <View className="w-[1px] h-8 bg-black/10 self-center" />
-          <View className="items-center flex-1">
-            <Ionicons name="car" size={18} color="#000" />
-            <Text className="text-slate-900 font-black text-lg mt-1">14</Text>
-            <Text className="text-slate-600 text-[9px] font-black uppercase tracking-widest">Trips</Text>
-          </View>
+        <View className="bg-white/60 px-6 py-2 rounded-full border border-white/50 shadow-sm">
+          <Text className="text-slate-500 font-bold text-xs tracking-[3px] uppercase">
+            {isOnline ? 'Searching Area...' : 'Map Offline'}
+          </Text>
         </View>
       </View>
 
-      <ScrollView className="flex-1 px-6" contentContainerStyle={{ paddingTop: 25, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
-        <View className={`self-center w-full ${isTablet ? 'max-w-2xl' : ''}`}>
-          <Text className="text-slate-400 text-[11px] font-black tracking-[2px] mb-5 ml-2 uppercase opacity-60">Incoming Order</Text>
+      {/* --- HEADER --- */}
+      <View
+        style={{ paddingTop: STATUSBAR_HEIGHT ? STATUSBAR_HEIGHT + 20 : 60 }}
+        className="px-6 w-full z-10"
+      >
+        <View className={`flex-row justify-between items-start ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
 
-          {/* --- LUXURY TRIP CARD --- */}
-          <View className="bg-white rounded-[45px] p-8 shadow-2xl shadow-slate-200 border border-slate-50 relative overflow-hidden">
-            <View className="absolute top-0 right-0 w-24 h-24 bg-[#FFD700] opacity-10 rounded-bl-[100px]" />
+          <TouchableOpacity
+            className="w-12 h-12 bg-white rounded-full items-center justify-center shadow-lg shadow-slate-200 border border-slate-50 active:scale-95"
+            onPress={() => router.push("/profile")}
+          >
+            <Ionicons name="person" size={24} color="#1E293B" />
+          </TouchableOpacity>
 
-            <View className="flex-row items-center justify-between mb-8">
-              <View className="flex-row items-center flex-1">
-                <View className="w-16 h-16 bg-slate-50 rounded-3xl items-center justify-center border border-slate-100">
-                  <Ionicons name="person" size={32} color="#1E293B" />
-                </View>
-                <View className="ml-4 flex-1">
-                  <Text className="text-slate-900 text-2xl font-black tracking-tighter italic">Shivansh D.</Text>
-                  <Text className="text-green-600 text-[10px] font-black uppercase">Top Rated User</Text>
-                </View>
-              </View>
-              <Text className="text-slate-900 text-3xl font-black">₹420</Text>
+          {/* Status Card (Center/Right) */}
+          <View className="bg-white rounded-[24px] p-2 pl-5 pr-2 flex-row items-center shadow-xl shadow-slate-200 border border-slate-50">
+            <View className="mr-4">
+              <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider text-right">Status</Text>
+              <Text className={`text-base font-black ${isOnline ? 'text-green-600' : 'text-slate-400'}`}>
+                {isOnline ? 'ONLINE' : 'OFFLINE'}
+              </Text>
             </View>
-
-            {/* Route Section */}
-            <View className="mb-10 space-y-2">
-              <View className="flex-row items-center">
-                <View className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow-sm" />
-                <Text className="flex-1 text-slate-700 font-bold text-base ml-4" numberOfLines={1}>Hazratganj Metro (1.5 km)</Text>
-              </View>
-              <View className="w-[1px] h-6 bg-slate-100 ml-[5px] my-1" />
-              <View className="flex-row items-center">
-                <Ionicons name="location" size={20} color="#EF4444" />
-                <Text className="flex-1 text-slate-700 font-bold text-base ml-3" numberOfLines={1}>Airport Terminal 2</Text>
-              </View>
-            </View>
-
-            {/* Action Buttons - Equal Spacing */}
-            <View className="flex-row">
-              <TouchableOpacity className="flex-1 bg-slate-50 py-5 rounded-[22px] items-center border border-slate-100 active:bg-slate-100 mr-4">
-                <Text className="text-slate-400 font-black text-xs uppercase tracking-widest">Ignore</Text>
-              </TouchableOpacity>
-              <TouchableOpacity className="flex-1 bg-slate-900 py-5 rounded-[22px] items-center shadow-xl shadow-slate-900/40 active:opacity-90">
-                <Text className="text-[#FFD700] font-black text-xs uppercase tracking-[3px]">Accept</Text>
-              </TouchableOpacity>
+            <View className="bg-slate-50 rounded-[20px] px-1 py-1">
+              <Switch
+                value={isOnline}
+                onValueChange={setIsOnline}
+                trackColor={{ false: "#E2E8F0", true: "#1E293B" }}
+                thumbColor={isOnline ? "#FFD700" : "#94A3B8"}
+                ios_backgroundColor="#334155"
+              />
             </View>
           </View>
-        </View>
-      </ScrollView>
 
-      {/* --- BOTTOM DOCK --- */}
-      <View className={`absolute bottom-10 self-center w-[90%] bg-white h-20 rounded-[35px] flex-row justify-around items-center border border-slate-100 shadow-2xl ${isTablet ? 'max-w-2xl' : ''}`}>
-        <TouchableOpacity className="items-center">
-          <Ionicons name="wallet-outline" size={24} color="#FFD700" />
-          <Text className="text-slate-800 text-[9px] font-black mt-1 uppercase">Bank</Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center">
-          <Ionicons name="map-outline" size={24} color="#94A3B8" />
-          <Text className="text-slate-400 text-[9px] font-black mt-1 uppercase">Areas</Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center">
-          <Ionicons name="settings-outline" size={24} color="#94A3B8" />
-          <Text className="text-slate-400 text-[9px] font-black mt-1 uppercase">Profile</Text>
-        </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* --- BOTTOM SHEET AREA --- */}
+      <View className="absolute bottom-0 w-full z-20">
+
+        {!isOnline ? (
+          // === OFFLINE STATE ===
+          <View className={`bg-white rounded-t-[40px] px-8 pt-8 pb-12 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
+            <Text className="text-slate-900 text-3xl font-black mb-2 text-center">You are Offline</Text>
+            <Text className="text-slate-500 text-center mb-10 leading-6 px-4">
+              Go online to start receiving ride requests and maximize your daily earnings.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setIsOnline(true)}
+              activeOpacity={0.9}
+              className="bg-slate-900 w-full py-5 rounded-[22px] items-center shadow-xl shadow-slate-900/20 flex-row justify-center"
+            >
+              <View className="bg-[#FFD700] p-1 rounded-full mr-3">
+                <Ionicons name="power" size={16} color="#000" />
+              </View>
+              <Text className="text-white font-black text-lg tracking-[2px]">GO ONLINE</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          // === ONLINE STATE ===
+          <View className={`bg-white rounded-t-[40px] px-6 pt-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
+
+            {/* Drag Handle */}
+            <View className="self-center w-12 h-1.5 bg-slate-100 rounded-full mb-6" />
+
+            {/* Main Stats Row */}
+            <View className="flex-row justify-between mb-8 overflow-visible">
+              <View className="flex-1 bg-slate-50 p-4 rounded-[26px] border border-slate-100 mr-3 items-start justify-between min-h-[110px]">
+                <View className="bg-green-100 p-2 rounded-full">
+                  <Ionicons name="cash" size={18} color="#16A34A" />
+                </View>
+                <View>
+                  <Text className="text-slate-900 text-2xl font-black">₹850</Text>
+                  <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Earnings</Text>
+                </View>
+              </View>
+
+              <View className="flex-1 bg-slate-50 p-4 rounded-[26px] border border-slate-100 items-start justify-between min-h-[110px]">
+                <View className="bg-blue-100 p-2 rounded-full">
+                  <Ionicons name="speedometer" size={18} color="#2563EB" />
+                </View>
+                <View>
+                  <Text className="text-slate-900 text-2xl font-black">4</Text>
+                  <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Trips Completed</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Active Action / Status */}
+            <View className="bg-[#FFD700] rounded-[24px] p-5 flex-row items-center justify-between shadow-lg shadow-yellow-500/20">
+              <View className="flex-row items-center">
+                <View className="w-10 h-10 bg-black/10 rounded-full items-center justify-center">
+                  <Ionicons name="pulse" size={24} color="#1E293B" />
+                </View>
+                <View className="ml-4">
+                  <Text className="text-slate-900 font-black text-lg">Finding Rides...</Text>
+                  <Text className="text-slate-800 text-xs opacity-70 font-semibold">High demand zone</Text>
+                </View>
+              </View>
+              <View className="bg-slate-900 px-3 py-1.5 rounded-lg">
+                <Text className="text-white text-[9px] font-bold">RADAR ON</Text>
+              </View>
+            </View>
+
+          </View>
+        )}
       </View>
     </View>
   );
