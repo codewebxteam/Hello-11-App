@@ -8,6 +8,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="pickup" />
+        <Stack.Screen name="start-ride" />
+        <Stack.Screen name="active-ride" />
       </Stack>
     </SafeAreaProvider>
   );
