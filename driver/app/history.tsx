@@ -3,7 +3,6 @@ import {
     View,
     Text,
     TouchableOpacity,
-    SafeAreaView,
     FlatList,
     Platform,
     StatusBar as RNStatusBar
