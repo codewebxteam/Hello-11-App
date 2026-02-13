@@ -40,10 +40,9 @@ export default function DriverDashboard() {
   // --- AUTO REQUEST SIMULATION ---
   React.useEffect(() => {
     let timer: any;
-    // Only trigger if online, no request is pending, and NO active ride
     if (isOnline && !incomingRequest && !hasActiveRide) {
       timer = setTimeout(() => {
-        playChime(); // Play sound with the request
+        playChime(); 
         startRideRequest();
       }, 3000);
     }
@@ -57,32 +56,27 @@ export default function DriverDashboard() {
     if (rideEnded === 'true') {
       setHasActiveRide(false);
       setIncomingRequest(false);
-      setIsSearching(true); // Auto start searching again
-
-      // Clear param to prevent loop (though usually safe on simple back, but good practice if params persist)
+      setIsSearching(true); 
       router.setParams({ rideEnded: undefined });
     }
   }, [rideEnded]);
 
-  // --- CLEANUP SOUND ON UNMOUNT ---
+  // --- CLEANUP ON UNMOUNT ---
   React.useEffect(() => {
     return () => {
-      // Cleanup sound on unmount
       if (soundRef.current) {
         soundRef.current.unloadAsync().catch(() => { });
       }
+      Vibration.cancel(); // Safety for unmount
     };
   }, []);
 
-  // --- UPDATED SOUND LOGIC (Warning Free) ---
+  // --- UPDATED SOUND LOGIC ---
   async function playChime() {
     try {
-      // Unload previous sound if any
       if (soundRef.current) {
         await soundRef.current.unloadAsync().catch(() => { });
       }
-
-      // Audio mode configure karna zaroori hai
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' }
@@ -121,15 +115,15 @@ export default function DriverDashboard() {
     setIncomingRequest(true);
     timerLine.setValue(1);
 
-    Vibration.vibrate([0, 400, 200, 400], true);
+    // ✅ FIXED: Better Vibration pattern (Wait 0ms, Vibrate 500ms, Pause 500ms, Vibrate 500ms) - Looping set to true
+    Vibration.vibrate([0, 500, 500, 500], true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     Animated.spring(requestSlide, { toValue: 0, tension: 45, friction: 8, useNativeDriver: true }).start();
 
-    // Start 15-second progress bar
     Animated.timing(timerLine, {
       toValue: 0,
-      duration: 120000, // 2 minutes
+      duration: 120000, 
       easing: Easing.linear,
       useNativeDriver: false,
     }).start(({ finished }) => {
@@ -138,7 +132,9 @@ export default function DriverDashboard() {
   };
 
   const closeRequest = () => {
-    // Safe sound cleanup
+    // ✅ FIXED: Immediately cancel all vibration and sound when user interacts
+    Vibration.cancel();
+
     if (soundRef.current) {
       soundRef.current.stopAsync().catch(() => { });
       soundRef.current.unloadAsync().catch(() => { });
@@ -146,7 +142,6 @@ export default function DriverDashboard() {
     }
     setSound(null);
 
-    Vibration.cancel();
     timerLine.stopAnimation();
     Animated.timing(requestSlide, { toValue: height, duration: 250, useNativeDriver: true }).start(() => setIncomingRequest(false));
   };
@@ -196,7 +191,7 @@ export default function DriverDashboard() {
                 setIsOnline(val);
                 if (!val) {
                   setIsSearching(false);
-                  closeRequest(); // Ensure request and sound are closed when going offline
+                  closeRequest(); 
                 }
               }}
               trackColor={{ false: "#E2E8F0", true: "#1E293B" }}
@@ -262,18 +257,17 @@ export default function DriverDashboard() {
         )}
       </View>
 
-      {/* --- ASSEMBLED RIDE REQUEST CARD (Redesigned & Safe Area Fixed) --- */}
+      {/* --- ASSEMBLED RIDE REQUEST CARD --- */}
       {incomingRequest && (
         <Animated.View
           style={{
             transform: [{ translateY: requestSlide }],
-            paddingBottom: insets.bottom + 10 // Safe area padding
+            paddingBottom: insets.bottom + 10 
           }}
           className="absolute bottom-0 w-full z-50 px-4"
         >
           <View className="bg-[#0F172A] rounded-[40px] p-6 shadow-2xl border border-slate-700/50 overflow-hidden">
 
-            {/* TOP PROGRESS BAR */}
             <View className="absolute top-0 left-0 right-0 h-1.5 bg-slate-800">
               <Animated.View
                 style={{
@@ -284,7 +278,6 @@ export default function DriverDashboard() {
               />
             </View>
 
-            {/* Header Section */}
             <View className="flex-row justify-between items-start mb-6 mt-4">
               <View>
                 <View className="flex-row items-center mb-1">
@@ -297,7 +290,6 @@ export default function DriverDashboard() {
                 <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Estimated Fare</Text>
               </View>
 
-              {/* Rating/User Placeholder */}
               <View className="items-end">
                 <View className="w-12 h-12 bg-slate-800 rounded-full items-center justify-center border border-slate-700 mb-1">
                   <Ionicons name="person" size={24} color="#CBD5E1" />
@@ -309,9 +301,7 @@ export default function DriverDashboard() {
               </View>
             </View>
 
-            {/* Trip Details Section - Modernized */}
             <View className="bg-slate-800/50 p-5 rounded-[24px] mb-6 border border-slate-700/50">
-              {/* Stats Row */}
               <View className="flex-row justify-between mb-6 pb-4 border-b border-slate-700/50">
                 <View className="items-center flex-1">
                   <Text className="text-slate-400 text-[9px] font-bold uppercase mb-1">Distance</Text>
@@ -329,7 +319,6 @@ export default function DriverDashboard() {
                 </View>
               </View>
 
-              {/* Locations */}
               <View className="space-y-6">
                 <View className="flex-row">
                   <View className="items-center mr-3 pt-1">
@@ -351,7 +340,6 @@ export default function DriverDashboard() {
               </View>
             </View>
 
-            {/* Actions Section */}
             <View className="flex-row items-center gap-4">
               <TouchableOpacity
                 onPress={closeRequest}
@@ -362,7 +350,7 @@ export default function DriverDashboard() {
               <TouchableOpacity
                 onPress={() => {
                   closeRequest();
-                  setHasActiveRide(true); // Stop the simulation loop
+                  setHasActiveRide(true); 
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                   router.push("/pickup");
                 }}
