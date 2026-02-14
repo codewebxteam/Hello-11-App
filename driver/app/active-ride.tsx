@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, Image, StatusBar as RNStatusBar, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 
@@ -11,6 +11,11 @@ const { width, height } = Dimensions.get('window');
 export default function ActiveRideScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const params = useLocalSearchParams();
+
+    // Check if this is a return trip or if coming back from waiting
+    const isReturnTrip = params.mode === 'return';
+    const penaltyAmount = params.penalty;
 
     const handleEndRide = () => {
         Alert.alert(
@@ -23,9 +28,40 @@ export default function ActiveRideScreen() {
                     style: "destructive",
                     onPress: () => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        // Navigate back to root and reset state
-                        router.dismissAll();
-                        router.replace({ pathname: "/", params: { rideEnded: 'true' } });
+                        // Navigate to Payment Screen with ride details
+                        router.push({
+                            pathname: "/payment",
+                            params: {
+                                penalty: penaltyAmount || '0',
+                                distance: '12.4',
+                                time: '24'
+                            }
+                        });
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEndLeg1 = () => {
+        Alert.alert(
+            "Start Waiting?",
+            "Begin the waiting timer for return trip?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Yes, Start Wait",
+                    onPress: () => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        // Navigate to Payment (Split Payment - Phase 1)
+                        router.push({
+                            pathname: "/payment",
+                            params: {
+                                fare: '450', // Leg 1 Fare
+                                nextRoute: '/waiting-for-return',
+                                distance: '12.4'
+                            }
+                        });
                     }
                 }
             ]
@@ -74,6 +110,21 @@ export default function ActiveRideScreen() {
                         <Text className="text-white text-xl font-black leading-6">Turn right at Shaheed Path</Text>
                     </View>
                 </View>
+
+                {/* Penalty / Return Status Indicator */}
+                {isReturnTrip && (
+                    <View className="bg-[#FFD700] p-3 rounded-xl mt-4 border border-yellow-600 shadow-lg flex-row items-center justify-between">
+                        <View>
+                            <Text className="text-[#0F172A] font-black text-sm uppercase">Return Trip Active</Text>
+                            {Number(penaltyAmount) > 0 && (
+                                <Text className="text-red-600 font-bold text-xs mt-1">
+                                    Penalty Added: ₹{penaltyAmount}
+                                </Text>
+                            )}
+                        </View>
+                        <Ionicons name="repeat" size={24} color="#0F172A" />
+                    </View>
+                )}
             </View>
 
             {/* --- BOTTOM SHEET (RIDE CONTROLS) --- */}
@@ -116,15 +167,29 @@ export default function ActiveRideScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* End Ride Button */}
-                    <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={handleEndRide}
-                        className="w-full bg-red-500 py-5 rounded-[24px] items-center flex-row justify-center shadow-lg shadow-red-500/20 mt-6"
-                    >
-                        <Ionicons name="stop-circle" size={24} color="#FFF" style={{ marginRight: 8 }} />
-                        <Text className="text-white font-black text-lg tracking-[3px] uppercase">End Ride</Text>
-                    </TouchableOpacity>
+                    {/* End Rides Buttons */}
+                    <View className="mt-6 gap-4">
+                        {/* Only show Leg 1 End if NOT already in return mode */}
+                        {!isReturnTrip && (
+                            <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={handleEndLeg1}
+                                className="w-full bg-slate-700 py-4 rounded-[24px] items-center flex-row justify-center border border-slate-600"
+                            >
+                                <Ionicons name="time" size={24} color="#FFD700" style={{ marginRight: 8 }} />
+                                <Text className="text-white font-black text-lg tracking-[3px] uppercase">Wait for Return</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                            activeOpacity={0.9}
+                            onPress={handleEndRide}
+                            className="w-full bg-red-500 py-5 rounded-[24px] items-center flex-row justify-center shadow-lg shadow-red-500/20"
+                        >
+                            <Ionicons name="stop-circle" size={24} color="#FFF" style={{ marginRight: 8 }} />
+                            <Text className="text-white font-black text-lg tracking-[3px] uppercase">End Ride</Text>
+                        </TouchableOpacity>
+                    </View>
 
                 </View>
             </View>

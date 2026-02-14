@@ -42,7 +42,7 @@ export default function DriverDashboard() {
     let timer: any;
     if (isOnline && !incomingRequest && !hasActiveRide) {
       timer = setTimeout(() => {
-        playChime(); 
+        playChime();
         startRideRequest();
       }, 3000);
     }
@@ -56,7 +56,7 @@ export default function DriverDashboard() {
     if (rideEnded === 'true') {
       setHasActiveRide(false);
       setIncomingRequest(false);
-      setIsSearching(true); 
+      setIsSearching(true);
       router.setParams({ rideEnded: undefined });
     }
   }, [rideEnded]);
@@ -123,7 +123,7 @@ export default function DriverDashboard() {
 
     Animated.timing(timerLine, {
       toValue: 0,
-      duration: 120000, 
+      duration: 120000,
       easing: Easing.linear,
       useNativeDriver: false,
     }).start(({ finished }) => {
@@ -191,7 +191,7 @@ export default function DriverDashboard() {
                 setIsOnline(val);
                 if (!val) {
                   setIsSearching(false);
-                  closeRequest(); 
+                  closeRequest();
                 }
               }}
               trackColor={{ false: "#E2E8F0", true: "#1E293B" }}
@@ -238,6 +238,29 @@ export default function DriverDashboard() {
                 </View>
               </View>
 
+              {/* RENTAL REQUEST TRIGGER (DEV) */}
+              <TouchableOpacity
+                onPress={() => {
+                  // STOP EVERYTHING for Rental Mode
+                  setHasActiveRide(true); // Prevents the auto-request timer from firing
+                  setIncomingRequest(false); // Hides normal overlay if it just popped up
+                  closeRequest(); // Stops sound/vibration
+                  router.push("/rental-request");
+                }}
+                className="mb-6 bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-indigo-50 rounded-full items-center justify-center mr-4 border border-indigo-100">
+                    <Ionicons name="calendar" size={20} color="#6366F1" />
+                  </View>
+                  <View>
+                    <Text className="text-slate-900 font-bold text-sm">Rental Requests</Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Simulate Incoming</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handleRadarPress}
                 disabled={isSearching}
@@ -262,7 +285,7 @@ export default function DriverDashboard() {
         <Animated.View
           style={{
             transform: [{ translateY: requestSlide }],
-            paddingBottom: insets.bottom + 10 
+            paddingBottom: insets.bottom + 10
           }}
           className="absolute bottom-0 w-full z-50 px-4"
         >
@@ -350,7 +373,7 @@ export default function DriverDashboard() {
               <TouchableOpacity
                 onPress={() => {
                   closeRequest();
-                  setHasActiveRide(true); 
+                  setHasActiveRide(true);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                   router.push("/pickup");
                 }}
