@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Dimensions, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -182,9 +182,28 @@ const LiveRideTrackingScreen = ({
                         <Ionicons name="checkmark-done" size={20} color="#FFD700" />
                     </TouchableOpacity>
 
-                    {/* Emergency SOS */}
-                    <TouchableOpacity className="bg-red-500 w-12 h-12 rounded-2xl items-center justify-center shadow-lg active:scale-95">
-                        <Ionicons name="alert-circle" size={20} color="white" />
+                    {/* Cancel Ride Button */}
+                    <TouchableOpacity
+                        onPress={() => {
+                            Alert.alert(
+                                "Cancel Ride",
+                                "Are you sure you want to cancel this ride?",
+                                [
+                                    {
+                                        text: "No",
+                                        style: "cancel"
+                                    },
+                                    {
+                                        text: "Yes, Cancel",
+                                        onPress: () => router.replace("/screens/HomeScreen"),
+                                        style: "destructive"
+                                    }
+                                ]
+                            );
+                        }}
+                        className="bg-red-500 w-12 h-12 rounded-2xl items-center justify-center shadow-lg active:scale-95"
+                    >
+                        <Ionicons name="close" size={24} color="white" />
                     </TouchableOpacity>
                 </View>
 

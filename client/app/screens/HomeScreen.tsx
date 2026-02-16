@@ -20,6 +20,7 @@ import { StatusBar } from 'expo-status-bar';
 import ProfileScreen from "./ProfileScreen";
 import SearchingRideOverlay from "../../components/SearchingRideOverlay";
 import DriverAssignedOverlay from "../../components/DriverAssignedOverlay";
+import ActivitySection from "../../components/ActivitySection";
 
 
 const { width, height } = Dimensions.get('window');
@@ -233,9 +234,7 @@ const HomeScreen = () => {
       {activeTab === "Profile" && <ProfileScreen />}
 
       {activeTab === "Activity" && (
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-lg text-slate-500 font-bold">Activity Coming Soon!</Text>
-        </View>
+        <ActivitySection onBookRide={() => setActiveTab("Home")} />
       )}
 
       {/* Bottom Tab Bar */}
