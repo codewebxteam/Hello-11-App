@@ -1,17 +1,18 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Modal, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Dimensions, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, SlideInUp, ZoomIn } from 'react-native-reanimated';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
 interface ReturnTripOfferModalProps {
     isVisible: boolean;
+    isAccepting?: boolean;
+    waitingLimitMins: number;
     onClose: () => void;
     onAccept: () => void;
 }
 
-const ReturnTripOfferModal = ({ isVisible, onClose, onAccept }: ReturnTripOfferModalProps) => {
+const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins, onClose, onAccept }: ReturnTripOfferModalProps) => {
     if (!isVisible) return null;
 
     return (
@@ -19,7 +20,7 @@ const ReturnTripOfferModal = ({ isVisible, onClose, onAccept }: ReturnTripOfferM
             transparent
             visible={isVisible}
             animationType="none"
-            onRequestClose={onClose}
+            onRequestClose={isAccepting ? undefined : onClose}
         >
             <View className="flex-1 bg-black/70 justify-center items-center px-4">
                 <Animated.View
@@ -65,13 +66,13 @@ const ReturnTripOfferModal = ({ isVisible, onClose, onAccept }: ReturnTripOfferM
                             <View className="flex-row items-center mb-2">
                                 <Ionicons name="time-outline" size={16} color="#64748B" />
                                 <Text className="text-slate-500 text-xs font-bold ml-2">
-                                    Free waiting up to 60 mins
+                                    Free waiting up to {waitingLimitMins} mins
                                 </Text>
                             </View>
                             <View className="flex-row items-center">
                                 <Ionicons name="wallet-outline" size={16} color="#64748B" />
                                 <Text className="text-slate-500 text-xs font-bold ml-2">
-                                    Pay small waiting fee after that
+                                    Pay ₹100/hour waiting fee after that
                                 </Text>
                             </View>
                         </View>
@@ -80,18 +81,34 @@ const ReturnTripOfferModal = ({ isVisible, onClose, onAccept }: ReturnTripOfferM
                     {/* Action Buttons */}
                     <View className="px-5 pb-8 flex-row gap-3">
                         <TouchableOpacity
-                            onPress={onClose}
-                            className="flex-1 py-4 bg-slate-100 rounded-2xl items-center justify-center active:bg-slate-200"
+                            onPress={() => {
+                                console.log("[ReturnModal] No thanks clicked");
+                                onClose();
+                            }}
+                            disabled={isAccepting}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            className={`flex-1 py-4 bg-slate-100 rounded-2xl items-center justify-center ${isAccepting ? 'opacity-50' : 'active:bg-slate-200'}`}
                         >
                             <Text className="font-bold text-slate-500">No, thanks</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            onPress={onAccept}
-                            className="flex-[2] py-4 bg-slate-900 rounded-2xl items-center justify-center shadow-lg shadow-slate-300 active:scale-95 flex-row"
+                            onPress={() => {
+                                console.log("[ReturnModal] Accept clicked");
+                                onAccept();
+                            }}
+                            disabled={isAccepting}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            className={`flex-[2] py-4 bg-slate-900 rounded-2xl items-center justify-center shadow-lg shadow-slate-300 flex-row ${isAccepting ? 'opacity-70' : 'active:scale-95'}`}
                         >
-                            <Text className="font-black text-[#FFD700] mr-2">YES, BOOK IT</Text>
-                            <Ionicons name="arrow-forward" size={18} color="#FFD700" />
+                            {isAccepting ? (
+                                <ActivityIndicator color="#FFD700" size="small" />
+                            ) : (
+                                <>
+                                    <Text className="font-black text-[#FFD700] mr-2">YES, BOOK IT</Text>
+                                    <Ionicons name="arrow-forward" size={18} color="#FFD700" />
+                                </>
+                            )}
                         </TouchableOpacity>
                     </View>
 

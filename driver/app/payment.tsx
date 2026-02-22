@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, ScrollView, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -14,37 +14,68 @@ export default function PaymentScreen() {
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
 
-    // Calculate totals - If partial (Leg 1), just use fare. If final, use params.
+    // Calculate totals
     const isPartialPayment = !!params.nextRoute;
-    const baseFare = params.fare ? Number(params.fare) : 450;
+    const baseFare = params.baseFare ? Number(params.baseFare) : (params.fare ? Number(params.fare) : 450);
+    const returnFare = params.returnFare ? Number(params.returnFare) : 0;
     const penalty = params.penalty ? Number(params.penalty) : 0;
 
-    // For Partial: Total is just Base Fare. For Final: Base + Penalty (or updated logic)
-    const totalAmount = isPartialPayment ? baseFare : (baseFare + penalty);
+    const totalAmount = isPartialPayment ? baseFare : (baseFare + returnFare + penalty);
 
-    const handlePaymentVerified = () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const handlePaymentVerified = async () => {
+        try {
+            const bookingId = params.bookingId as string;
+            if (!bookingId) {
+                Alert.alert("Error", "No active booking found.");
+                return;
+            }
 
-        if (isPartialPayment && typeof params.nextRoute === 'string') {
-            // Navigate to Next Step (Waiting Screen)
-            router.push({
-                pathname: params.nextRoute as any,
-                params: {
-                    distance: params.distance as string
-                }
-            });
-        } else {
-            // Navigate to Summary (Final)
-            router.push({
-                pathname: "/ride-summary",
-                params: {
-                    totalAmount: totalAmount.toString(),
-                    fare: baseFare.toString(),
-                    penalty: penalty.toString(),
-                    distance: "12.4",
-                    time: "24",
-                }
-            });
+            const { driverAPI } = require("../utils/api");
+
+            if (isPartialPayment && typeof params.nextRoute === 'string') {
+                // START WAITING Logic (USP)
+                await driverAPI.startWaiting(bookingId);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                router.push({
+                    pathname: params.nextRoute as any,
+                    params: {
+                        bookingId,
+                        distance: params.distance as string
+                    }
+                });
+            } else {
+                // FINAL COMPLETION Logic
+                const outboundDistance = parseFloat(params.outboundDistance as string || "0");
+                const returnDistance = parseFloat(params.distance as string || "0");
+                const finalTotalDistance = (params.isReturn === 'true')
+                    ? (outboundDistance + returnDistance).toFixed(1)
+                    : returnDistance.toFixed(1);
+
+                await driverAPI.completeRide(bookingId, {
+                    fare: totalAmount,
+                    distance: parseFloat(finalTotalDistance)
+                });
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                router.push({
+                    pathname: "/ride-summary",
+                    params: {
+                        bookingId,
+                        totalAmount: totalAmount.toString(),
+                        fare: baseFare.toString(),
+                        returnFare: returnFare.toString(),
+                        penalty: penalty.toString(),
+                        distance: finalTotalDistance,
+                        time: params.time as string || "24",
+                        pickup: params.pickup as string || "",
+                        drop: params.drop as string || "",
+                        isReturn: params.isReturn || 'false'
+                    }
+                });
+            }
+        } catch (err) {
+            console.error("Payment Verification Error", err);
+            Alert.alert("Error", "Verification failed. Please try again.");
         }
     };
 
@@ -68,10 +99,37 @@ export default function PaymentScreen() {
                         colors={['#1E293B', '#0F172A']}
                         className="w-full rounded-[40px] p-10 items-center border border-[#FFD700]/30 shadow-[0_0_50px_rgba(255,215,0,0.15)] mb-10"
                     >
-                        <Text className="text-slate-400 text-xs font-black uppercase tracking-[4px] mb-6">Total Amount</Text>
-                        <Text className="text-[#FFD700] text-7xl font-black mb-4">₹{totalAmount}</Text>
+                        <Text className="text-slate-400 text-[10px] font-black uppercase tracking-[3px] mb-6">Total Collection</Text>
+                        <Text className="text-[#FFD700] text-7xl font-black mb-6">₹{totalAmount}</Text>
 
-                        {penalty > 0 && (
+                        {/* Breakdown for Final Payment */}
+                        {!isPartialPayment && (
+                            <View className="w-full bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
+                                <View className="flex-row justify-between mb-2">
+                                    <Text className="text-slate-400 text-xs text-left">Base Outbound</Text>
+                                    <Text className="text-white text-xs font-bold">₹{baseFare}</Text>
+                                </View>
+                                {returnFare > 0 && (
+                                    <View className="flex-row justify-between mb-2">
+                                        <View className="flex-row items-center">
+                                            <Text className="text-blue-400 text-xs">Return Trip </Text>
+                                            <View className="bg-blue-500/20 px-1 py-0.5 rounded ml-1">
+                                                <Text className="text-blue-400 text-[8px] font-black italic">60% OFF</Text>
+                                            </View>
+                                        </View>
+                                        <Text className="text-blue-400 text-xs font-bold">+₹{returnFare}</Text>
+                                    </View>
+                                )}
+                                {penalty > 0 && (
+                                    <View className="flex-row justify-between">
+                                        <Text className="text-red-400 text-xs">Waiting Penalty</Text>
+                                        <Text className="text-red-400 text-xs font-bold">+₹{penalty}</Text>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        {isPartialPayment && penalty > 0 && (
                             <View className="bg-red-500/20 px-4 py-2 rounded-xl border border-red-500/30 mt-2 flex-row items-center">
                                 <Ionicons name="alert-circle" size={16} color="#F87171" style={{ marginRight: 6 }} />
                                 <Text className="text-red-400 text-xs font-black uppercase tracking-wider">Includes ₹{penalty} Penalty</Text>

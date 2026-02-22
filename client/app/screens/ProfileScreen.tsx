@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { useRouter } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
@@ -6,21 +6,56 @@ import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
 
+import { userAPI } from '../../utils/api';
+
 const ProfileScreen = () => {
     const router = useRouter();
     const [isEditing, setIsEditing] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    // Mock user data state
+    // User data state
     const [userInfo, setUserInfo] = useState({
-        name: "Shiv",
+        name: "",
         email: "",
-        phone: "+91 7890 123 456",
+        phone: "",
         gender: ""
     });
 
-    const handleSave = () => {
-        setIsEditing(false);
-        Alert.alert("Success", "Profile updated successfully!");
+    useEffect(() => {
+        fetchProfile();
+    }, []);
+
+    const fetchProfile = async () => {
+        try {
+            setLoading(true);
+            const response = await userAPI.getProfile();
+            const { user } = response.data; // Backend returns { user: ... } wrapper
+            setUserInfo({
+                name: user.name || "",
+                email: user.email || "",
+                phone: user.mobile || "",
+                gender: user.gender || ""
+            });
+        } catch (error) {
+            console.error("Failed to fetch profile:", error);
+            Alert.alert("Error", "Could not load profile data");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSave = async () => {
+        try {
+            await userAPI.updateProfile({
+                name: userInfo.name,
+                email: userInfo.email,
+                gender: userInfo.gender
+            });
+            setIsEditing(false);
+            Alert.alert("Success", "Profile updated successfully!");
+        } catch (error: any) {
+            Alert.alert("Error", error.message || "Failed to update profile");
+        }
     };
 
     const renderField = (

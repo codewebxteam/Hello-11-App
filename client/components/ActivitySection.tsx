@@ -1,114 +1,129 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, FlatList, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
+import { userAPI } from '../utils/api';
 
 const { width } = Dimensions.get('window');
-
-// Mock Data for Past Rides
-const MOCK_RIDES = [
-    {
-        id: '1',
-        date: 'Today, 10:30 AM',
-        source: 'Home',
-        destination: 'Office Complex, Sector 62',
-        price: '₹245',
-        status: 'Completed',
-        vehicle: 'Swift Dzire',
-        rating: 5,
-    },
-    {
-        id: '2',
-        date: 'Yesterday, 06:15 PM',
-        source: 'Office Complex, Sector 62',
-        destination: 'Home',
-        price: '₹250',
-        status: 'Completed',
-        vehicle: 'WagonR',
-        rating: 4,
-    },
-    {
-        id: '3',
-        date: '14 Feb, 09:00 PM',
-        source: 'PVR Cinema',
-        destination: 'Home',
-        price: '₹180',
-        status: 'Cancelled',
-        vehicle: 'Auto',
-        rating: 0,
-    },
-];
 
 interface ActivitySectionProps {
     onBookRide: () => void;
 }
 
 const ActivitySection: React.FC<ActivitySectionProps> = ({ onBookRide }) => {
-    // Toggle this to test empty state
-    const [rides, setRides] = useState(MOCK_RIDES);
-    // const [rides, setRides] = useState([]); 
+    const [rides, setRides] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const router = useRouter();
 
-    const renderRideItem = ({ item }: { item: any }) => (
-        <View className="bg-white p-5 rounded-[25px] mb-4 shadow-sm border border-slate-100">
-            {/* Date & Status Header */}
-            <View className="flex-row justify-between items-center mb-4 border-b border-slate-50 pb-3">
-                <View className="flex-row items-center bg-slate-50 px-3 py-1 rounded-full">
-                    <Ionicons name="calendar-outline" size={14} color="#64748B" />
-                    <Text className="text-xs font-bold text-slate-500 ml-1.5">{item.date}</Text>
+    useEffect(() => {
+        fetchHistory();
+    }, []);
+
+    const fetchHistory = async () => {
+        try {
+            setLoading(true);
+            const response = await userAPI.getHistory();
+            setRides(response.data.bookings || []);
+        } catch (error) {
+            console.error("Failed to fetch history:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRidePress = (item: any) => {
+        const activeStatuses = ['accepted', 'arrived', 'started'];
+        const bookingId = item._id || item.id;
+
+        if (activeStatuses.includes(item.status)) {
+            router.push({
+                pathname: "/screens/LiveRideTrackingScreen",
+                params: { bookingId }
+            });
+        } else {
+            router.push({
+                pathname: "/screens/RideDetailsScreen",
+                params: { bookingId }
+            });
+        }
+    };
+
+    const renderRideItem = ({ item }: { item: any }) => {
+        const isActive = ['accepted', 'arrived', 'started'].includes(item.status);
+
+        return (
+            <View className="bg-white p-5 rounded-[25px] mb-4 shadow-sm border border-slate-100">
+                {/* Date & Status Header */}
+                <View className="flex-row justify-between items-center mb-4 border-b border-slate-50 pb-3">
+                    <View className="flex-row items-center bg-slate-50 px-3 py-1 rounded-full">
+                        <Ionicons name="calendar-outline" size={14} color="#64748B" />
+                        <Text className="text-xs font-bold text-slate-500 ml-1.5">
+                            {new Date(item.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                    </View>
+                    <View className={`px-3 py-1 rounded-full ${item.status === 'completed' ? 'bg-green-50' : isActive ? 'bg-blue-50' : 'bg-red-50'}`}>
+                        <Text className={`text-[10px] font-black uppercase tracking-wider ${item.status === 'completed' ? 'text-green-600' : isActive ? 'text-blue-600' : 'text-red-500'}`}>
+                            {item.status}
+                        </Text>
+                    </View>
                 </View>
-                <View className={`px-3 py-1 rounded-full ${item.status === 'Completed' ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${item.status === 'Completed' ? 'text-green-600' : 'text-red-500'}`}>
-                        {item.status}
-                    </Text>
-                </View>
-            </View>
 
-            {/* Route Details */}
-            <View className="flex-row items-start mb-5 relative">
-                {/* Connector Line */}
-                <View className="absolute left-[9px] top-4 bottom-4 w-[2px] bg-slate-100 border-l border-dashed border-slate-300" />
+                {/* Route Details */}
+                <View className="flex-row items-start mb-5 relative">
+                    {/* Connector Line */}
+                    <View className="absolute left-[9px] top-4 bottom-4 w-[2px] bg-slate-100 border-l border-dashed border-slate-300" />
 
-                <View className="flex-1 space-y-4">
-                    {/* Source */}
-                    <View className="flex-row items-center">
-                        <View className="w-5 h-5 rounded-full bg-blue-50 border-[3px] border-blue-100 items-center justify-center z-10">
-                            <View className="w-2 h-2 rounded-full bg-blue-500" />
+                    <View className="flex-1 space-y-4">
+                        {/* Source */}
+                        <View className="flex-row items-center">
+                            <View className="w-5 h-5 rounded-full bg-blue-50 border-[3px] border-blue-100 items-center justify-center z-10">
+                                <View className="w-2 h-2 rounded-full bg-blue-500" />
+                            </View>
+                            <Text className="text-slate-800 font-bold ml-3 flex-1" numberOfLines={2}>{item.pickupLocation}</Text>
                         </View>
-                        <Text className="text-slate-800 font-bold ml-3 flex-1" numberOfLines={1}>{item.source}</Text>
-                    </View>
 
-                    {/* Destination */}
-                    <View className="flex-row items-center">
-                        <View className="w-5 h-5 rounded-full bg-orange-50 border-[3px] border-orange-100 items-center justify-center z-10">
-                            <View className="w-2 h-2 rounded-full bg-orange-500" />
+                        {/* Destination */}
+                        <View className="flex-row items-center pt-2">
+                            <View className="w-5 h-5 rounded-full bg-orange-50 border-[3px] border-orange-100 items-center justify-center z-10">
+                                <View className="w-2 h-2 rounded-full bg-orange-500" />
+                            </View>
+                            <Text className="text-slate-800 font-bold ml-3 flex-1" numberOfLines={2}>{item.dropLocation}</Text>
                         </View>
-                        <Text className="text-slate-800 font-bold ml-3 flex-1" numberOfLines={1}>{item.destination}</Text>
                     </View>
+
+                    {/* Price - REMOVED per user request */}
                 </View>
 
-                {/* Price */}
-                <View>
-                    <Text className="text-lg font-black text-slate-900">{item.price}</Text>
+                {/* Footer Info – Showing Ride Type & More */}
+                <View className="flex-row justify-between items-center pt-2 border-t border-slate-50 mt-1">
+                    <View className="flex-row items-center">
+                        <View className="bg-slate-100 p-1.5 rounded-lg mr-2">
+                            <Ionicons name="car-sport-outline" size={16} color="#475569" />
+                        </View>
+                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.rideType} • {item.distance}km</Text>
+                    </View>
+
+                    <TouchableOpacity
+                        onPress={() => handleRidePress(item)}
+                        className={`px-4 py-2 rounded-xl flex-row items-center ${isActive ? 'bg-blue-600' : 'bg-slate-900'}`}
+                    >
+                        <Text className="text-white font-black text-[10px] uppercase tracking-widest">
+                            {isActive ? 'Track' : 'View Details'}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={12} color="white" style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
                 </View>
             </View>
+        );
+    };
 
-            {/* Footer Info */}
-            <View className="flex-row justify-between items-center pt-2">
-                <View className="flex-row items-center">
-                    <View className="bg-slate-100 p-1.5 rounded-lg mr-2">
-                        <Ionicons name="car-sport-outline" size={16} color="#475569" />
-                    </View>
-                    <Text className="text-xs font-bold text-slate-600">{item.vehicle}</Text>
-                </View>
-
-                {item.rating > 0 && (
-                    <View className="flex-row items-center bg-[#FFD700]/10 px-2 py-1 rounded-lg">
-                        <Ionicons name="star" size={12} color="#F59E0B" />
-                        <Text className="text-xs font-bold text-slate-800 ml-1">{item.rating}.0</Text>
-                    </View>
-                )}
+    if (loading) {
+        return (
+            <View className="flex-1 justify-center items-center bg-slate-50">
+                <ActivityIndicator size="large" color="#FFD700" />
             </View>
-        </View>
-    );
+        );
+    }
 
     return (
         <View className="flex-1 bg-slate-50">
@@ -116,8 +131,8 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ onBookRide }) => {
             <View className="bg-white pt-16 pb-6 px-6 rounded-b-[40px] shadow-sm z-10">
                 <View className="flex-row justify-between items-center">
                     <Text className="text-3xl font-black text-slate-900">Your Activity</Text>
-                    <TouchableOpacity className="bg-slate-50 p-2.5 rounded-full">
-                        <Ionicons name="filter" size={20} color="#1E293B" />
+                    <TouchableOpacity onPress={fetchHistory} className="bg-slate-50 p-2.5 rounded-full">
+                        <Ionicons name="refresh" size={20} color="#1E293B" />
                     </TouchableOpacity>
                 </View>
                 <Text className="text-slate-400 font-bold text-xs mt-1 uppercase tracking-widest">
@@ -131,9 +146,11 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ onBookRide }) => {
                     <FlatList
                         data={rides}
                         renderItem={renderRideItem}
-                        keyExtractor={(item) => item.id}
+                        keyExtractor={(item, index) => (item._id || item.id || index).toString()}
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{ paddingVertical: 20, paddingBottom: 100 }}
+                        refreshing={loading}
+                        onRefresh={fetchHistory}
                     />
                 ) : (
                     <View className="flex-1 justify-center items-center -mt-20">

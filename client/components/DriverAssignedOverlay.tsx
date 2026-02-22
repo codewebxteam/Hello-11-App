@@ -1,5 +1,4 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Modal, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Dimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { SlideInDown, FadeIn } from 'react-native-reanimated';
 
@@ -16,6 +15,8 @@ interface DriverAssignedOverlayProps {
     carNumber?: string;
     rating?: string;
     eta?: string;
+    vehicleType?: string;
+    profileImage?: string;
 }
 
 
@@ -29,7 +30,8 @@ const DriverAssignedOverlay = ({
     carModel = "Swift Dzire",
     carNumber = "UP 32 HA 1947",
     rating = "4.8",
-    eta = "4 mins"
+    eta = "4 mins",
+    profileImage
 }: DriverAssignedOverlayProps) => {
 
     if (!isVisible) return null;
@@ -95,8 +97,12 @@ const DriverAssignedOverlay = ({
                         {/* Driver Profile */}
                         <View className="flex-row items-center mb-8">
                             <View className="relative">
-                                <View className="w-16 h-16 bg-slate-200 rounded-full border-2 border-white shadow-md items-center justify-center">
-                                    <Ionicons name="person" size={32} color="#94A3B8" />
+                                <View className="w-16 h-16 bg-slate-200 rounded-full border-2 border-white shadow-md items-center justify-center overflow-hidden">
+                                    {profileImage ? (
+                                        <Image source={{ uri: profileImage }} className="w-full h-full" />
+                                    ) : (
+                                        <Ionicons name="person" size={32} color="#94A3B8" />
+                                    )}
                                 </View>
                                 <View className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-sm">
                                     <View className="flex-row items-center bg-slate-900 px-1.5 py-0.5 rounded-full">

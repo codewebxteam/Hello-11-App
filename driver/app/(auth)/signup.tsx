@@ -22,18 +22,46 @@ const RegisterScreen = () => {
     const [name, setName] = useState("");
     const [phoneNumber, setPhoneNumber] = useState("");
     const [password, setPassword] = useState("");
+    const [vehicleNumber, setVehicleNumber] = useState("");
+    const [vehicleModel, setVehicleModel] = useState("");
+    const [vehicleType, setVehicleType] = useState("sedan");
+    const [serviceType, setServiceType] = useState("cab"); // 'cab', 'rental', 'both'
+
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const router = useRouter();
 
-    const handleRegister = () => {
-        if (!name || phoneNumber.length < 10 || password.length < 6) {
+    const handleRegister = async () => {
+        if (!name || phoneNumber.length < 10 || password.length < 6 || !vehicleModel || !vehicleNumber) {
             Alert.alert("Attention", "Please fill all fields correctly.");
             return;
         }
-        // Driver registration logic here
-        Alert.alert("Success", `Welcome ${name}! Driver account created.`);
-        router.replace("/");
+
+        try {
+            const { driverAuthAPI } = require("../../utils/api");
+            const { setDriverToken, setDriverData } = require("../../utils/storage");
+
+            const response = await driverAuthAPI.register({
+                name,
+                mobile: phoneNumber,
+                password,
+                vehicleModel,
+                vehicleNumber,
+                vehicleType,
+                serviceType
+            });
+
+            if (response.data && response.data.token) {
+                const { token, driver } = response.data;
+                await setDriverToken(token);
+                await setDriverData(driver);
+                router.replace("/");
+            } else {
+                Alert.alert("Registration Failed", response.data.message || "Could not create account.");
+            }
+        } catch (err: any) {
+            Alert.alert("Error", err.message || "Registration failed.");
+        }
     };
 
     return (
@@ -132,6 +160,77 @@ const RegisterScreen = () => {
                                     }
                                     onRightIconPress={() => setIsPasswordVisible(!isPasswordVisible)}
                                 />
+
+                                <Input
+                                    placeholder="Vehicle Model (e.g. Swift Dzire)"
+                                    value={vehicleModel}
+                                    onChangeText={setVehicleModel}
+                                    isFocused={focusedInput === 'vmodel'}
+                                    onFocus={() => setFocusedInput('vmodel')}
+                                    onBlur={() => setFocusedInput(null)}
+                                    icon={<Ionicons name="car-outline" size={20} color={focusedInput === 'vmodel' ? "#1E293B" : "#94A3B8"} />}
+                                />
+
+                                <Input
+                                    placeholder="Vehicle Number (e.g. UP 32 XX 0000)"
+                                    value={vehicleNumber}
+                                    onChangeText={setVehicleNumber}
+                                    isFocused={focusedInput === 'vnum'}
+                                    onFocus={() => setFocusedInput('vnum')}
+                                    onBlur={() => setFocusedInput(null)}
+                                    icon={<Ionicons name="card-outline" size={20} color={focusedInput === 'vnum' ? "#1E293B" : "#94A3B8"} />}
+                                />
+
+                                <View className="mt-4">
+                                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 ml-1">Vehicle Category</Text>
+                                    <View className="bg-slate-50 p-2 rounded-[24px] border border-slate-100 flex-row flex-wrap justify-between">
+                                        {['mini', 'sedan', 'suv', 'prime', 'auto', 'bike'].map((type) => (
+                                            <TouchableOpacity
+                                                key={type}
+                                                onPress={() => {
+                                                    setVehicleType(type);
+                                                    // Auto and Bike can only provide 'cab' (normal) service
+                                                    if (type === 'auto' || type === 'bike') {
+                                                        setServiceType('cab');
+                                                    }
+                                                }}
+                                                style={{ width: '31%', marginBottom: 8 }}
+                                                className={`px-2 py-3 rounded-[18px] items-center border ${vehicleType === type ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-100'}`}
+                                            >
+                                                <Text className={`font-black uppercase text-[9px] ${vehicleType === type ? 'text-[#FFD700]' : 'text-slate-400'}`}>{type}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
+                                <View className="mt-4">
+                                    <View className="flex-row justify-between items-center mb-3 ml-1">
+                                        <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Service Specialty</Text>
+                                        {(vehicleType === 'auto' || vehicleType === 'bike') && (
+                                            <View className="flex-row items-center">
+                                                <Ionicons name="lock-closed" size={10} color="#94A3B8" />
+                                                <Text className="text-slate-400 text-[8px] font-black uppercase ml-1">Cab Only for {vehicleType}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    <View className="flex-row gap-2">
+                                        {['cab', 'rental', 'both'].map((type) => {
+                                            const isRestricted = (vehicleType === 'auto' || vehicleType === 'bike') && type !== 'cab';
+                                            return (
+                                                <TouchableOpacity
+                                                    key={type}
+                                                    onPress={() => !isRestricted && setServiceType(type)}
+                                                    disabled={isRestricted}
+                                                    className={`flex-1 py-3 rounded-xl items-center border ${serviceType === type ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'} ${isRestricted ? 'opacity-30' : ''}`}
+                                                >
+                                                    <Text className={`font-black uppercase text-[10px] ${serviceType === type ? 'text-[#FFD700]' : 'text-slate-600'}`}>
+                                                        {type}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
 
                             </View>
 

@@ -4,7 +4,7 @@ const DriversTable: React.FC = () => {
     const drivers = [
         { id: 1, name: 'Michael Knight', vehicle: 'Black Pontiac Firebird', plate: 'KITT', rating: 5.0, status: 'Active' },
         { id: 2, name: 'Dominic Toretto', vehicle: '1970 Dodge Charger', plate: 'TORETTO', rating: 4.8, status: 'Active' },
-        { id: 3, name: 'Baby', vehicle: 'Subaru Impreza WRX', plate: 'BABY', rating: 4.5, status: 'Busy' },
+        { id: 3, name: 'Baby', vehicle: 'Subaru Impreza WRX', plate: 'BABY', rating: 0.0, status: 'Busy' },
         { id: 4, name: 'Max Rockatansky', vehicle: 'V8 Interceptor', plate: 'MADMAX', rating: 4.9, status: 'Offline' },
         { id: 5, name: 'Speed Racer', vehicle: 'Mach 5', plate: 'MACH5', rating: 5.0, status: 'Active' },
     ];
@@ -54,8 +54,8 @@ const DriversTable: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${driver.status === 'Active' ? 'bg-green-100 text-green-800' :
-                                        driver.status === 'Busy' ? 'bg-orange-100 text-orange-800' :
-                                            'bg-gray-100 text-gray-800'
+                                    driver.status === 'Busy' ? 'bg-orange-100 text-orange-800' :
+                                        'bg-gray-100 text-gray-800'
                                     }`}>
                                     {driver.status}
                                 </span>

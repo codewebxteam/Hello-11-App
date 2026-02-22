@@ -12,11 +12,12 @@ export default function RideSummaryScreen() {
     const params = useLocalSearchParams();
 
     // Default values if params missing (safe fallback)
-    const fare = params.fare || "450";
+    const fare = params.fare || "0";
+    const returnFare = params.returnFare || "0";
     const penalty = params.penalty || "0";
-    const totalAmount = params.totalAmount || "450";
-    const distance = params.distance || "12.4";
-    const time = params.time || "24";
+    const totalAmount = params.totalAmount || "0";
+    const distance = params.distance || "0";
+    const time = params.time || "0";
 
     const handleExit = () => {
         // Reset to dashboard with rideEnded flag
@@ -46,7 +47,7 @@ export default function RideSummaryScreen() {
                     >
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-6 border-b border-slate-700/50 pb-4">Trip Summary</Text>
 
-                        <View className="flex-row justify-between mb-2">
+                        <View className="flex-row justify-between mb-6">
                             <View>
                                 <Text className="text-slate-500 text-[10px] font-bold uppercase mb-1">Total Distance</Text>
                                 <Text className="text-white text-xl font-black">{distance} KM</Text>
@@ -56,6 +57,27 @@ export default function RideSummaryScreen() {
                                 <Text className="text-white text-xl font-black">{time} Min</Text>
                             </View>
                         </View>
+
+                        {/* Route Details */}
+                        <View className="border-t border-slate-700/50 pt-4">
+                            <View className="flex-row mb-4">
+                                <View className="items-center mr-3 pt-1">
+                                    <View className="w-2.5 h-2.5 rounded-full bg-[#FFD700]" />
+                                    <View className="w-[1px] h-6 bg-slate-700 my-1" />
+                                    <Ionicons name="location" size={16} color="#EF4444" />
+                                </View>
+                                <View className="flex-1">
+                                    <View className="mb-3">
+                                        <Text className="text-slate-500 text-[10px] font-bold uppercase mb-0.5">Pickup</Text>
+                                        <Text className="text-white text-xs font-bold leading-4" numberOfLines={2}>{params.pickup || 'Unknown'}</Text>
+                                    </View>
+                                    <View>
+                                        <Text className="text-slate-500 text-[10px] font-bold uppercase mb-0.5">Dropoff</Text>
+                                        <Text className="text-white text-xs font-bold leading-4" numberOfLines={2}>{params.drop || 'Unknown'}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
                     </LinearGradient>
 
                     {/* Fare Breakdown */}
@@ -63,7 +85,7 @@ export default function RideSummaryScreen() {
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-6">Fare Breakdown</Text>
 
                         <View className="flex-row justify-between mb-3">
-                            <Text className="text-slate-300 text-sm font-medium">Base Fare</Text>
+                            <Text className="text-slate-300 text-sm font-medium">Base Fare (Outbound)</Text>
                             <Text className="text-white text-sm font-bold">₹{fare}</Text>
                         </View>
 
@@ -74,10 +96,15 @@ export default function RideSummaryScreen() {
                             </View>
                         )}
 
-                        <View className="flex-row justify-between mb-3">
-                            <Text className="text-slate-300 text-sm font-medium">Taxes & Fees</Text>
-                            <Text className="text-white text-sm font-bold">₹0</Text>
-                        </View>
+                        {Number(returnFare) > 0 && (
+                            <View className="flex-row justify-between mb-3">
+                                <View className="flex-row items-center">
+                                    <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
+                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (60% OFF)</Text>
+                                </View>
+                                <Text className="text-blue-400 text-sm font-bold">+ ₹{returnFare}</Text>
+                            </View>
+                        )}
 
                         <View className="h-[1px] bg-slate-700 w-full my-4" />
 

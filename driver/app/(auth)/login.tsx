@@ -24,13 +24,33 @@ const LoginScreen = () => {
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const router = useRouter();
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (!phoneNumber || !password) {
             Alert.alert("Access Denied", "Please verify your credentials.");
             return;
         }
-        // TODO: Implement actual login logic here
-        router.replace("/");
+
+        try {
+            const { driverAuthAPI } = require("../../utils/api");
+            const { setDriverToken, setDriverData } = require("../../utils/storage");
+
+            const response = await driverAuthAPI.login({
+                mobile: phoneNumber,
+                password: password
+            });
+
+            if (response.data && response.data.token) {
+                const { token, driver } = response.data;
+                await setDriverToken(token);
+                await setDriverData(driver);
+                router.replace("/");
+            } else {
+                Alert.alert("Login Failed", response.data.message || "Invalid credentials.");
+            }
+        } catch (err: any) {
+            console.error("Login error:", err);
+            Alert.alert("Error", err.message || "Something went wrong. Please try again.");
+        }
     };
 
     return (
@@ -156,7 +176,10 @@ const LoginScreen = () => {
                                 </View>
                             </View>
 
-                            <TouchableOpacity className="self-end">
+                            <TouchableOpacity
+                                onPress={() => router.push("/(auth)/forgot-password")}
+                                className="self-end"
+                            >
                                 <Text className="text-slate-400 font-bold text-xs underline">Forgot Password?</Text>
                             </TouchableOpacity>
                         </View>

@@ -24,12 +24,36 @@ const LoginScreen = () => {
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!phoneNumber || !password) {
       Alert.alert("Access Denied", "Please verify your security keys.");
       return;
     }
-    router.push("/screens/HomeScreen");
+
+    try {
+      const { authAPI } = require("../../utils/api");
+      const { saveToken, saveUser } = require("../../utils/storage"); // Assuming storage utils exist
+
+      const response = await authAPI.signin({
+        mobile: phoneNumber,
+        password: password
+      });
+
+      const { token, user, message } = response.data;
+
+      if (token) {
+        await saveToken(token);
+        await saveUser(user);
+
+        // Show success status briefly if needed or just redirect
+        router.replace("/screens/HomeScreen");
+      } else {
+        Alert.alert("Login Failed", message || "Invalid credentials");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      Alert.alert("Login Failed", error.message || "Something went wrong");
+    }
   };
 
   return (
@@ -38,23 +62,23 @@ const LoginScreen = () => {
       <StatusBar style="dark" />
 
       {/* --- RESPONSIVE AMBIENT GLOW --- */}
-      <View 
-        className="absolute rounded-full bg-[#FFD700] opacity-20" 
-        style={{ 
-          top: -height * 0.1, 
-          right: -width * 0.2, 
-          width: width * 0.9, 
-          height: width * 0.9 
-        }} 
+      <View
+        className="absolute rounded-full bg-[#FFD700] opacity-20"
+        style={{
+          top: -height * 0.1,
+          right: -width * 0.2,
+          width: width * 0.9,
+          height: width * 0.9
+        }}
       />
-      <View 
-        className="absolute rounded-full bg-[#FFD700] opacity-10" 
-        style={{ 
-          top: height * 0.4, 
-          left: -width * 0.1, 
-          width: width * 0.4, 
-          height: width * 0.4 
-        }} 
+      <View
+        className="absolute rounded-full bg-[#FFD700] opacity-10"
+        style={{
+          top: height * 0.4,
+          left: -width * 0.1,
+          width: width * 0.4,
+          height: width * 0.4
+        }}
       />
 
       <KeyboardAvoidingView
@@ -67,25 +91,25 @@ const LoginScreen = () => {
           keyboardShouldPersistTaps="handled"
         >
           {/* Main Content Wrapper: Tablet par width control karta hai */}
-          <View 
+          <View
             className="self-center w-full px-8 py-10"
             style={{ maxWidth: isTablet ? 550 : '100%' }}
           >
-            
+
             {/* --- BRANDING SECTION --- */}
             <View className="items-center mb-10">
-              <View 
+              <View
                 className="bg-[#FFD700] items-center justify-center shadow-2xl shadow-yellow-500/50"
-                style={{ 
-                  width: isTablet ? 110 : 85, 
-                  height: isTablet ? 110 : 85, 
+                style={{
+                  width: isTablet ? 110 : 85,
+                  height: isTablet ? 110 : 85,
                   borderRadius: isTablet ? 35 : 28,
-                  transform: [{ rotate: '-10deg' }] 
+                  transform: [{ rotate: '-10deg' }]
                 }}
               >
                 <Ionicons name="car-sport" size={isTablet ? 55 : 42} color="#1E293B" />
               </View>
-              
+
               <Text className="text-4xl font-black text-slate-900 mt-6 tracking-tighter italic">
                 Hello <Text className="text-[#FFB800]">11</Text>
               </Text>
@@ -97,7 +121,7 @@ const LoginScreen = () => {
 
             {/* --- FORM SECTION --- */}
             <View className="space-y-6">
-              
+
               {/* Mobile Identity Input */}
               <View>
                 <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
@@ -132,16 +156,16 @@ const LoginScreen = () => {
                     </Text>
                   )}
                 </View>
-                
+
                 <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'pass' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
                   <View className="mr-3">
-                    <Ionicons 
-                      name={focusedInput === 'pass' ? "lock-open-outline" : "lock-closed-outline"} 
-                      size={20} 
-                      color={focusedInput === 'pass' ? "#FFD700" : "#94A3B8"} 
+                    <Ionicons
+                      name={focusedInput === 'pass' ? "lock-open-outline" : "lock-closed-outline"}
+                      size={20}
+                      color={focusedInput === 'pass' ? "#FFD700" : "#94A3B8"}
                     />
                   </View>
-                  
+
                   <TextInput
                     placeholder="••••••••"
                     secureTextEntry={!isPasswordVisible}
@@ -151,8 +175,8 @@ const LoginScreen = () => {
                     onFocus={() => setFocusedInput('pass')}
                     onBlur={() => setFocusedInput(null)}
                   />
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     onPress={() => setIsPasswordVisible(!isPasswordVisible)}
                     className="bg-slate-50 p-2 rounded-xl"
                   >
@@ -161,14 +185,14 @@ const LoginScreen = () => {
                 </View>
               </View>
 
-              <TouchableOpacity className="self-end">
+              <TouchableOpacity className="self-end" onPress={() => router.push("/screens/ForgotPasswordScreen")}>
                 <Text className="text-slate-400 font-bold text-xs underline">Forgot Key?</Text>
               </TouchableOpacity>
             </View>
 
             {/* --- ACTIONS --- */}
             <View className="mt-10">
-              <TouchableOpacity 
+              <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={handleLogin}
                 className="bg-[#FFD700] py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40"
@@ -176,7 +200,7 @@ const LoginScreen = () => {
                 <Text className="text-slate-900 font-black text-lg tracking-[2px]">UNLOCK RIDE</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => router.push("/screens/registerScreen")}
                 className="mt-8 self-center"
               >

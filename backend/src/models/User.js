@@ -11,9 +11,22 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true
     },
+    email: {
+      type: String,
+      default: ""
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other", ""],
+      default: ""
+    },
     password: {
       type: String,
       required: true
+    },
+    profileImage: {
+      type: String,
+      default: ""
     }
   },
   { timestamps: true }

@@ -1,74 +1,102 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Dimensions, Alert, Image, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
-import { useRouter } from "expo-router";
-
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { bookingAPI } from '../../utils/api';
+import { getSocket, initSocket } from '../../utils/socket';
 
 const { width } = Dimensions.get('window');
 
-interface WaitingTimerScreenProps {
-    initialMinutes?: number;
-    driverName?: string;
-    carModel?: string;
-    carNumber?: string;
-}
-
-const WaitingTimerScreen = ({
-    initialMinutes = 0.1, // Set to 6 seconds for testing (0.1 mins)
-    driverName = "Vikram Singh",
-
-    carModel = "Swift Dzire",
-    carNumber = "UP 32 HA 1947",
-}: WaitingTimerScreenProps) => {
+const WaitingTimerScreen = () => {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const bookingId = params.bookingId as string;
 
-    const [timeLeft, setTimeLeft] = useState(initialMinutes * 60); // in seconds
+    const [booking, setBooking] = useState<any>(null);
+    const [secondsElapsed, setSecondsElapsed] = useState(0);
 
-    const [status, setStatus] = useState<'waiting' | 'warning' | 'expired'>('waiting');
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await bookingAPI.getBookingStatus(bookingId);
+            if (res.data.success) {
+                const b = res.data.booking;
+                setBooking(b);
+
+                if (b.waitingStartedAt) {
+                    const start = new Date(b.waitingStartedAt).getTime();
+                    const now = new Date().getTime();
+                    setSecondsElapsed(Math.floor((now - start) / 1000));
+                }
+
+                if (b.status === 'return_ride_started') {
+                    router.replace({
+                        pathname: "/screens/LiveRideTrackingScreen",
+                        params: { bookingId }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Fetch Error:", error);
+        }
+    }, [bookingId, router]);
 
     useEffect(() => {
-        if (timeLeft <= 0) {
-            setStatus('expired');
-            router.replace("/screens/PenaltyAppliedScreen");
-            return;
-        }
+        fetchData();
+        const interval = setInterval(fetchData, 10000); // Polling every 10s as fallback
 
-        // Warning state when less than 2 minutes left
+        let socket: any;
+        const setupSocket = async () => {
+            socket = await initSocket();
+            if (socket) {
+                socket.on("penaltyApplied", (data: any) => {
+                    if (String(data.bookingId) === String(bookingId)) {
+                        setBooking((prev: any) => prev ? ({ ...prev, penaltyApplied: data.penaltyApplied }) : prev);
+                    }
+                });
+                socket.on("rideStatusUpdate", (data: any) => {
+                    if (String(data.bookingId) === String(bookingId) && data.status === 'return_ride_started') {
+                        router.replace({ pathname: "/screens/LiveRideTrackingScreen", params: { bookingId } });
+                    }
+                });
+            }
+        };
+        setupSocket();
 
-        if (timeLeft < 120 && status !== 'warning') {
-            setStatus('warning');
-        }
+        return () => {
+            clearInterval(interval);
+            if (socket) {
+                socket.off("penaltyApplied");
+                socket.off("rideStatusUpdate");
+            }
+        };
+    }, [fetchData, bookingId, router]);
 
+    useEffect(() => {
         const timer = setInterval(() => {
-            setTimeLeft((prev) => prev - 1);
+            setSecondsElapsed(prev => prev + 1);
         }, 1000);
-
         return () => clearInterval(timer);
-    }, [timeLeft, status]);
+    }, []);
 
-    const formatTime = (seconds: number) => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    const formatTime = (totalSeconds: number) => {
+        const absSeconds = Math.abs(totalSeconds);
+        const h = Math.floor(absSeconds / 3600);
+        const m = Math.floor((absSeconds % 3600) / 60);
+        const s = absSeconds % 60;
+        const prefix = totalSeconds < 0 ? "-" : "";
+        return `${prefix}${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
-    const getStatusColor = () => {
-        switch (status) {
-            case 'warning': return 'bg-orange-500';
-            case 'expired': return 'bg-red-500';
-            default: return 'bg-green-500';
-        }
-    };
+    const waitingLimit = booking?.waitingLimit || 3600;
+    const timeLeft = waitingLimit - secondsElapsed;
+    const isOverdue = timeLeft < 0;
 
-    const getStatusText = () => {
-        switch (status) {
-            case 'warning': return 'Hurry Up! Time ending soon';
-            case 'expired': return 'Waiting Time Expired';
-            default: return 'Driver is Waiting';
+    const handleCall = () => {
+        if (booking?.driver?.mobile) {
+            Linking.openURL(`tel:${booking.driver.mobile}`);
         }
     };
 
@@ -77,71 +105,74 @@ const WaitingTimerScreen = ({
             <StatusBar style="dark" />
             <SafeAreaView className="flex-1 px-6 pt-4">
 
-                {/* Header */}
                 <View className="flex-row justify-between items-center mb-10">
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        className="bg-slate-100 p-3 rounded-full"
-                    >
+                    <TouchableOpacity onPress={() => router.back()} className="bg-slate-100 p-3 rounded-full">
                         <Ionicons name="arrow-back" size={24} color="black" />
                     </TouchableOpacity>
-
-                    <Text className="text-lg font-black text-slate-900">RETURN TRIP</Text>
+                    <Text className="text-lg font-black text-slate-900">WAITING FOR RETURN</Text>
                     <View className="w-10" />
                 </View>
 
-                {/* Main Timer Display */}
                 <View className="items-center justify-center flex-1 -mt-20">
                     <Animated.View
                         entering={ZoomIn.duration(600).springify()}
                         className="w-64 h-64 rounded-full border-[6px] border-slate-100 items-center justify-center relative bg-white shadow-2xl shadow-slate-200"
                     >
-                        {/* Progress Ring Indicator (Static for now, could be SVG) */}
-                        <View className={`absolute top-0 w-full h-full rounded-full border-[6px] ${status === 'warning' ? 'border-orange-500' : 'border-[#FFD700]'} opacity-30`} />
+                        <View className={`absolute top-0 w-full h-full rounded-full border-[6px] ${isOverdue ? 'border-red-500' : 'border-[#FFD700]'} opacity-30`} />
 
                         <View className="items-center">
-                            <Text className="text-slate-400 text-sm font-bold tracking-widest uppercase mb-2">Remaining Time</Text>
-                            <Text className={`text-5xl font-black ${status === 'warning' ? 'text-orange-500' : 'text-slate-900'} tracking-tighter`}>
+                            <Text className="text-slate-400 text-sm font-bold tracking-widest uppercase mb-2">
+                                {isOverdue ? 'Penalty Time' : 'Remaining Free Time'}
+                            </Text>
+                            <Text className={`text-5xl font-black ${isOverdue ? 'text-red-500' : 'text-slate-900'} tracking-tighter`}>
                                 {formatTime(timeLeft)}
                             </Text>
+                            {isOverdue && (
+                                <Text className="text-red-600 font-black text-xl mt-2">
+                                    Penalty: ₹{booking?.penaltyApplied || 0}
+                                </Text>
+                            )}
                             <Text className="text-slate-400 text-xs font-bold mt-2">HH : MM : SS</Text>
                         </View>
                     </Animated.View>
 
-                    {/* Status Badge */}
                     <Animated.View
                         entering={FadeIn.delay(300)}
-                        className={`${getStatusColor()} px-6 py-3 rounded-full mt-8 shadow-lg items-center flex-row`}
+                        className={`${isOverdue ? 'bg-red-500' : 'bg-[#FFD700]'} px-6 py-3 rounded-full mt-8 shadow-lg items-center flex-row`}
                     >
-                        <View className="bg-white/20 p-1 rounded-full mr-2">
-                            <View className="bg-white w-2 h-2 rounded-full animate-pulse" />
-                        </View>
-                        <Text className="text-white font-black tracking-wide uppercase">{getStatusText()}</Text>
+                        <Text className="text-white font-black tracking-wide uppercase">
+                            {isOverdue ? 'Penalty Mode Active' : 'Driver is Waiting'}
+                        </Text>
                     </Animated.View>
 
-                    {/* Info Text */}
                     <Text className="text-slate-400 text-center mt-6 px-10 leading-5">
-                        Your driver is waiting at the drop location.
-                        Standard waiting charges apply after timer ends.
+                        Your driver is currently waiting at the destination.
+                        Return trip will start once you notify the driver.
                     </Text>
                 </View>
 
-                {/* Driver Info & Actions */}
                 <View className="mb-6">
                     <View className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex-row items-center mb-4">
-                        <View className="w-12 h-12 bg-slate-200 rounded-full items-center justify-center border-2 border-white">
-                            <Ionicons name="person" size={24} color="#64748B" />
+                        <View className="w-12 h-12 bg-slate-200 rounded-full items-center justify-center border-2 border-white overflow-hidden">
+                            {booking?.driver?.profileImage ? (
+                                <Image source={{ uri: booking.driver.profileImage }} className="w-full h-full" />
+                            ) : (
+                                <Ionicons name="person" size={24} color="#64748B" />
+                            )}
                         </View>
                         <View className="ml-3 flex-1">
-                            <Text className="font-black text-slate-900">{driverName}</Text>
-                            <Text className="text-xs font-bold text-slate-500">{carModel} • {carNumber}</Text>
+                            <Text className="font-black text-slate-900">{booking?.driver?.name || "Driver"}</Text>
+                            <Text className="text-xs font-bold text-slate-500">{booking?.driver?.vehicleModel || "Car"}</Text>
                         </View>
-                        <TouchableOpacity className="bg-green-500 p-3 rounded-full shadow-lg shadow-green-200 active:scale-95">
+                        <TouchableOpacity onPress={handleCall} className="bg-green-500 p-3 rounded-full shadow-lg active:scale-95">
                             <Ionicons name="call" size={20} color="white" />
                         </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity className="bg-slate-900 w-full py-4 rounded-2xl items-center shadow-lg active:scale-95">
+                    <TouchableOpacity
+                        onPress={() => Alert.alert("Coming?", "Notify the driver that you are coming.", [{ text: "Cancel" }, { text: "Notify", onPress: () => { } }])}
+                        className="bg-slate-900 w-full py-4 rounded-2xl items-center shadow-lg active:scale-95"
+                    >
                         <Text className="text-[#FFD700] font-black text-lg">I'M COMING NOW</Text>
                     </TouchableOpacity>
                 </View>

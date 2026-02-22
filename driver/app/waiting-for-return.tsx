@@ -1,32 +1,77 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+import { driverAPI } from '../utils/api';
+import { getSocket } from '../utils/socket';
 
 // Constants
 const PENALTY_RATE_PER_HOUR = 100; // ₹100 per extra hour
-const MINUTES_PER_KM = 12;
 
 export default function WaitingForReturnScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
+    const bookingId = params.bookingId as string;
 
-    // Mock data - in real app, this would come from params or global state
-    const rideDistance = parseFloat(params.distance as string) || 10; // Default 10km if not passed
-    const allocatedMinutes = Math.ceil(rideDistance * MINUTES_PER_KM);
-
-    // Timer State
-    // unique logic: we track "seconds elapsed" vs "allocated seconds"
-    // For demo/testing, we might want to speed this up, but here is "real" time logic.
-    // To test penalty quickly, we can set initial elapsed time close to limit.
+    const [loading, setLoading] = useState(true);
+    const [booking, setBooking] = useState<any>(null);
     const [secondsElapsed, setSecondsElapsed] = useState(0);
 
-    // const allocatedSeconds = allocatedMinutes * 60;
-    const allocatedSeconds = 10; // FOR TESTING: 10 Seconds Wait Only
-    const remainingSeconds = allocatedSeconds - secondsElapsed;
+    const fetchData = async () => {
+        try {
+            const res = await driverAPI.getBookingStatus(bookingId);
+            if (res.data.success) {
+                const b = res.data.booking;
+                setBooking(b);
+
+                if (b.waitingStartedAt) {
+                    const start = new Date(b.waitingStartedAt).getTime();
+                    const now = new Date().getTime();
+                    setSecondsElapsed(Math.floor((now - start) / 1000));
+                }
+            }
+        } catch (err) {
+            console.error("Fetch booking error:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+
+        // Setup Socket for penalty updates
+        let socket: any;
+        const initSocket = async () => {
+            socket = await getSocket();
+            if (socket) {
+                socket.on("penaltyApplied", (data: any) => {
+                    if (String(data.bookingId) === String(bookingId)) {
+                        setBooking((prev: any) => ({
+                            ...prev,
+                            penaltyApplied: data.penaltyApplied,
+                            fare: data.totalFare
+                        }));
+                    }
+                });
+            }
+        };
+        initSocket();
+
+        // Status polling fallback every 30s
+        const poll = setInterval(fetchData, 30000);
+
+        return () => {
+            clearInterval(poll);
+            if (socket) socket.off("penaltyApplied");
+        };
+    }, [bookingId]);
+
+    const waitingLimit = booking?.waitingLimit || 3600;
+    const remainingSeconds = waitingLimit - secondsElapsed;
     const isPenaltyActive = remainingSeconds < 0;
 
     useEffect(() => {
@@ -45,18 +90,6 @@ export default function WaitingForReturnScreen() {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
-    // Calculate Penalty
-    const penaltyAmount = useMemo(() => {
-        if (!isPenaltyActive) return 0;
-        const extraHours = Math.abs(remainingSeconds) / 3600;
-        // Ceiling to nearest hour or exact fraction? Usually transport is by chunks or exact. 
-        // Let's do exact fraction for display, or ceiling for billing. 
-        // Requirement says "₹100 per extra hour", often implies pro-rata or blocks. 
-        // Let's implement pro-rata for smoother UI updates, or simple blocks. 
-        // User said "₹100 per extra hour", let's assume pro-rated for the display to see it increasing.
-        return (extraHours * PENALTY_RATE_PER_HOUR).toFixed(2);
-    }, [remainingSeconds, isPenaltyActive]);
-
     const handleStartReturnRide = () => {
         Alert.alert(
             "Start Return Ride?",
@@ -65,26 +98,39 @@ export default function WaitingForReturnScreen() {
                 { text: "No", style: "cancel" },
                 {
                     text: "Yes, Start",
-                    onPress: () => {
-                        // Navigate back to active ride, but with "Return" state
-                        router.replace({
-                            pathname: "/active-ride",
-                            params: {
-                                mode: 'return',
-                                penalty: penaltyAmount
-                            }
-                        });
+                    onPress: async () => {
+                        try {
+                            await driverAPI.updateBookingStatus(bookingId, 'return_ride_started');
+                            router.replace({
+                                pathname: "/active-ride",
+                                params: {
+                                    mode: 'return',
+                                    penalty: booking?.penaltyApplied || '0',
+                                    bookingId: bookingId
+                                }
+                            });
+                        } catch (error) {
+                            console.error("Failed to start return ride:", error);
+                            Alert.alert("Error", "Could not start return ride. Please try again.");
+                        }
                     }
                 }
             ]
         );
     };
 
+    if (loading) {
+        return (
+            <View className="flex-1 bg-slate-900 items-center justify-center">
+                <ActivityIndicator size="large" color="#FFD700" />
+            </View>
+        );
+    }
+
     return (
         <View className={`flex-1 ${isPenaltyActive ? 'bg-red-900' : 'bg-slate-900'}`} style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
             <StatusBar style="light" />
 
-            {/* Header */}
             <View className="px-6 py-4 border-b border-white/10">
                 <Text className="text-white/70 text-sm font-bold uppercase tracking-widest text-center">
                     {isPenaltyActive ? "⚠️ PENALTY MODE ACTIVE" : "Waiting for Passenger"}
@@ -92,8 +138,6 @@ export default function WaitingForReturnScreen() {
             </View>
 
             <View className="flex-1 items-center justify-center px-6">
-
-                {/* Timer Display */}
                 <View className={`w-64 h-64 rounded-full items-center justify-center border-8 mb-10 ${isPenaltyActive ? 'border-red-500 bg-red-500/10' : 'border-[#FFD700] bg-[#FFD700]/10'}`}>
                     <Text className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">
                         {isPenaltyActive ? "Overdue Time" : "Time Remaining"}
@@ -103,24 +147,39 @@ export default function WaitingForReturnScreen() {
                     </Text>
                     {isPenaltyActive && (
                         <Text className="text-white/50 text-xs font-bold mt-2">
-                            + ₹{penaltyAmount}
+                            + ₹{booking?.penaltyApplied || 0}
                         </Text>
                     )}
                 </View>
 
-                {/* Info Cards */}
-                <View className="w-full flex-row gap-4 mb-8">
-                    <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-white/10 items-center">
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Distance</Text>
-                        <Text className="text-white text-xl font-bold">{rideDistance} KM</Text>
+                <View className="w-full bg-slate-800/50 p-6 rounded-[32px] border border-white/10 mb-8">
+                    <Text className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">Current Billing</Text>
+
+                    <View className="flex-row justify-between mb-2">
+                        <Text className="text-slate-400 font-bold">Outbound Trip</Text>
+                        <Text className="text-white font-black">₹{booking?.fare || 0}</Text>
                     </View>
-                    <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-white/10 items-center">
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Allocated Wait</Text>
-                        <Text className="text-white text-xl font-bold">{allocatedMinutes} Min</Text>
+
+                    {Number(booking?.penaltyApplied) > 0 && (
+                        <View className="flex-row justify-between mb-4">
+                            <Text className="text-red-400 font-bold">Waiting Charges</Text>
+                            <Text className="text-red-400 font-black">+ ₹{booking?.penaltyApplied || 0}</Text>
+                        </View>
+                    )}
+
+                    <View className="border-t border-slate-700/50 pt-4 flex-row justify-between items-center">
+                        <Text className="text-white text-sm font-black uppercase tracking-wider">Estimated Total</Text>
+                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
                     </View>
                 </View>
 
-                {/* Penalty Notice */}
+                <View className="w-full flex-row gap-4 mb-4">
+                    <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-white/10 items-center">
+                        <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Allocated Wait</Text>
+                        <Text className="text-white text-xl font-bold">{Math.round(waitingLimit / 60)} Min</Text>
+                    </View>
+                </View>
+
                 {isPenaltyActive && (
                     <View className="w-full bg-red-500/20 p-4 rounded-2xl border border-red-500/50 mb-8 flex-row items-center justify-center">
                         <Ionicons name="warning" size={24} color="#EF4444" style={{ marginRight: 10 }} />
@@ -130,10 +189,8 @@ export default function WaitingForReturnScreen() {
                         </View>
                     </View>
                 )}
-
             </View>
 
-            {/* Bottom Action */}
             <View className="px-6 pb-6">
                 <TouchableOpacity
                     onPress={handleStartReturnRide}

@@ -13,6 +13,8 @@ import { StatusBar } from 'expo-status-bar';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
+import { driverAPI } from '../utils/api';
+
 interface RideItem {
     id: string;
     date: string;
@@ -21,49 +23,46 @@ interface RideItem {
     drop: string;
     status: 'Completed' | 'Cancelled';
     rating: number;
+    feedback: string;
+    distance: number;
+    user: any;
+    rawStatus: string;
 }
-
-const RIDE_HISTORY_DATA: RideItem[] = [
-    {
-        id: '1',
-        date: 'Today, 10:23 AM',
-        amount: '₹420',
-        pickup: 'Hazratganj Metro Station',
-        drop: 'Chaudhary Charan Singh Airport',
-        status: 'Completed',
-        rating: 5
-    },
-    {
-        id: '2',
-        date: 'Yesterday, 06:15 PM',
-        amount: '₹150',
-        pickup: 'Phoenix Palassio',
-        drop: 'Gomti Nagar Extension',
-        status: 'Completed',
-        rating: 4
-    },
-    {
-        id: '3',
-        date: '10 Feb, 02:30 PM',
-        amount: '₹80',
-        pickup: 'Charbagh Railway Station',
-        drop: 'Husainganj',
-        status: 'Cancelled',
-        rating: 0
-    },
-    {
-        id: '4',
-        date: '09 Feb, 09:45 AM',
-        amount: '₹320',
-        pickup: 'Indira Nagar',
-        drop: 'Alambagh Bus Stand',
-        status: 'Completed',
-        rating: 5
-    },
-];
 
 export default function RideHistoryScreen() {
     const router = useRouter();
+    const [history, setHistory] = React.useState<RideItem[]>([]);
+    const [loading, setLoading] = React.useState(true);
+
+    const fetchHistory = async () => {
+        try {
+            setLoading(true);
+            const response = await driverAPI.getBookingsHistory();
+            if (response.data && response.data.bookings) {
+                setHistory(response.data.bookings.map((item: any) => ({
+                    id: item.id || item._id,
+                    date: new Date(item.createdAt).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                    amount: `₹${item.totalFare || item.fare}`,
+                    pickup: item.pickupLocation,
+                    drop: item.dropLocation,
+                    status: item.status === 'completed' ? 'Completed' : 'Cancelled',
+                    rating: item.rating || 0,
+                    feedback: item.feedback || "",
+                    distance: item.distance || 0,
+                    user: item.user,
+                    rawStatus: item.status
+                })));
+            }
+        } catch (error) {
+            console.error("Error fetching history:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchHistory();
+    }, []);
 
     const renderRideItem = ({ item }: { item: RideItem }) => (
         <View className="bg-white rounded-[26px] p-5 mb-4 shadow-sm border border-slate-100">
@@ -78,7 +77,7 @@ export default function RideHistoryScreen() {
                         </Text>
                     </View>
                 </View>
-                <Text className="text-slate-900 text-xl font-black">{item.amount}</Text>
+                {/* Amount removed per user request */}
             </View>
 
             {/* Route Info */}
@@ -88,12 +87,12 @@ export default function RideHistoryScreen() {
 
                 <View className="flex-row items-center mb-3">
                     <View className="w-3 h-3 rounded-full bg-slate-200 border-2 border-white z-10" />
-                    <Text className="text-slate-600 font-bold ml-3 text-sm flex-1" numberOfLines={1}>{item.pickup}</Text>
+                    <Text className="text-slate-600 font-bold ml-3 text-sm flex-1" numberOfLines={2}>{item.pickup}</Text>
                 </View>
 
                 <View className="flex-row items-center">
                     <View className="w-3 h-3 rounded-sm bg-slate-900 border-2 border-white z-10" />
-                    <Text className="text-slate-900 font-bold ml-3 text-sm flex-1" numberOfLines={1}>{item.drop}</Text>
+                    <Text className="text-slate-900 font-bold ml-3 text-sm flex-1" numberOfLines={2}>{item.drop}</Text>
                 </View>
             </View>
 
@@ -102,12 +101,20 @@ export default function RideHistoryScreen() {
                 {item.status === 'Completed' ? (
                     <View className="flex-row items-center bg-[#FFFBEB] px-2 py-1 rounded-full border border-[#FEF3C7]">
                         <Ionicons name="star" size={10} color="#F59E0B" />
-                        <Text className="text-[#B45309] text-xs font-bold ml-1">{item.rating}.0 Rating</Text>
+                        <Text className="text-[#B45309] text-xs font-bold ml-1">
+                            {item.rating > 0 ? `${item.rating}.0 Rating` : "Unrated"}
+                        </Text>
                     </View>
                 ) : (
                     <View />
                 )}
-                <TouchableOpacity className="flex-row items-center">
+                <TouchableOpacity
+                    onPress={() => router.push({
+                        pathname: "/ride-details",
+                        params: { bookingId: item.id }
+                    })}
+                    className="flex-row items-center"
+                >
                     <Text className="text-slate-400 text-xs font-bold mr-1">View Details</Text>
                     <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
                 </TouchableOpacity>
@@ -138,11 +145,13 @@ export default function RideHistoryScreen() {
             </View>
 
             <FlatList
-                data={RIDE_HISTORY_DATA}
+                data={history}
                 renderItem={renderRideItem}
                 keyExtractor={item => item.id}
                 contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
+                refreshing={loading}
+                onRefresh={fetchHistory}
             />
         </View>
     );

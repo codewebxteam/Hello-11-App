@@ -1,14 +1,15 @@
-// app/_layout.tsx
+import React from "react";
 import "../global.css";
 import { Stack } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="pickup" />
-      <Stack.Screen name="start-ride" />
-      <Stack.Screen name="active-ride" />
-    </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

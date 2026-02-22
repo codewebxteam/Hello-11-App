@@ -27,7 +27,7 @@ const RegisterScreen = () => {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const router = useRouter();
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!name || phoneNumber.length < 10 || password.length < 6) {
       Alert.alert("Attention", "Please fill all fields correctly.");
       return;
@@ -36,8 +36,36 @@ const RegisterScreen = () => {
       Alert.alert("Error", "Passwords do not match!");
       return;
     }
-    Alert.alert("Success", `Welcome ${name}! Account created successfully!`);
-    router.push({ pathname: "/screens/HomeScreen", params: { userName: name } });
+
+    try {
+      const { authAPI } = require("../../utils/api");
+      const { saveToken, saveUser } = require("../../utils/storage");
+
+      const response = await authAPI.signup({
+        name,
+        mobile: phoneNumber,
+        password
+      });
+
+      const { token, user, message } = response.data;
+
+      if (token) {
+        await saveToken(token);
+        await saveUser(user);
+
+        Alert.alert("Success", `Welcome ${name}! Account created successfully!`);
+        // Use replace instead of push to prevent going back to auth screen
+        router.replace("/screens/HomeScreen");
+      } else {
+        // Fallback if no token (shouldn't happen with our backend fix)
+        Alert.alert("Success", "Account created! Please login.");
+        router.push("/screens/LoginScreen");
+      }
+
+    } catch (error: any) {
+      console.error("Register error:", error);
+      Alert.alert("Registration Failed", error.message || "Could not create account");
+    }
   };
 
   return (
@@ -46,16 +74,16 @@ const RegisterScreen = () => {
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
       {/* --- Responsive Yellow Background Section --- */}
-      <View 
-        style={{ 
-          height: isTablet ? height * 0.45 : height * 0.38, 
-          width: width * 2, 
+      <View
+        style={{
+          height: isTablet ? height * 0.45 : height * 0.38,
+          width: width * 2,
           left: -width * 0.5,
           borderBottomLeftRadius: width,
           borderBottomRightRadius: width,
           position: 'absolute',
           top: 0,
-        }} 
+        }}
         className="bg-[#FFD700] shadow-sm"
       />
 
@@ -69,15 +97,15 @@ const RegisterScreen = () => {
           keyboardShouldPersistTaps="handled"
         >
           {/* Back Button - Positioned over yellow */}
-          <TouchableOpacity 
-            onPress={() => router.back()} 
+          <TouchableOpacity
+            onPress={() => router.back()}
             className="ml-6 mt-2 bg-white/40 self-start p-2 rounded-full active:bg-white/60"
           >
             <Ionicons name="arrow-back" size={24} color="#1E293B" />
           </TouchableOpacity>
 
           <View className={`flex-1 px-8 ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
-            
+
             {/* Header Content - Now clearly on top of the yellow section */}
             <View className="mb-8 items-center mt-4">
               <Text className="text-[32px] md:text-5xl font-black text-slate-900 text-center leading-tight">

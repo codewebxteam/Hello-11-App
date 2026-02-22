@@ -4,19 +4,64 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, SlideInUp, ZoomIn } from 'react-native-reanimated';
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { userAPI, bookingAPI } from "../../utils/api";
 
 const { width } = Dimensions.get('window');
 
 const ThankYouScreen = () => {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const bookingId = params.bookingId as string;
+
     const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [driverName, setDriverName] = useState("Your Driver");
+    const [driverVehicle, setDriverVehicle] = useState("");
 
-    const handleSubmit = () => {
-        // Logic to submit rating would go here
-        console.log({ rating, feedback });
-        router.replace("/screens/HomeScreen");
+    React.useEffect(() => {
+        const fetchBookingDetails = async () => {
+            if (bookingId) {
+                try {
+                    const res = await bookingAPI.getBookingById(bookingId);
+                    if (res.data && res.data.booking && res.data.booking.driver) {
+                        setDriverName(res.data.booking.driver.name || "Your Driver");
+                        const vehicle = `${res.data.booking.driver.vehicleModel || ''} ${res.data.booking.driver.vehicleNumber || ''}`.trim();
+                        setDriverVehicle(vehicle);
+                    }
+                } catch (error) {
+                    console.error("Error fetching booking for rating:", error);
+                }
+            }
+        };
+        fetchBookingDetails();
+    }, [bookingId]);
+
+    const handleSubmit = async () => {
+        if (!bookingId) {
+            // Fallback if testing without bookingId
+            console.warn("No booking ID found for rating");
+            router.replace("/screens/HomeScreen");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await userAPI.rateDriver({
+                bookingId,
+                rating,
+                feedback
+            });
+            // Maybe show success toast?
+            router.replace("/screens/HomeScreen");
+        } catch (error) {
+            console.error("Rate Driver Error", error);
+            alert("Failed to submit review, but thanks!");
+            router.replace("/screens/HomeScreen");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -54,7 +99,8 @@ const ThankYouScreen = () => {
                                 className="bg-slate-50 rounded-3xl p-6 border border-slate-100 items-center shadow-lg shadow-slate-100"
                             >
                                 <Text className="text-slate-900 font-black text-lg mb-1">Rate your Driver</Text>
-                                <Text className="text-slate-400 font-bold text-xs mb-6">Vikram Singh</Text>
+                                <Text className="text-slate-400 font-bold text-xs mb-1">{driverName}</Text>
+                                {driverVehicle ? <Text className="text-slate-300 font-bold text-[10px] mb-6">{driverVehicle}</Text> : <View className="mb-6" />}
 
                                 <View className="flex-row gap-2 mb-8">
                                     {[1, 2, 3, 4, 5].map((star) => (
