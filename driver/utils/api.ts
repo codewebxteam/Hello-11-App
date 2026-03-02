@@ -3,21 +3,17 @@ import { Platform } from "react-native";
 
 // Driver app API base URL configuration
 export const getBaseUrl = (): string => {
-  // Check for production API URL from environment variable
   const PRODUCTION_API_URL = process.env.EXPO_PUBLIC_API_URL;
 
   if (PRODUCTION_API_URL) {
     return PRODUCTION_API_URL;
   }
 
-  // Development mode - use local network IP for physical device support
   if (__DEV__) {
-    // Based on Metro log: exp://192.168.1.14:8081
-    return "http://192.168.1.14:5001";
+    return "https://hello-11-app.onrender.com";
   }
 
-  // Fallback (should be set via environment variable in production)
-  return "http://localhost:5001";
+  return "https://hello-11-app.onrender.com";
 };
 
 export const API_BASE_URL = getBaseUrl();

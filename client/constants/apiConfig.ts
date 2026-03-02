@@ -3,21 +3,19 @@ import { Platform } from "react-native";
 
 // Get API base URL based on environment
 const getApiBaseUrl = (): string => {
-    // Check if we have an environment variable for production
     const PRODUCTION_API_URL = process.env.EXPO_PUBLIC_API_URL;
 
     if (PRODUCTION_API_URL) {
         return PRODUCTION_API_URL;
     }
 
-    // Development mode - use local network IP for physical device support
+    // Development mode
     if (__DEV__) {
-        // Based on Metro log: exp://192.168.1.14:8081
-        return "http://192.168.1.14:5001";
+        return "https://hello-11-app.onrender.com";
     }
 
-    // Fallback for production (should be set via environment variable)
-    return "http://localhost:5001";
+    // Production fallback (also Render)
+    return "https://hello-11-app.onrender.com";
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -56,7 +54,7 @@ export const API_ENDPOINTS = {
     UPDATE_DRIVER_LOCATION: "/api/drivers/location",
     TOGGLE_AVAILABILITY: "/api/drivers/availability",
 
-    // Location (LocationIQ integration)
+    // Location
     GEOCODE: "/api/location/geocode",
     REVERSE_GEOCODE: "/api/location/reverse",
     DIRECTIONS: "/api/location/directions",

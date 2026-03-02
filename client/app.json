@@ -24,7 +24,8 @@
         "googleMaps": {
           "apiKey": "AIzaSyChfzWHWK0Gk8oNeqK2_6HoxOpBf78YTJ8"
         }
-      }
+      },
+      "package": "com.pmup53.hello11"
     },
     "web": {
       "output": "static",
@@ -49,6 +50,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a08c12b4-f831-4a5f-b9cc-1153b20e2683"
+      }
     }
   }
 }
