@@ -9,19 +9,21 @@ import {
   ScrollView,
   TextInput,
   Dimensions,
+  ActivityIndicator, // ✅ Import ActivityIndicator
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 const { width, height } = Dimensions.get('window');
-const isTablet = width > 768; // Tablet detection logic
+const isTablet = width > 768;
 
 const LoginScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false); // ✅ Added Loading State
   const router = useRouter();
 
   const handleLogin = async () => {
@@ -30,9 +32,11 @@ const LoginScreen = () => {
       return;
     }
 
+    setIsLoading(true); // ✅ Start Loading
+
     try {
       const { authAPI } = require("../../utils/api");
-      const { saveToken, saveUser } = require("../../utils/storage"); // Assuming storage utils exist
+      const { saveToken, saveUser } = require("../../utils/storage");
 
       const response = await authAPI.signin({
         mobile: phoneNumber,
@@ -44,8 +48,6 @@ const LoginScreen = () => {
       if (token) {
         await saveToken(token);
         await saveUser(user);
-
-        // Show success status briefly if needed or just redirect
         router.replace("/screens/HomeScreen");
       } else {
         Alert.alert("Login Failed", message || "Invalid credentials");
@@ -53,6 +55,8 @@ const LoginScreen = () => {
     } catch (error: any) {
       console.error("Login error:", error);
       Alert.alert("Login Failed", error.message || "Something went wrong");
+    } finally {
+      setIsLoading(false); // ✅ Stop Loading regardless of success or failure
     }
   };
 
@@ -64,22 +68,22 @@ const LoginScreen = () => {
       {/* --- RESPONSIVE AMBIENT GLOW --- */}
       <View
         className="absolute rounded-full bg-[#FFD700] opacity-20"
-        style={{
-          top: -height * 0.1,
-          right: -width * 0.2,
-          width: width * 0.9,
-          height: width * 0.9
-        }}
+        style={{ top: -height * 0.1, right: -width * 0.2, width: width * 0.9, height: width * 0.9 }}
       />
       <View
         className="absolute rounded-full bg-[#FFD700] opacity-10"
-        style={{
-          top: height * 0.4,
-          left: -width * 0.1,
-          width: width * 0.4,
-          height: width * 0.4
-        }}
+        style={{ top: height * 0.4, left: -width * 0.1, width: width * 0.4, height: width * 0.4 }}
       />
+
+      {/* ✅ FULL SCREEN LOADING OVERLAY (Shows only when isLoading is true) */}
+      {isLoading && (
+        <View className="absolute inset-0 z-50 justify-center items-center bg-white/60">
+          <View className="bg-slate-900 p-8 rounded-3xl shadow-2xl items-center">
+            <ActivityIndicator size="large" color="#FFD700" />
+            <Text className="text-white font-bold mt-4 tracking-widest text-xs uppercase">Securing Session...</Text>
+          </View>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -90,7 +94,6 @@ const LoginScreen = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Main Content Wrapper: Tablet par width control karta hai */}
           <View
             className="self-center w-full px-8 py-10"
             style={{ maxWidth: isTablet ? 550 : '100%' }}
@@ -140,6 +143,7 @@ const LoginScreen = () => {
                     onChangeText={setPhoneNumber}
                     onFocus={() => setFocusedInput('phone')}
                     onBlur={() => setFocusedInput(null)}
+                    editable={!isLoading} // ✅ Disable during loading
                   />
                 </View>
               </View>
@@ -174,6 +178,7 @@ const LoginScreen = () => {
                     onChangeText={setPassword}
                     onFocus={() => setFocusedInput('pass')}
                     onBlur={() => setFocusedInput(null)}
+                    editable={!isLoading} // ✅ Disable during loading
                   />
 
                   <TouchableOpacity
@@ -185,7 +190,11 @@ const LoginScreen = () => {
                 </View>
               </View>
 
-              <TouchableOpacity className="self-end" onPress={() => router.push("/screens/ForgotPasswordScreen")}>
+              <TouchableOpacity 
+                className="self-end" 
+                onPress={() => router.push("/screens/ForgotPasswordScreen")}
+                disabled={isLoading}
+              >
                 <Text className="text-slate-400 font-bold text-xs underline">Forgot Key?</Text>
               </TouchableOpacity>
             </View>
@@ -195,14 +204,21 @@ const LoginScreen = () => {
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={handleLogin}
-                className="bg-[#FFD700] py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40"
+                disabled={isLoading} // ✅ Prevent double clicking
+                className={`py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40 ${isLoading ? 'bg-slate-300' : 'bg-[#FFD700]'}`}
               >
-                <Text className="text-slate-900 font-black text-lg tracking-[2px]">UNLOCK RIDE</Text>
+                {/* ✅ Button Content Switch */}
+                {isLoading ? (
+                  <ActivityIndicator color="#1E293B" />
+                ) : (
+                  <Text className="text-slate-900 font-black text-lg tracking-[2px]">UNLOCK RIDE</Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => router.push("/screens/registerScreen")}
                 className="mt-8 self-center"
+                disabled={isLoading}
               >
                 <Text className="text-slate-400 font-bold text-[11px] uppercase tracking-widest text-center">
                   New Member? <Text className="text-[#FFB800] font-black">Join Hello 11</Text>
