@@ -1,19 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
+import { 
+    View, 
+    Text, 
+    TouchableOpacity, 
+    TextInput, 
+    ScrollView, 
+    Alert, 
+    KeyboardAvoidingView, 
+    Platform, 
+    Dimensions,
+    ActivityIndicator 
+} from 'react-native';
 import { useRouter } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { userAPI } from '../../utils/api';
 
 const { width } = Dimensions.get('window');
 
-import { userAPI } from '../../utils/api';
-
 const ProfileScreen = () => {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // User data state
     const [userInfo, setUserInfo] = useState({
         name: "",
         email: "",
@@ -29,7 +40,7 @@ const ProfileScreen = () => {
         try {
             setLoading(true);
             const response = await userAPI.getProfile();
-            const { user } = response.data; // Backend returns { user: ... } wrapper
+            const { user } = response.data;
             setUserInfo({
                 name: user.name || "",
                 email: user.email || "",
@@ -37,8 +48,7 @@ const ProfileScreen = () => {
                 gender: user.gender || ""
             });
         } catch (error) {
-            console.error("Failed to fetch profile:", error);
-            Alert.alert("Error", "Could not load profile data");
+            Alert.alert("Error", "Failed to fetch profile data");
         } finally {
             setLoading(false);
         }
@@ -58,6 +68,30 @@ const ProfileScreen = () => {
         }
     };
 
+    // ✅ Gender Selector Component for Edit Mode
+    const GenderSelector = () => {
+        const options = ['Male', 'Female', 'Other'];
+        return (
+            <View className="flex-row gap-3 mt-1">
+                {options.map((opt) => (
+                    <TouchableOpacity
+                        key={opt}
+                        onPress={() => setUserInfo({ ...userInfo, gender: opt })}
+                        className={`flex-1 py-4 rounded-[22px] items-center border-2 ${
+                            userInfo.gender === opt 
+                            ? 'bg-[#FFD700] border-[#FFD700]' 
+                            : 'bg-slate-50 border-slate-200'
+                        }`}
+                    >
+                        <Text className={`font-black ${userInfo.gender === opt ? 'text-slate-900' : 'text-slate-500'}`}>
+                            {opt}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        );
+    };
+
     const renderField = (
         label: string,
         key: keyof typeof userInfo,
@@ -69,108 +103,130 @@ const ProfileScreen = () => {
         const isValueEmpty = !value || value.trim() === "";
 
         return (
-            <View className="mb-5">
-                <View className="flex-row items-center mb-2 ml-1">
-                    <Ionicons name={icon as any} size={18} color="#94A3B8" />
-                    <Text className="text-slate-400 text-xs font-bold uppercase ml-2 tracking-wider">{label}</Text>
+            <View className="mb-6">
+                <View className="flex-row items-center mb-2.5 ml-1">
+                    <Ionicons name={icon as any} size={20} color="#64748B" />
+                    <Text className="text-slate-500 text-[12px] font-black uppercase ml-2 tracking-[2px]">{label}</Text>
                 </View>
 
                 {isEditing && !isReadOnly ? (
-                    <TextInput
-                        value={userInfo[key]}
-                        onChangeText={(text) => setUserInfo({ ...userInfo, [key]: text })}
-                        className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-semibold text-base"
-                        keyboardType={keyboardType}
-                        placeholder={`Add ${label.toLowerCase()}`}
-                        placeholderTextColor="#CBD5E1"
-                    />
+                    // ✅ Checking if it's the Gender field to show the selector
+                    key === 'gender' ? (
+                        <GenderSelector />
+                    ) : (
+                        <TextInput
+                            value={userInfo[key]}
+                            onChangeText={(text) => setUserInfo({ ...userInfo, [key]: text })}
+                            className="bg-slate-50 border-2 border-slate-200 rounded-[22px] px-6 py-4.5 text-slate-900 font-bold text-lg"
+                            keyboardType={keyboardType}
+                            placeholder={`Enter ${label}`}
+                            placeholderTextColor="#94A3B8"
+                        />
+                    )
                 ) : (
-                    <View className={`bg-white border border-slate-100 rounded-2xl px-5 py-4 ${isValueEmpty ? "opacity-60" : ""} shadow-sm`}>
-                        <Text className={`text-base font-bold ${isValueEmpty ? "text-slate-400 italic" : "text-slate-800"}`}>
-                            {isValueEmpty ? `No ${label.toLowerCase()} added` : value}
+                    <View className="bg-white border border-slate-100 rounded-[22px] px-6 py-5 shadow-sm flex-row items-center justify-between">
+                        <Text className={`text-lg font-black ${isValueEmpty ? "text-slate-300 italic" : "text-slate-800"}`}>
+                            {isValueEmpty ? `Not Provided` : value}
                         </Text>
-                        {isReadOnly && (
-                            <View className="absolute right-4 top-4 opacity-30">
-                                <Ionicons name="lock-closed" size={16} color="#64748B" />
-                            </View>
-                        )}
+                        {isReadOnly && <Ionicons name="lock-closed" size={18} color="#CBD5E1" />}
                     </View>
                 )}
             </View>
         );
     };
 
-    return (
-        <View className="flex-1 bg-slate-50">
-            <StatusBar style="dark" />
-            <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
-                className="flex-1"
-            >
-                <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerClassName="pb-10"
-                >
-                    {/* Attractive Curved Header */}
-                    <View className="bg-[#FFD700] pt-12 pb-24 rounded-b-[40px] shadow-sm relative overflow-hidden">
-                        {/* Decorative background elements */}
-                        <View className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10" />
-                        <View className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-8 -mb-8" />
+    if (loading) {
+        return (
+            <View className="flex-1 bg-white justify-center items-center">
+                <ActivityIndicator size="large" color="#FFD700" />
+            </View>
+        );
+    }
 
-                        <View className="px-6 flex-row justify-between items-center z-10">
-                            <TouchableOpacity
-                                onPress={() => router.replace("/screens/HomeScreen")}
-                                className="bg-white/50 p-2 rounded-xl"
-                            >
-                                <Ionicons name="arrow-back" size={24} color="black" />
-                            </TouchableOpacity>
-                            <Text className="text-xl font-black text-slate-800 tracking-tight">Profile</Text>
-                            <TouchableOpacity
-                                onPress={() => isEditing ? handleSave() : setIsEditing(true)}
-                                className="px-4 py-2 bg-slate-900 rounded-full shadow-md"
-                            >
-                                <Text className="font-bold text-white text-xs uppercase tracking-wide">
-                                    {isEditing ? 'Save' : 'Edit'}
+    return (
+        <View className="flex-1 bg-[#F8FAFC]">
+            <StatusBar style="dark" />
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1">
+                <ScrollView 
+                    showsVerticalScrollIndicator={false} 
+                    contentContainerStyle={{ paddingBottom: 160 }}
+                >
+                    <View 
+                        className="bg-[#FFD700] rounded-b-[60px] shadow-lg relative overflow-hidden"
+                        style={{ paddingTop: insets.top + 15, paddingBottom: 85 }}
+                    >
+                        <View className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full" />
+                        
+                        <View className="px-6 flex-row items-center justify-between z-10 w-full">
+                            <View style={{ width: 70 }}>
+                                <TouchableOpacity 
+                                    onPress={() => router.replace("/screens/HomeScreen")} 
+                                    className="bg-white/40 p-3 rounded-2xl items-center justify-center"
+                                >
+                                    <Ionicons name="arrow-back" size={26} color="black" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View className="flex-1 items-center px-2">
+                                <Text numberOfLines={1} className="text-[26px] font-black text-slate-900 italic tracking-tighter text-center">
+                                    My Account
                                 </Text>
-                            </TouchableOpacity>
+                            </View>
+
+                            <View style={{ width: 70, alignItems: 'flex-end' }}>
+                                <TouchableOpacity 
+                                    onPress={() => isEditing ? handleSave() : setIsEditing(true)}
+                                    className={`px-4 py-2.5 rounded-full shadow-xl ${isEditing ? 'bg-green-600' : 'bg-slate-900'}`}
+                                >
+                                    <Text className="font-black text-white text-[10px] uppercase tracking-widest">
+                                        {isEditing ? 'SAVE' : 'EDIT'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
 
-                    {/* Overlapping Main Content */}
-                    <View className="px-6 -mt-16">
-                        {/* Avatar Section */}
-                        <View className="items-center mb-6">
-                            <View className="w-28 h-28 bg-white rounded-[30px] justify-center items-center shadow-lg elevation-10 rotate-3 transform border-4 border-white">
-                                <Text className="text-5xl font-black text-slate-800">
-                                    {userInfo.name.charAt(0).toUpperCase()}
+                    <View className="px-6 -mt-10">
+                        <View className="bg-white p-8 rounded-[45px] shadow-2xl shadow-slate-300 border border-slate-50">
+                            
+                            <View className="mb-10 items-center border-b border-slate-50 pb-8">
+                                <View className="w-24 h-24 bg-[#FFD700] rounded-[35px] justify-center items-center shadow-md border-4 border-white mb-4">
+                                    <Text className="text-4xl font-black text-slate-900">
+                                        {userInfo.name ? userInfo.name.charAt(0).toUpperCase() : "U"}
+                                    </Text>
+                                </View>
+                                <Text className="text-3xl font-black text-slate-900 tracking-tighter italic text-center">
+                                    {userInfo.name || "Hello Guest"}
                                 </Text>
+                                <View className="flex-row items-center mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100">
+                                    <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
+                                    <Text className="text-green-700 font-black text-[9px] tracking-widest uppercase ml-1.5">
+                                        Verified Member
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View className="w-full">
+                                <Text className="text-[12px] font-black text-slate-400 mb-6 tracking-[2px] uppercase italic pl-1">
+                                    Identity Details
+                                </Text>
+                                
+                                {renderField("Full Identity", "name", "person-outline", true)}
+                                {renderField("Registered Mobile", "phone", "call-outline", true)}
+                                {renderField("Email Address", "email", "mail-outline", false, "email-address")}
+                                {renderField("Gender", "gender", "people-outline", false)}
                             </View>
                         </View>
 
-                        {/* Name Info (Visual Only) */}
-                        <View className="items-center mb-8">
-                            <Text className="text-2xl font-black text-slate-800 mb-1">{userInfo.name}</Text>
-                            <Text className="text-slate-500 font-medium">{userInfo.phone}</Text>
-                        </View>
-
-                        {/* Details Card */}
-                        <View className="bg-white p-6 rounded-[30px] shadow-sm mb-6">
-                            <Text className="text-lg font-extrabold text-slate-800 mb-6">Personal Details</Text>
-
-                            {/* Read-only fields within the form context if needed, otherwise simplified */}
-                            {renderField("Full Name", "name", "person-outline", true)}
-                            {renderField("Phone Number", "phone", "call-outline", true)}
-                            {renderField("Email Address", "email", "mail-outline", false, "email-address")}
-                            {renderField("Gender", "gender", "people-outline", false)}
-                        </View>
-
-                        {/* Logout Button */}
                         <TouchableOpacity
                             onPress={() => router.replace("/")}
-                            className="flex-row items-center justify-center bg-white py-4 rounded-2xl shadow-sm border border-red-50 active:bg-red-50 mb-8"
+                            activeOpacity={0.8}
+                            className="mt-8 flex-row items-center justify-center bg-white py-5 rounded-[28px] shadow-md border border-red-100 active:bg-red-50"
                         >
-                            <Ionicons name="log-out-outline" size={20} color="#EF4444" style={{ marginRight: 8 }} />
-                            <Text className="text-red-500 font-bold text-base">Log Out</Text>
+                            <Ionicons name="log-out-outline" size={24} color="#EF4444" style={{ marginRight: 10 }} />
+                            <Text className="text-red-500 font-black text-base uppercase tracking-[2.5px]">
+                                Log Out Session
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
