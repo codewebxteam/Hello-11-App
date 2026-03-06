@@ -9,10 +9,12 @@ import {
     ScrollView,
     TextInput,
     Dimensions,
+    ActivityIndicator,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useDriverAuth } from "../../context/DriverAuthContext";
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -22,7 +24,9 @@ const LoginScreen = () => {
     const [password, setPassword] = useState("");
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
+    const { login } = useDriverAuth();
 
     const handleLogin = async () => {
         if (!phoneNumber || !password) {
@@ -30,26 +34,21 @@ const LoginScreen = () => {
             return;
         }
 
+        setIsLoading(true);
+
         try {
-            const { driverAuthAPI } = require("../../utils/api");
-            const { setDriverToken, setDriverData } = require("../../utils/storage");
-
-            const response = await driverAuthAPI.login({
-                mobile: phoneNumber,
-                password: password
-            });
-
-            if (response.data && response.data.token) {
-                const { token, driver } = response.data;
-                await setDriverToken(token);
-                await setDriverData(driver);
+            const result = await login(phoneNumber, password);
+            
+            if (result.success) {
                 router.replace("/");
             } else {
-                Alert.alert("Login Failed", response.data.message || "Invalid credentials.");
+                Alert.alert("Login Failed", result.message);
             }
         } catch (err: any) {
             console.error("Login error:", err);
             Alert.alert("Error", err.message || "Something went wrong. Please try again.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -189,9 +188,14 @@ const LoginScreen = () => {
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={handleLogin}
+                                disabled={isLoading}
                                 className="bg-[#FFD700] py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40"
                             >
-                                <Text className="text-slate-900 font-black text-lg tracking-[2px]">LOGIN</Text>
+                                {isLoading ? (
+                                    <ActivityIndicator color="#1E293B" />
+                                ) : (
+                                    <Text className="text-slate-900 font-black text-lg tracking-[2px]">LOGIN</Text>
+                                )}
                             </TouchableOpacity>
 
                             <TouchableOpacity

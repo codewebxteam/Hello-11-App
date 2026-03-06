@@ -9,11 +9,12 @@ import {
   ScrollView,
   TextInput,
   Dimensions,
-  ActivityIndicator, // ✅ Import ActivityIndicator
+  ActivityIndicator,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useAuth } from "../../context/AuthContext";
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -23,8 +24,9 @@ const LoginScreen = () => {
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // ✅ Added Loading State
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
 
   const handleLogin = async () => {
     if (!phoneNumber || !password) {
@@ -32,31 +34,21 @@ const LoginScreen = () => {
       return;
     }
 
-    setIsLoading(true); // ✅ Start Loading
+    setIsLoading(true);
 
     try {
-      const { authAPI } = require("../../utils/api");
-      const { saveToken, saveUser } = require("../../utils/storage");
-
-      const response = await authAPI.signin({
-        mobile: phoneNumber,
-        password: password
-      });
-
-      const { token, user, message } = response.data;
-
-      if (token) {
-        await saveToken(token);
-        await saveUser(user);
+      const result = await login(phoneNumber, password);
+      
+      if (result.success) {
         router.replace("/screens/HomeScreen");
       } else {
-        Alert.alert("Login Failed", message || "Invalid credentials");
+        Alert.alert("Login Failed", result.message);
       }
     } catch (error: any) {
       console.error("Login error:", error);
       Alert.alert("Login Failed", error.message || "Something went wrong");
     } finally {
-      setIsLoading(false); // ✅ Stop Loading regardless of success or failure
+      setIsLoading(false);
     }
   };
 
@@ -204,7 +196,7 @@ const LoginScreen = () => {
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={handleLogin}
-                disabled={isLoading} // ✅ Prevent double clicking
+                disabled={isLoading}
                 className={`py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40 ${isLoading ? 'bg-slate-300' : 'bg-[#FFD700]'}`}
               >
                 {/* ✅ Button Content Switch */}
