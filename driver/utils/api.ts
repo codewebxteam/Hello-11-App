@@ -211,4 +211,21 @@ export const locationAPI = {
   getStatus: () => api.get(API_ENDPOINTS.LOCATION_STATUS),
 };
 
+// ================= FARE API =================
+export const fareAPI = {
+  /**
+   * Calculate trip fare using the step-based pricing model.
+   * @param distance - trip distance in KM (≥ 1)
+   * @param carType  - "5-seater" | "7-seater"
+   * @param service  - "cab" (max 40 KM) | "rental" (unlimited)
+   * @param tripType - "one-way" | "round-trip" (default: "one-way")
+   */
+  calculateTripFare: (data: {
+    distance: number;
+    carType: "5-seater" | "7-seater";
+    service: "cab" | "rental";
+    tripType?: "one-way" | "round-trip";
+  }) => api.post("/api/fare/trip", data),
+};
+
 export default api;

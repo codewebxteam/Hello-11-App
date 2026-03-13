@@ -28,16 +28,17 @@ const OutstationBookingScreen = () => {
   );
 
   // Fare/Vehicle state
-  const [vehicleOptions, setVehicleOptions] = useState<any[]>([]);
-  const [selectedVehicleType, setSelectedVehicleType] = useState<string>('sedan');
+  const [carType, setCarType] = useState<'5-seater' | '7-seater'>('5-seater');
   const [estimatedFare, setEstimatedFare] = useState<number>(0);
-  const [fareRate, setFareRate] = useState<number>(0);
+  const [totalFare, setTotalFare] = useState<number>(0);
+  const [allowedTimeMinutes, setAllowedTimeMinutes] = useState<number>(0);
+  const [isNightSurcharge, setIsNightSurcharge] = useState<boolean>(false);
+  const [nightSurcharge, setNightSurcharge] = useState<number>(0);
 
   // UI state
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [activeInput, setActiveInput] = useState<'pickup' | 'drop' | null>(null);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
-  const [loadingRates, setLoadingRates] = useState(false);
   const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([]);
 
   const [bookingType, setBookingType] = useState<'now' | 'schedule'>('now');
@@ -68,46 +69,34 @@ const OutstationBookingScreen = () => {
     return () => clearTimeout(timer);
   }, [pickup, drop, activeInput]);
 
-  // ─── Fetch Outstation Rates ──────────────────────────────────────────────────
+  // ─── Calculate Fare (step-based pricing + night surcharge) ──────────────────
   useEffect(() => {
-    const fetchRates = async () => {
-      setLoadingRates(true);
-      try {
-        const res = await fareAPI.getOutstationRates();
-        if (res.data?.success) {
-          setVehicleOptions(res.data.data.vehicleTypes);
-        }
-      } catch (err) {
-        console.error('Failed to fetch rates:', err);
-      } finally {
-        setLoadingRates(false);
-      }
-    };
-    fetchRates();
-  }, []);
-
-  // ─── Calculate Estimate ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (distanceKm > 0 && selectedVehicleType) {
-      const fetchEstimate = async () => {
+    if (distanceKm > 0) {
+      const fetchFare = async () => {
         try {
-          const res = await fareAPI.calculateEstimate({
-            distanceKm,
-            cabType: selectedVehicleType,
-            bookingType: 'outstation'
+          // Use scheduled date (if scheduling) or current time (ride now)
+          const bookingTime =
+            bookingType === 'schedule' ? scheduledDate.toISOString() : new Date().toISOString();
+          const res = await fareAPI.calculateTripFare({
+            distance: distanceKm,
+            carType,
+            service: 'rental',
+            bookingTime,
           });
           if (res.data?.success) {
-            setEstimatedFare(res.data.data.estimatedFare);
-            setFareRate(res.data.data.ratePerKm);
+            setEstimatedFare(res.data.data.oneWayFare);
+            setTotalFare(res.data.data.totalFare);
+            setAllowedTimeMinutes(res.data.data.allowedTimeMinutes);
+            setIsNightSurcharge(res.data.data.isNightSurcharge ?? false);
+            setNightSurcharge(res.data.data.nightSurcharge ?? 0);
           }
         } catch (err) {
-          console.error('Fare estimate error:', err);
-          // Fallback calculation if server fails (optional)
+          console.error('Fare calculation error:', err);
         }
       };
-      fetchEstimate();
+      fetchFare();
     }
-  }, [distanceKm, selectedVehicleType]);
+  }, [distanceKm, carType, bookingType, scheduledDate]);
 
   // ─── Distance + Drivers (Availability Check) ─────────────────────────────────
   const fetchDistanceAndDrivers = useCallback(async () => {
@@ -210,6 +199,12 @@ const OutstationBookingScreen = () => {
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   const isLongDistance = distanceKm >= 40;
 
+  const formatTime = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m > 0 ? m + 'm' : ''}`.trim() : `${m}m`;
+  };
+
   const formatScheduledDate = (date: Date) => {
     return date.toLocaleString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric',
@@ -250,8 +245,9 @@ const OutstationBookingScreen = () => {
         scheduledDate: bookingType === 'schedule' ? scheduledDate.toISOString() : undefined,
         fare: estimatedFare,
         baseFare: estimatedFare,
+        totalFare,
         distance: distanceKm,
-        vehicleType: selectedVehicleType, // Send the selected category
+        vehicleType: carType,
       };
 
       const res = await bookingAPI.createBooking(payload);
@@ -303,17 +299,17 @@ const OutstationBookingScreen = () => {
         >
           <Ionicons name="car" size={52} color="#FFD700" />
         </Animated.View>
-        <Text className="text-white font-black text-2xl text-center mb-3">requesting {selectedVehicleType}</Text>
+        <Text className="text-white font-black text-2xl text-center mb-3">requesting {carType}</Text>
         <Text className="text-slate-400 font-bold text-sm text-center mb-2">🛣️ Outstation Ride</Text>
         <Text className="text-slate-500 text-xs font-bold text-center mb-1" numberOfLines={1}>{pickup}</Text>
         <Text className="text-slate-500 text-xs font-bold text-center mb-8" numberOfLines={1}>→ {drop}</Text>
         <View className="bg-slate-800 px-8 py-4 rounded-[20px] mb-10 items-center">
           <Text className="text-slate-400 text-[9px] font-black uppercase">Estimated Fare</Text>
           <Text className="text-[#FFD700] text-3xl font-black">₹{estimatedFare}</Text>
-          <Text className="text-slate-500 text-[10px] font-bold mt-1">{distanceKm.toFixed(1)} km · ₹{fareRate}/km</Text>
+          <Text className="text-slate-500 text-[10px] font-bold mt-1">{distanceKm.toFixed(1)} km · ⏱ {formatTime(allowedTimeMinutes)}</Text>
         </View>
         <ActivityIndicator color="#FFD700" size="large" />
-        <Text className="text-slate-600 text-xs font-bold mt-4 mb-10">Searching nearby {selectedVehicleType}s...</Text>
+        <Text className="text-slate-600 text-xs font-bold mt-4 mb-10">Searching nearby {carType}s...</Text>
         <TouchableOpacity
           onPress={async () => {
             clearInterval(pollInterval.current);
@@ -428,75 +424,58 @@ const OutstationBookingScreen = () => {
           </View>
         )}
 
-        {/* ─── CHOOSE RIDE TYPE (Vehicle Options) ─── */}
+        {/* ─── CHOOSE VEHICLE TYPE ─── */}
         <Text className="text-xs font-black text-slate-500 mb-3 ml-1">CHOOSE VEHICLE</Text>
-
-        {loadingRates ? (
-          <ActivityIndicator color="#FFD700" size="small" />
-        ) : (
-          <View>
-            {vehicleOptions.map((option) => {
-              const isSelected = selectedVehicleType === option.type;
-              const thisFare = distanceKm > 0 ? Math.round(distanceKm * option.ratePerKm) : 0;
-
-              return (
-                <TouchableOpacity
-                  key={option.type}
-                  onPress={() => setSelectedVehicleType(option.type)}
-                  activeOpacity={0.9}
-                  style={{
-                    marginBottom: 12,
-                    borderRadius: 20,
-                    borderWidth: 2,
-                    borderColor: isSelected ? '#FFD700' : 'transparent',
-                    backgroundColor: isSelected ? '#FEFCE8' : '#FFFFFF',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: 16,
-                    ...(!isSelected ? {
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.05,
-                      shadowRadius: 2,
-                      elevation: 1
-                    } : {
-                      shadowColor: "#FFD700",
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 4,
-                      elevation: 4
-                    })
-                  }}
-                >
-                  {/* Icon Box */}
-                  <View style={{
-                    backgroundColor: isSelected ? '#FFD700' : '#F1F5F9',
-                    borderRadius: 12,
-                    width: 50,
-                    height: 50,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 16
-                  }}>
-                    <Ionicons name={option.icon as any} size={28} color="#0F172A" />
-                  </View>
-
-                  {/* Details */}
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A', marginBottom: 2 }}>{option.title}</Text>
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748B' }}>{option.desc} • {option.capacity} seats</Text>
-                  </View>
-
-                  {/* Price */}
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A' }}>₹{thisFare}</Text>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#94A3B8' }}>₹{option.ratePerKm}/km</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+        <View>
+          {([{ type: '5-seater', icon: 'car-outline', title: '5-Seater', desc: 'Comfortable sedan for up to 4 passengers', extraRate: '₹12/km after 40 KM' },
+             { type: '7-seater', icon: 'bus-outline', title: '7-Seater', desc: 'Spacious SUV for families & luggage', extraRate: '₹13/km after 40 KM' }] as const).map((option) => {
+            const isSelected = carType === option.type;
+            return (
+              <TouchableOpacity
+                key={option.type}
+                onPress={() => setCarType(option.type)}
+                activeOpacity={0.9}
+                style={{
+                  marginBottom: 12,
+                  borderRadius: 20,
+                  borderWidth: 2,
+                  borderColor: isSelected ? '#FFD700' : 'transparent',
+                  backgroundColor: isSelected ? '#FEFCE8' : '#FFFFFF',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  padding: 16,
+                  shadowColor: isSelected ? '#FFD700' : '#000',
+                  shadowOffset: { width: 0, height: isSelected ? 4 : 1 },
+                  shadowOpacity: isSelected ? 0.2 : 0.05,
+                  shadowRadius: isSelected ? 4 : 2,
+                  elevation: isSelected ? 4 : 1,
+                }}
+              >
+                {/* Icon */}
+                <View style={{
+                  backgroundColor: isSelected ? '#FFD700' : '#F1F5F9',
+                  borderRadius: 12, width: 50, height: 50,
+                  alignItems: 'center', justifyContent: 'center', marginRight: 16
+                }}>
+                  <Ionicons name={option.icon as any} size={28} color="#0F172A" />
+                </View>
+                {/* Details */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A', marginBottom: 2 }}>{option.title}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748B' }}>{option.desc}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#94A3B8', marginTop: 2 }}>{option.extraRate}</Text>
+                </View>
+                {/* Fare */}
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A' }}>₹{estimatedFare || '--'}</Text>
+                  {allowedTimeMinutes > 0 && (
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#94A3B8' }}>⏱ {formatTime(allowedTimeMinutes)}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* ─── BOOKING PANEL ─── */}
         <View className="bg-slate-900 p-5 rounded-[35px] mt-4">
@@ -573,15 +552,22 @@ const OutstationBookingScreen = () => {
 
           {/* Fare Summary */}
           {estimatedFare > 0 && (
-            <View className="bg-slate-800 p-3 rounded-xl mb-4 flex-row justify-between items-center">
-              <View>
-                <Text className="text-slate-400 text-[9px] font-black uppercase">Estimated Fare</Text>
-                <Text className="text-[#FFD700] font-black text-xl">₹{estimatedFare}</Text>
+            <View className="bg-slate-800 p-3 rounded-xl mb-4">
+              <View className="flex-row justify-between items-center">
+                <View>
+                  <Text className="text-slate-400 text-[9px] font-black uppercase">Estimated Fare</Text>
+                  <Text className="text-[#FFD700] font-black text-xl">₹{estimatedFare}</Text>
+                </View>
+                <View className="items-end">
+                  <Text className="text-slate-400 text-[9px] font-black uppercase">Allowed Time</Text>
+                  <Text className="text-white font-bold text-sm">⏱ {formatTime(allowedTimeMinutes)} · {distanceKm.toFixed(0)}km</Text>
+                </View>
               </View>
-              <View className="items-end">
-                <Text className="text-slate-400 text-[9px] font-black uppercase">Rate</Text>
-                <Text className="text-white font-bold text-sm">₹{fareRate}/km · {distanceKm.toFixed(0)}km</Text>
-              </View>
+              {isNightSurcharge && (
+                <View className="flex-row items-center mt-2 bg-slate-700 px-3 py-1.5 rounded-lg">
+                  <Text className="text-[10px] font-black text-amber-400">🌙 Night Surcharge (+20%) = ₹{nightSurcharge} included</Text>
+                </View>
+              )}
             </View>
           )}
 

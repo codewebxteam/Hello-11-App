@@ -168,9 +168,21 @@ export const chatAPI = {
 
 // ================= FARE API =================
 export const fareAPI = {
-  getOutstationRates: () => api.get(API_ENDPOINTS.GET_OUTSTATION_RATES),
-  calculateEstimate: (data: { distanceKm: number; cabType: string; bookingType: string }) =>
-    api.post(API_ENDPOINTS.CALCULATE_FARE, data),
+  /**
+   * Calculate trip fare using the step-based pricing model.
+   * @param distance    - trip distance in KM (≥ 1)
+   * @param carType     - "5-seater" | "7-seater"
+   * @param service     - "cab" (max 40 KM) | "rental" (unlimited)
+   * @param tripType    - "one-way" | "round-trip" (default: "one-way")
+   * @param bookingTime - ISO datetime string; if hour ≥ 18 or < 9 a 20% night surcharge is applied
+   */
+  calculateTripFare: (data: {
+    distance: number;
+    carType: "5-seater" | "7-seater";
+    service: "cab" | "rental";
+    tripType?: "one-way" | "round-trip";
+    bookingTime?: string;
+  }) => api.post(API_ENDPOINTS.CALCULATE_TRIP_FARE, data),
 };
 
 // ================= NOTIFICATION API =================

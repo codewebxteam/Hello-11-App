@@ -63,8 +63,7 @@ export const API_ENDPOINTS = {
     DISTANCE_RECOMMEND: "/api/location/distance",
 
     // Fare calculation
-    CALCULATE_FARE: "/api/fare/estimate",
-    GET_OUTSTATION_RATES: "/api/fare/outstation",
+    CALCULATE_TRIP_FARE: "/api/fare/trip",
 
     // Notifications
     NOTIFICATIONS: "/api/notifications",
