@@ -24,54 +24,6 @@ export default function PickupScreen() {
     const [eta, setEta] = useState<string>("---");
 
     useEffect(() => {
-        let locationSubscription: any = null;
-
-        const startTracking = async () => {
-            try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== 'granted') return;
-
-                locationSubscription = await Location.watchPositionAsync(
-                    {
-                        accuracy: Location.Accuracy.High,
-                        distanceInterval: 10, // Update every 10 meters
-                    },
-                    (newLoc) => {
-                        const { latitude, longitude } = newLoc.coords;
-                        setDriverLoc(newLoc.coords);
-
-                        if (!isNaN(latitude) && !isNaN(longitude)) {
-                            setRegion((prev: any) => ({
-                                latitude: latitude,
-                                longitude: longitude,
-                                latitudeDelta: prev?.latitudeDelta || 0.05,
-                                longitudeDelta: prev?.longitudeDelta || 0.05,
-                            }));
-                        }
-
-                        // Update backend
-                        driverAPI.updateLocation({ latitude, longitude }).catch(err =>
-                            console.log("Failed to update driver location:", err)
-                        );
-
-                        // Refresh directions for real-time ETA/Distance
-                        if (booking?.pickupLatitude && booking?.pickupLongitude) {
-                            locationAPI.getDirections(latitude, longitude, Number(booking.pickupLatitude), Number(booking.pickupLongitude))
-                                .then(res => {
-                                    if (res.data?.data) {
-                                        setDistance(`${res.data.data.distanceKm} km`);
-                                        const etaMin = Math.ceil(res.data.data.duration / 60);
-                                        setEta(`${etaMin} min`);
-                                    }
-                                }).catch(() => { });
-                        }
-                    }
-                );
-            } catch (err) {
-                console.error("Error starting location tracking:", err);
-            }
-        };
-
         const fetchBookingAndRoute = async () => {
             try {
                 // 1. Get initial location
@@ -150,20 +102,68 @@ export default function PickupScreen() {
             }
         };
 
-        startTracking();
         fetchBookingAndRoute();
         setupSocket();
 
         return () => {
-            if (locationSubscription) {
-                locationSubscription.remove();
-            }
             const s = getSocket();
             if (s) {
                 s.off("bookingCancelledByUser");
             }
         };
     }, [bookingId]);
+
+    useEffect(() => {
+        if (!booking) return;
+
+        let locationSubscription: any = null;
+        const startTracking = async () => {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
+
+                locationSubscription = await Location.watchPositionAsync(
+                    {
+                        accuracy: Location.Accuracy.High,
+                        distanceInterval: 10,
+                    },
+                    (newLoc) => {
+                        const { latitude, longitude } = newLoc.coords;
+                        setDriverLoc(newLoc.coords);
+                        if (!isNaN(latitude) && !isNaN(longitude)) {
+                            setRegion((prev: any) => ({
+                                latitude,
+                                longitude,
+                                latitudeDelta: prev?.latitudeDelta || 0.05,
+                                longitudeDelta: prev?.longitudeDelta || 0.05,
+                            }));
+                        }
+                        driverAPI.updateLocation({ latitude, longitude }).catch(() => { });
+
+                        if (booking?.pickupLatitude && booking?.pickupLongitude) {
+                            locationAPI.getDirections(latitude, longitude, Number(booking.pickupLatitude), Number(booking.pickupLongitude))
+                                .then(res => {
+                                    if (res.data?.data) {
+                                        setDistance(`${res.data.data.distanceKm} km`);
+                                        setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                                        if (res.data.data.geometry?.coordinates) {
+                                            const coords = res.data.data.geometry.coordinates.map((c: any) => ({
+                                                latitude: Number(c[1]),
+                                                longitude: Number(c[0])
+                                            }));
+                                            setRouteCoords(coords);
+                                        }
+                                    }
+                                }).catch(() => { });
+                        }
+                    }
+                );
+            } catch (err) { console.error(err); }
+        };
+
+        startTracking();
+        return () => locationSubscription?.remove();
+    }, [booking?._id]);
 
     const handleCall = () => {
         if (booking?.user?.mobile) {

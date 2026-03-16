@@ -12,20 +12,22 @@ import {
   Vibration,
   StatusBar as RNStatusBar,
   ToastAndroid,
-  Image
+  Image,
+  AppState
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
+import { useAudioPlayer } from 'expo-audio';
 
 import { initSocket, disconnectSocket } from '../utils/socket';
 import { driverAPI } from '../utils/api';
 import { getDriverToken } from '../utils/storage';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { registerForPushNotificationsAsync, sendLocalNotification } from '../utils/notifications';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -39,8 +41,6 @@ export default function DriverDashboard() {
   const [stats, setStats] = useState({ earnings: 0, trips: 0, name: '', rating: 0, profileImage: '' });
   const [location, setLocation] = useState<any>(null);
   const [region, setRegion] = useState<any>(null);
-  const [sound, setSound] = useState<any>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -48,6 +48,9 @@ export default function DriverDashboard() {
   const requestSlide = useRef(new Animated.Value(height)).current;
   const timerLine = useRef(new Animated.Value(1)).current;
   const hasNavigatedRef = useRef(false);
+
+  // --- NEW EXPO-AUDIO PLAYER ---
+  const player = useAudioPlayer('https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1MB_MP3.mp3'); // Using a stable test audio URL
 
   const { rideEnded } = useLocalSearchParams();
 
@@ -122,6 +125,15 @@ export default function DriverDashboard() {
         socket.on("newRideRequest", (data: any) => {
           console.log("New ride request received:", data);
           setRideData(data);
+          
+          // Trigger local notification if in background (Expo Go workaround)
+          if (AppState.currentState !== 'active') {
+            sendLocalNotification(
+              "New Ride Request! 🚕",
+              `New ride from ${data.pickup} to ${data.drop}. Fare: ₹${data.fare}`
+            );
+          }
+          
           playChime();
           startRideRequest();
         });
@@ -158,7 +170,17 @@ export default function DriverDashboard() {
       return;
     }
 
-    let loc = await Location.getCurrentPositionAsync({});
+    let loc;
+    try {
+      loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+    } catch (e) {
+      console.log("Error getting current position:", e);
+      // Fallback or alert user
+      Alert.alert("Location Error", "Could not get current location. Please ensure GPS is enabled.");
+      return;
+    }
     setLocation(loc);
 
     if (!isNaN(loc.coords.latitude) && !isNaN(loc.coords.longitude)) {
@@ -228,27 +250,21 @@ export default function DriverDashboard() {
 
   useEffect(() => {
     return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => { });
-      }
       Vibration.cancel();
     };
   }, []);
 
   async function playChime() {
     try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync().catch(() => { });
+      // Only play chime if app is active to avoid focus issues
+      if (AppState.currentState !== 'active') {
+        console.log("App in background, relying on Push Notification.");
+        return;
       }
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' }
-      );
-      soundRef.current = newSound;
-      setSound(newSound);
-      await newSound.setIsLoopingAsync(true);
-      await newSound.setVolumeAsync(0.3);
-      await newSound.playAsync();
+
+      player.loop = true;
+      player.volume = 0.5;
+      player.play();
     } catch (e) { console.log("Audio logic error:", e); }
   }
 
@@ -294,12 +310,9 @@ export default function DriverDashboard() {
 
   const closeRequest = () => {
     Vibration.cancel();
-    if (soundRef.current) {
-      soundRef.current.stopAsync().catch(() => { });
-      soundRef.current.unloadAsync().catch(() => { });
-      soundRef.current = null;
+    if (player.playing) {
+      player.pause();
     }
-    setSound(null);
     timerLine.stopAnimation();
     Animated.timing(requestSlide, { toValue: height, duration: 250, useNativeDriver: true }).start(() => setIncomingRequest(false));
   };
@@ -376,7 +389,15 @@ export default function DriverDashboard() {
                 try {
                   const res = await driverAPI.toggleOnline();
                   setIsOnline(res.data.online);
-                  if (!res.data.online) setIsSearching(false);
+                  if (!res.data.online) {
+                    setIsSearching(false);
+                  } else {
+                    // Register for push notifications when going online
+                    const token = await registerForPushNotificationsAsync();
+                    if (token) {
+                      await driverAPI.updateVehicle({ pushToken: token });
+                    }
+                  }
                 } catch (err) {
                   console.log("Toggle online error:", err);
                 }
@@ -403,6 +424,11 @@ export default function DriverDashboard() {
                   setIsOnline(res.data.online);
                   if (res.data.online) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    // Register for push notifications
+                    const token = await registerForPushNotificationsAsync();
+                    if (token) {
+                      await driverAPI.updateVehicle({ pushToken: token });
+                    }
                   }
                 } catch (err) {
                   console.log("Button toggle online error:", err);
@@ -512,8 +538,10 @@ export default function DriverDashboard() {
                 </View>
                 <View className="w-[1px] h-8 bg-slate-700 self-center" />
                 <View className="items-center flex-1">
-                  <Text className="text-slate-400 text-[9px] font-bold uppercase mb-1">Type</Text>
-                  <Text className="text-white font-black text-xs uppercase">{rideData?.rideType || 'Standard'}</Text>
+                  <Text className="text-slate-400 text-[9px] font-bold uppercase mb-1">Ride Type</Text>
+                  <Text className="text-white font-black text-xs uppercase">
+                    {rideData?.rideType === 'outstation' ? '🛣️ Outstation' : '🚕 Normal'}
+                  </Text>
                 </View>
               </View>
 

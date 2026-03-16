@@ -29,12 +29,12 @@ const driverSchema = new mongoose.Schema(
     },
     vehicleType: {
       type: String,
-      enum: ["sedan", "suv", "mini", "prime", "auto", "bike"],
-      default: "sedan"
+      enum: ["5-seater", "7-seater"],
+      default: "5-seater"
     },
     serviceType: {
       type: String,
-      enum: ["cab", "both"],
+      enum: ["cab", "rental", "both"],
       default: "cab"
     },
     licenseNumber: {
@@ -125,6 +125,10 @@ const driverSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
       default: null
+    },
+    pushToken: {
+      type: String,
+      default: ""
     }
   },
   { timestamps: true }

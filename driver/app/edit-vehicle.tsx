@@ -25,7 +25,7 @@ export default function EditVehicleScreen() {
         vehicleModel: '',
         vehicleNumber: '',
         vehicleColor: '',
-        vehicleType: 'sedan'
+        vehicleType: '5-seater'
     });
 
     React.useEffect(() => {
@@ -36,7 +36,7 @@ export default function EditVehicleScreen() {
                     vehicleModel: data.vehicleModel || '',
                     vehicleNumber: data.vehicleNumber || '',
                     vehicleColor: data.vehicleColor || '',
-                    vehicleType: data.vehicleType || 'sedan'
+                    vehicleType: data.vehicleType || '5-seater'
                 });
             }
         };
@@ -126,22 +126,16 @@ export default function EditVehicleScreen() {
                     <View className="mt-6">
                         <View className="flex-row justify-between items-center mb-4 ml-1">
                             <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Vehicle Category</Text>
-                            {(form.vehicleType === 'auto' || form.vehicleType === 'bike') && (
-                                <View className="flex-row items-center">
-                                    <Ionicons name="lock-closed" size={10} color="#94A3B8" />
-                                    <Text className="text-slate-400 text-[8px] font-black uppercase ml-1">Cab Only for {form.vehicleType}</Text>
-                                </View>
-                            )}
                         </View>
                         <View className="bg-white p-2 rounded-[24px] border border-slate-100 flex-row flex-wrap justify-between">
-                            {['sedan', 'suv', 'mini', 'prime', 'auto', 'bike'].map((type) => (
+                            {['5-seater', '7-seater'].map((type) => (
                                 <TouchableOpacity
                                     key={type}
                                     onPress={() => setForm({ ...form, vehicleType: type })}
-                                    style={{ width: '30%', marginBottom: 8 }}
-                                    className={`px-2 py-3 rounded-[20px] items-center ${form.vehicleType === type ? 'bg-slate-900' : 'bg-slate-50'}`}
+                                    style={{ width: '48%', marginBottom: 8 }}
+                                    className={`px-2 py-4 rounded-[20px] items-center ${form.vehicleType === type ? 'bg-slate-900' : 'bg-slate-50'}`}
                                 >
-                                    <Text className={`font-black uppercase text-[10px] ${form.vehicleType === type ? 'text-[#FFD700]' : 'text-slate-400'}`}>{type}</Text>
+                                    <Text className={`font-black uppercase text-xs ${form.vehicleType === type ? 'text-[#FFD700]' : 'text-slate-400'}`}>{type}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>

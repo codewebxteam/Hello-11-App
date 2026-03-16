@@ -34,7 +34,9 @@ export const geocodeAddress = async (req, res) => {
     } else {
       const status = response.data ? response.data.status : "UNKNOWN";
       const errMsg = response.data ? response.data.error_message : "";
-      serverLog(`Google Geocode failed with status: ${status}. ${errMsg}`);
+      serverLog(`GOOGLE ERROR [Geocode]: Status: ${status}, Message: ${errMsg}`);
+      if (response.data) serverLog(`FULL RESPONSE: ${JSON.stringify(response.data)}`);
+      
       res.status(404).json({
         error: "No results found for the given address",
         google_status: status,
@@ -83,7 +85,9 @@ export const reverseGeocode = async (req, res) => {
     } else {
       const status = response.data ? response.data.status : "UNKNOWN";
       const errMsg = response.data ? response.data.error_message : "";
-      serverLog(`Google Reverse Geocode failed with status: ${status}. ${errMsg}`);
+      serverLog(`GOOGLE ERROR [Reverse Geocode]: Status: ${status}, Message: ${errMsg}`);
+      if (response.data) serverLog(`FULL RESPONSE: ${JSON.stringify(response.data)}`);
+
       res.status(404).json({
         error: "No results found",
         google_status: status,
@@ -135,7 +139,9 @@ export const getDirections = async (req, res) => {
     } else {
       const status = response.data ? response.data.status : "UNKNOWN";
       const errMsg = response.data ? response.data.error_message : "";
-      serverLog(`Google Directions failed with status: ${status}. ${errMsg}`);
+      serverLog(`GOOGLE ERROR [Directions]: Status: ${status}, Message: ${errMsg}`);
+      if (response.data) serverLog(`FULL RESPONSE: ${JSON.stringify(response.data)}`);
+
       res.status(404).json({
         error: "No route found",
         google_status: status,
@@ -176,7 +182,8 @@ export const getAutocomplete = async (req, res) => {
       const errMsg = response.data ? response.data.error_message : "";
 
       if (status !== "ZERO_RESULTS") {
-        serverLog(`Google Places Text Search failed with status: ${status}. ${errMsg}`);
+        serverLog(`GOOGLE ERROR [Autocomplete/TextSearch]: Status: ${status}, Message: ${errMsg}`);
+        if (response.data) serverLog(`FULL RESPONSE: ${JSON.stringify(response.data)}`);
         serverLog("Attempting fallback to Photon (OSM)...");
       }
 

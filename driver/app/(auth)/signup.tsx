@@ -24,7 +24,7 @@ const RegisterScreen = () => {
     const [password, setPassword] = useState("");
     const [vehicleNumber, setVehicleNumber] = useState("");
     const [vehicleModel, setVehicleModel] = useState("");
-    const [vehicleType, setVehicleType] = useState("sedan");
+    const [vehicleType, setVehicleType] = useState("5-seater");
     const [serviceType, setServiceType] = useState("cab"); // 'cab', 'rental', 'both'
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -184,20 +184,14 @@ const RegisterScreen = () => {
                                 <View className="mt-4">
                                     <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 ml-1">Vehicle Category</Text>
                                     <View className="bg-slate-50 p-2 rounded-[24px] border border-slate-100 flex-row flex-wrap justify-between">
-                                        {['mini', 'sedan', 'suv', 'prime', 'auto', 'bike'].map((type) => (
+                                        {['5-seater', '7-seater'].map((type) => (
                                             <TouchableOpacity
                                                 key={type}
-                                                onPress={() => {
-                                                    setVehicleType(type);
-                                                    // Auto and Bike can only provide 'cab' (normal) service
-                                                    if (type === 'auto' || type === 'bike') {
-                                                        setServiceType('cab');
-                                                    }
-                                                }}
-                                                style={{ width: '31%', marginBottom: 8 }}
-                                                className={`px-2 py-3 rounded-[18px] items-center border ${vehicleType === type ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-100'}`}
+                                                onPress={() => setVehicleType(type)}
+                                                style={{ width: '48%', marginBottom: 8 }}
+                                                className={`px-2 py-4 rounded-[18px] items-center border ${vehicleType === type ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-100'}`}
                                             >
-                                                <Text className={`font-black uppercase text-[9px] ${vehicleType === type ? 'text-[#FFD700]' : 'text-slate-400'}`}>{type}</Text>
+                                                <Text className={`font-black uppercase text-xs ${vehicleType === type ? 'text-[#FFD700]' : 'text-slate-400'}`}>{type}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
@@ -206,22 +200,14 @@ const RegisterScreen = () => {
                                 <View className="mt-4">
                                     <View className="flex-row justify-between items-center mb-3 ml-1">
                                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Service Specialty</Text>
-                                        {(vehicleType === 'auto' || vehicleType === 'bike') && (
-                                            <View className="flex-row items-center">
-                                                <Ionicons name="lock-closed" size={10} color="#94A3B8" />
-                                                <Text className="text-slate-400 text-[8px] font-black uppercase ml-1">Cab Only for {vehicleType}</Text>
-                                            </View>
-                                        )}
                                     </View>
                                     <View className="flex-row gap-2">
                                         {['cab', 'rental', 'both'].map((type) => {
-                                            const isRestricted = (vehicleType === 'auto' || vehicleType === 'bike') && type !== 'cab';
                                             return (
                                                 <TouchableOpacity
                                                     key={type}
-                                                    onPress={() => !isRestricted && setServiceType(type)}
-                                                    disabled={isRestricted}
-                                                    className={`flex-1 py-3 rounded-xl items-center border ${serviceType === type ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'} ${isRestricted ? 'opacity-30' : ''}`}
+                                                    onPress={() => setServiceType(type)}
+                                                    className={`flex-1 py-3 rounded-xl items-center border ${serviceType === type ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'}`}
                                                 >
                                                     <Text className={`font-black uppercase text-[10px] ${serviceType === type ? 'text-[#FFD700]' : 'text-slate-600'}`}>
                                                         {type}

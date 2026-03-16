@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { getSocket, initSocket } from '../../utils/socket';
 import { userAPI } from '../../utils/api';
 import { showToast } from '../../components/NotificationToast';
+import { sendLocalNotification } from '../../utils/notifications';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,6 +26,7 @@ const LiveRideTrackingScreen = () => {
 
     const [showReturnOffer, setShowReturnOffer] = useState(false);
     const [isAcceptingReturn, setIsAcceptingReturn] = useState(false);
+    const isAcceptingReturnRef = useRef(false);
     const [booking, setBooking] = useState<any>(null);
     const [driverLocation, setDriverLocation] = useState<any>(null);
     const [routeCoords, setRouteCoords] = useState<any[]>([]);
@@ -168,15 +170,17 @@ const LiveRideTrackingScreen = () => {
     }, [fetchInitialData]);
 
     const handleAcceptReturn = async () => {
-        console.log("[Return] handleAcceptReturn called. Current state:", { isAcceptingReturn, bookingId });
-        if (isAcceptingReturn) {
-            console.log("[Return] Already accepting, ignoring click.");
+        if (isAcceptingReturnRef.current || isAcceptingReturn) {
+            console.log("[Return] Already accepting (Lock active), ignoring click.");
             return;
         }
+
         try {
             if (bookingId) {
+                isAcceptingReturnRef.current = true;
                 setIsAcceptingReturn(true);
                 console.log("[Return] Calling API...");
+                
                 const res = await bookingAPI.acceptReturnOffer(bookingId);
                 console.log("[Return] API response:", res.data);
 
@@ -184,15 +188,23 @@ const LiveRideTrackingScreen = () => {
                 showToast("Offer Accepted", "Return trip has been added to your ride.", "success");
 
                 // Refresh booking data to show return fare in breakdown
-                fetchInitialData();
+                await fetchInitialData();
             } else {
                 console.warn("[Return] No bookingId found in handleAcceptReturn");
             }
         } catch (error) {
             console.error("Failed to accept return offer:", error);
             showToast("Error", "Could not accept offer. Please try again.", "error");
-        } finally {
             setIsAcceptingReturn(false);
+            isAcceptingReturnRef.current = false;
+        } finally {
+            // We only release the lock if it failed. 
+            // If it succeeded, the modal is closed and we don't want to re-enable it.
+            // But for safety in case of unexpected flows:
+            if (!bookingRef.current?.hasReturnTrip) {
+                setIsAcceptingReturn(false);
+                isAcceptingReturnRef.current = false;
+            }
         }
     };
 
@@ -232,28 +244,39 @@ const LiveRideTrackingScreen = () => {
                 const _status = currentStatusRef.current;
                 const _booking = bookingRef.current;
 
-                if (['accepted', 'arrived', 'pending'].includes(_status)) {
-                    const targetLat = Number(_booking?.pickupLatitude);
-                    const targetLon = Number(_booking?.pickupLongitude);
+                // Determine target based on status
+                let targetLat: number | null = null;
+                let targetLon: number | null = null;
 
-                    if (newLat && newLon && targetLat && targetLon) {
-                        locationAPI.getDirections(newLat, newLon, targetLat, targetLon).then(res => {
-                            if (res.data?.data) {
-                                if (res.data.data.distanceKm) setDistance(`${res.data.data.distanceKm} km`);
-                                if (res.data.data.duration) setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                if (['accepted', 'arrived', 'pending', 'waiting'].includes(_status)) {
+                    targetLat = Number(_booking?.pickupLatitude);
+                    targetLon = Number(_booking?.pickupLongitude);
+                } else if (_status === 'started') {
+                    targetLat = Number(_booking?.dropLatitude);
+                    targetLon = Number(_booking?.dropLongitude);
+                } else if (_status === 'return_ride_started') {
+                    // In return ride, we go FROM drop (where it started) BACK to pickup
+                    targetLat = Number(_booking?.pickupLatitude);
+                    targetLon = Number(_booking?.pickupLongitude);
+                }
 
-                                if (res.data.data.geometry && Array.isArray(res.data.data.geometry.coordinates)) {
-                                    const coords = res.data.data.geometry.coordinates
-                                        .filter((c: any) => Array.isArray(c) && c.length >= 2 && c[1] !== null && c[0] !== null)
-                                        .map((c: any) => ({
-                                            latitude: Number(c[1]),
-                                            longitude: Number(c[0])
-                                        }));
-                                    if (coords.length > 0) setRouteCoords(coords);
-                                }
+                if (newLat && newLon && targetLat && targetLon) {
+                    locationAPI.getDirections(newLat, newLon, targetLat, targetLon).then(res => {
+                        if (res.data?.data) {
+                            if (res.data.data.distanceKm) setDistance(`${res.data.data.distanceKm} km`);
+                            if (res.data.data.duration) setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+
+                            if (res.data.data.geometry && Array.isArray(res.data.data.geometry.coordinates)) {
+                                const coords = res.data.data.geometry.coordinates
+                                    .filter((c: any) => Array.isArray(c) && c.length >= 2 && c[1] !== null && c[0] !== null)
+                                    .map((c: any) => ({
+                                        latitude: Number(c[1]),
+                                        longitude: Number(c[0])
+                                    }));
+                                if (coords.length > 0) setRouteCoords(coords);
                             }
-                        }).catch(() => { });
-                    }
+                        }
+                    }).catch(() => { });
                 }
             }
         };
@@ -268,6 +291,18 @@ const LiveRideTrackingScreen = () => {
 
                 if (data.status === 'arrived' && oldStatus !== 'arrived') {
                     showToast("🚗 Driver Arrived!", "Your driver has arrived at the pickup location.");
+                    sendLocalNotification("Driver Arrived! 🚗", "Your driver is at the pickup location.");
+                }
+
+                if (data.status === 'started' && oldStatus !== 'started') {
+                    sendLocalNotification("Ride Started! 🛣️", "Have a safe journey!");
+                }
+
+                // Reliability Check: If ride started but we haven't accepted return trip yet, 
+                // and it's not already shown, double check if we should show offer
+                if (data.status === 'started' && !bookingRef.current?.hasReturnTrip && !showReturnOffer) {
+                    console.log("[Client] Ride started, checking for return trip offer...");
+                    setShowReturnOffer(true);
                 }
 
                 if (data.status === 'completed') {
@@ -288,9 +323,13 @@ const LiveRideTrackingScreen = () => {
 
         const onSuggestReturn = (data: any) => {
             if (String(data.bookingId) === String(bookingId)) {
-                console.log('[Socket] Suggest Return Offer');
+                console.log('[Socket] Suggest Return Offer', data.waitingLimit);
+                if (data.waitingLimit) {
+                    setBooking((prev: any) => ({ ...prev, waitingLimit: data.waitingLimit }));
+                }
                 setShowReturnOffer(true);
-                showToast("Special Offer! 📉", "Get 60% OFF on your return trip. Accept now to save!");
+                showToast("Special Offer! 📉", "Get 50% OFF on your return trip. Accept now to save!");
+                sendLocalNotification("Special Offer! 📉", "Get 50% OFF on your return trip. Tap to accept!");
             }
         };
 
@@ -569,7 +608,7 @@ const LiveRideTrackingScreen = () => {
                             <View className="flex-row items-center">
                                 <Text className="text-blue-600 text-xs font-bold">Return Trip </Text>
                                 <View className="bg-blue-100 px-1 py-0.5 rounded-md">
-                                    <Text className="text-blue-700 text-[7px] font-black italic">60% OFF</Text>
+                                    <Text className="text-blue-700 text-[7px] font-black italic">50% OFF</Text>
                                 </View>
                             </View>
                             <Text className="text-blue-600 text-sm font-black">+₹{booking?.returnTripFare || 0}</Text>
@@ -588,7 +627,7 @@ const LiveRideTrackingScreen = () => {
                             <Text className="text-slate-900 text-sm font-black">Total Amount</Text>
                             <Text className="text-slate-400 text-[8px] font-bold italic uppercase">{booking?.paymentMethod || 'Cash'}</Text>
                         </View>
-                        <Text className="text-[#000] text-xl font-black italic">₹{booking?.totalFare || (Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
+                        <Text className="text-[#000] text-xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
                     </View>
                 </View>
             </View>
@@ -597,7 +636,7 @@ const LiveRideTrackingScreen = () => {
                 <ReturnTripOfferModal
                     isVisible={showReturnOffer}
                     isAccepting={isAcceptingReturn}
-                    waitingLimitMins={Math.round((Number(booking?.distance) || 5) * 12)}
+                    waitingLimitMins={Math.round((Number(booking?.waitingLimit) || 3600) / 60)}
                     onClose={() => setShowReturnOffer(false)}
                     onAccept={handleAcceptReturn}
                 />

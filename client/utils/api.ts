@@ -64,7 +64,7 @@ export const authAPI = {
 export const userAPI = {
   getProfile: () => api.get(API_ENDPOINTS.PROFILE),
 
-  updateProfile: (data: { name?: string; email?: string; gender?: string }) =>
+  updateProfile: (data: { name?: string; email?: string; gender?: string; pushToken?: string }) =>
     api.put(API_ENDPOINTS.UPDATE_PROFILE, data),
 
   changePassword: (data: { currentPassword: string; newPassword: string }) =>

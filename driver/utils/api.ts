@@ -1,19 +1,24 @@
 import axios from "axios";
-import { Platform } from "react-native";
+import Constants from 'expo-constants';
+
 
 // Driver app API base URL configuration
 export const getBaseUrl = (): string => {
-  const PRODUCTION_API_URL = process.env.EXPO_PUBLIC_API_URL;
+  // 1. Check if an explicit URL is provided in .env (Priority)
+  const EXPLICIT_API_URL = process.env.EXPO_PUBLIC_API_URL;
+  if (EXPLICIT_API_URL) return EXPLICIT_API_URL;
 
-  if (PRODUCTION_API_URL) {
-    return PRODUCTION_API_URL;
+  // 2. Dynamic Detection for Development
+  // Works for both Emulator (localhost) and Physical Device (Local IP)
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const localhost = debuggerHost?.split(':').shift();
+
+  if (localhost) {
+    return `http://${localhost}:5001`;
   }
 
-  if (__DEV__) {
-    return "https://hello-11-app.onrender.com";
-  }
-
-  return "https://hello-11-app.onrender.com";
+  // 3. Fallback for all other cases
+  return "http://127.0.0.1:5001";
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -142,7 +147,7 @@ export const driverAPI = {
   getProfile: () => api.get(API_ENDPOINTS.DRIVER_PROFILE),
   updateProfile: (data: { name?: string; mobile?: string; experienceYears?: number }) =>
     api.put(API_ENDPOINTS.UPDATE_PROFILE, data),
-  updateVehicle: (data: { vehicleModel?: string; vehicleNumber?: string; vehicleColor?: string; vehicleType?: string; serviceType?: string }) =>
+  updateVehicle: (data: { vehicleModel?: string; vehicleNumber?: string; vehicleColor?: string; vehicleType?: string; serviceType?: string; pushToken?: string }) =>
     api.put(API_ENDPOINTS.UPDATE_VEHICLE, data),
   updateDocuments: (data: { license?: string; insurance?: string; registration?: string }) =>
     api.put(API_ENDPOINTS.UPDATE_DOCUMENTS, data),

@@ -11,24 +11,32 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { bookingAPI, locationAPI, driverAPI } from '../../utils/api';
 import SearchingRideOverlay from '../../components/SearchingRideOverlay';
 
-// Fare rates (per km) matching backend fareController.js
-const LOCAL_RATES: Record<string, number> = {
-  mini: 12,
-  sedan: 15,
-  suv: 20,
-  prime: 18,
-  auto: 10,
-  bike: 7,
-};
-
 const VEHICLES = [
-  { id: 'mini', label: 'Mini', icon: 'car-sport', rate: 12, desc: 'Comfy Hatchback' },
-  { id: 'sedan', label: 'Sedan', icon: 'car', rate: 15, desc: 'Spacious & Elite' },
-  { id: 'suv', label: 'SUV', icon: 'bus', rate: 20, desc: 'Perfect for Family' },
-  { id: 'prime', label: 'Prime', icon: 'star', rate: 18, desc: 'Top Notch Sedan' },
-  { id: 'auto', label: 'Auto', icon: 'car-outline', rate: 10, desc: 'Eco Friendly' },
-  { id: 'bike', label: 'Bike', icon: 'bicycle', rate: 7, desc: 'Super Fast' },
+  { id: '5-seater', label: '5 Seater', icon: 'car-sport', desc: 'Comfortable & Swift' },
+  { id: '7-seater', label: '7 Seater', icon: 'bus', desc: 'Perfect for Family' },
 ];
+
+/**
+ * Frontend helper to match backend pricing logic for 1-40 KM
+ */
+const calculateLocalFare = (km: number) => {
+  if (km <= 0) return 0;
+  const stepTotals = [69, 128, 177, 216, 245];
+  const whole = Math.floor(km);
+  const fraction = km - whole;
+  let fare = 0;
+
+  if (whole < 5) {
+    fare = stepTotals[Math.max(0, whole - 1)] || 0;
+    const nextStepRate = [69, 59, 49, 39, 29][whole];
+    fare += (whole === 0 ? km : fraction) * nextStepRate;
+  } else if (whole < 15) {
+    fare = 245 + (km - 5) * 29;
+  } else {
+    fare = 535 + (km - 15) * 22;
+  }
+  return Math.round(fare);
+};
 
 const BookingScreen = () => {
   const router = useRouter();
@@ -39,7 +47,7 @@ const BookingScreen = () => {
   const [bookingType, setBookingType] = useState<'now' | 'schedule'>(
     (params.mode as 'now' | 'schedule') || 'now'
   );
-  const [selectedVehicle, setSelectedVehicle] = useState('mini');
+  const [selectedVehicle, setSelectedVehicle] = useState('any');
   const [isSearching, setIsSearching] = useState(false);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
 
@@ -182,8 +190,7 @@ const BookingScreen = () => {
     setActiveInput(null);
   };
 
-  const currentRate = LOCAL_RATES[selectedVehicle] || 12;
-  const estimatedFare = Math.round(distanceKm * currentRate);
+  const estimatedFare = calculateLocalFare(distanceKm);
 
   // --- HANDLE CONFIRM ---
   const handleConfirm = async () => {
@@ -375,7 +382,7 @@ const BookingScreen = () => {
         {distanceKm > 0 && rideMode === 'normal' && (
           <View className="bg-slate-900 p-6 rounded-[35px] mb-8 flex-row justify-between items-center shadow-lg">
             <View>
-              <Text className="text-slate-400 text-[10px] font-black uppercase">Estimated Fare ({selectedVehicle.toUpperCase()})</Text>
+              <Text className="text-slate-400 text-[10px] font-black uppercase">Estimated Fare</Text>
               <Text style={{ color: '#FFD700', fontWeight: '900', fontSize: 30 }}>₹{estimatedFare}</Text>
             </View>
             <View className="items-end">
@@ -385,27 +392,6 @@ const BookingScreen = () => {
           </View>
         )}
 
-        {/* Vehicle Selection for Normal Rides */}
-        {rideMode === 'normal' && (
-          <View className="mb-8">
-            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Choose Ride Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-              {VEHICLES.map((v) => (
-                <TouchableOpacity
-                  key={v.id}
-                  onPress={() => setSelectedVehicle(v.id)}
-                  className={`mr-4 p-5 rounded-[35px] items-center border-2 w-32 ${selectedVehicle === v.id ? 'bg-[#FFD700] border-[#FFD700] shadow-md' : 'bg-white border-slate-100 shadow-sm'}`}
-                >
-                  <View className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${selectedVehicle === v.id ? 'bg-white/40' : 'bg-slate-50'}`}>
-                    <Ionicons name={v.icon as any} size={28} color={selectedVehicle === v.id ? "#000" : "#64748B"} />
-                  </View>
-                  <Text className={`font-black text-sm ${selectedVehicle === v.id ? 'text-black' : 'text-slate-800'}`}>{v.label}</Text>
-                  <Text className={`text-[9px] font-black uppercase mt-1 ${selectedVehicle === v.id ? 'text-black/60' : 'text-slate-400'}`}>₹{v.rate}/KM</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
 
         <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 6, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9' }}>
           <TouchableOpacity

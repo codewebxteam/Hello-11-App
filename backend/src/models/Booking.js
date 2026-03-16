@@ -42,8 +42,8 @@ const bookingSchema = new mongoose.Schema(
     },
     vehicleType: {
       type: String,
-      enum: ["mini", "sedan", "suv", "prime", "auto", "bike"],
-      default: "mini"
+      enum: ["5-seater", "7-seater", "any"],
+      default: "any"
     },
     bookingType: {
       type: String,

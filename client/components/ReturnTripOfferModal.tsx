@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, Modal, Dimensions, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { ZoomIn } from 'react-native-reanimated';
+import { useRef } from 'react';
 
 const { width } = Dimensions.get('window');
 
@@ -13,14 +14,31 @@ interface ReturnTripOfferModalProps {
 }
 
 const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins, onClose, onAccept }: ReturnTripOfferModalProps) => {
+    const clickLockRef = useRef(false);
+
     if (!isVisible) return null;
+
+    const handleAcceptPress = () => {
+        if (clickLockRef.current || isAccepting) return;
+        clickLockRef.current = true;
+        onAccept();
+    };
+
+    const handleClosePress = () => {
+        if (clickLockRef.current || isAccepting) return;
+        // Small grace period for close to prevent double actions
+        clickLockRef.current = true; 
+        onClose();
+        // Reset after a bit just in case modal stay open
+        setTimeout(() => { clickLockRef.current = false; }, 1000);
+    };
 
     return (
         <Modal
             transparent
             visible={isVisible}
             animationType="none"
-            onRequestClose={isAccepting ? undefined : onClose}
+            onRequestClose={isAccepting ? undefined : handleClosePress}
         >
             <View className="flex-1 bg-black/70 justify-center items-center px-4">
                 <Animated.View
@@ -51,7 +69,7 @@ const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins
                         </View>
 
                         <View className="flex-row items-end justify-center mb-2">
-                            <Text className="text-5xl font-black text-slate-900">60</Text>
+                            <Text className="text-5xl font-black text-slate-900">50</Text>
                             <View className="mb-2 ml-1">
                                 <Text className="text-xl font-black text-slate-900 leading-5">%</Text>
                                 <Text className="text-xl font-black text-slate-900 leading-5">OFF</Text>
@@ -81,10 +99,7 @@ const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins
                     {/* Action Buttons */}
                     <View className="px-5 pb-8 flex-row gap-3">
                         <TouchableOpacity
-                            onPress={() => {
-                                console.log("[ReturnModal] No thanks clicked");
-                                onClose();
-                            }}
+                            onPress={handleClosePress}
                             disabled={isAccepting}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             className={`flex-1 py-4 bg-slate-100 rounded-2xl items-center justify-center ${isAccepting ? 'opacity-50' : 'active:bg-slate-200'}`}
@@ -93,10 +108,7 @@ const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            onPress={() => {
-                                console.log("[ReturnModal] Accept clicked");
-                                onAccept();
-                            }}
+                            onPress={handleAcceptPress}
                             disabled={isAccepting}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             className={`flex-[2] py-4 bg-slate-900 rounded-2xl items-center justify-center shadow-lg shadow-slate-300 flex-row ${isAccepting ? 'opacity-70' : 'active:scale-95'}`}

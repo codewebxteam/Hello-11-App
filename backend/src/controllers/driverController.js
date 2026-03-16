@@ -1,5 +1,6 @@
 import Driver from "../models/Driver.js";
 import Booking from "../models/Booking.js";
+import User from "../models/User.js";
 import Review from "../models/Review.js";
 import { createNotification } from "./notificationController.js";
 import bcrypt from "bcryptjs";
@@ -8,6 +9,7 @@ import Payout from "../models/Payout.js";
 import { serverLog } from "../utils/logger.js";
 import { getIO } from "../utils/socketLogic.js";
 import { calculateAndUpdatePenalty } from "./bookingController.js";
+import { sendPushNotification } from "../utils/notifications.js";
 
 // ================= GENERATE JWT TOKEN FOR DRIVER =================
 const generateDriverToken = (driverId) => {
@@ -37,13 +39,8 @@ export const registerDriver = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const vType = vehicleType || "sedan";
+    const vType = vehicleType || "5-seater";
     let sType = serviceType || "cab";
-
-    // Restriction: Auto and Bike can only be 'cab' service type
-    if (vType === 'auto' || vType === 'bike') {
-      sType = 'cab';
-    }
 
     const driver = await Driver.create({
       name,
@@ -152,7 +149,7 @@ export const getNearbyDrivers = async (req, res) => {
             type: "Point",
             coordinates: [parseFloat(longitude), parseFloat(latitude)],
           },
-          $maxDistance: 10000, // 10km
+          $maxDistance: 5000, // 5km
         },
       };
     }
@@ -346,11 +343,10 @@ export const updateVehicleDetails = async (req, res) => {
     if (vehicleModel) updateData.vehicleModel = vehicleModel;
     if (vehicleColor) updateData.vehicleColor = vehicleColor;
     if (vehicleType) updateData.vehicleType = vehicleType;
+    if (pushToken) updateData.pushToken = pushToken;
 
-    // Restriction: if vehicle is auto or bike, force serviceType to cab
-    if (vehicleType === 'auto' || vehicleType === 'bike') {
-      updateData.serviceType = 'cab';
-    } else if (serviceType) {
+    // Simplified serviceType handling
+    if (serviceType) {
       updateData.serviceType = serviceType;
     }
 
@@ -801,6 +797,16 @@ export const acceptBooking = async (req, res) => {
       bookingId: populatedBooking._id
     });
 
+    // Send Push Notification to User
+    if (populatedBooking.user && populatedBooking.user.pushToken) {
+      sendPushNotification(
+        populatedBooking.user.pushToken,
+        "Ride Accepted! 🚗",
+        `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
+        { bookingId: populatedBooking._id.toString(), type: 'ride_accepted' }
+      );
+    }
+
     res.json({
       message: "Booking accepted successfully",
       booking: {
@@ -951,6 +957,17 @@ export const updateBookingStatus = async (req, res) => {
           type: "ride_arrived",
           bookingId: booking._id
         });
+
+        // Send Push Notification to User
+        const foundUser = await User.findById(booking.user);
+        if (foundUser && foundUser.pushToken) {
+          sendPushNotification(
+            foundUser.pushToken,
+            "Driver Arrived! 🚗",
+            "Your driver has arrived at the pickup location. Please proceed to the vehicle.",
+            { bookingId: booking._id.toString(), type: 'ride_arrived' }
+          );
+        }
       }
 
       if (status === "completed") {
@@ -1208,18 +1225,39 @@ export const verifyRideOtp = async (req, res) => {
         bookingId: booking._id
       });
 
-      // Suggest Return Trip Offer (60% OFF)
+      // Send Push Notifications to User
+      const user = await User.findById(booking.user);
+      if (user && user.pushToken) {
+        // 1. Ride Started Notification
+        sendPushNotification(
+          user.pushToken,
+          "Ride Started! 🚕",
+          "Your ride has officially started. Have a safe journey!",
+          { bookingId: booking._id.toString(), type: 'ride_started' }
+        );
+
+        // 2. Return Trip Offer Notification
+        sendPushNotification(
+          user.pushToken,
+          "Limited Offer: 50% OFF Return Trip! 📉",
+          "Book your return trip now and save 50%. Offer valid for this ride only!",
+          { bookingId: booking._id.toString(), type: 'suggest_return' }
+        );
+      }
+
+      // 3. Suggest Return Trip via Socket (For real-time popup)
       io.to(booking.user.toString()).emit("suggestReturnTrip", {
         bookingId: booking._id.toString(),
-        message: "Enjoy 60% OFF on your return trip! Accept now to book your return."
+        waitingLimit: booking.waitingLimit,
+        message: "Enjoy 50% OFF on your return trip! Accept now to book your return."
       });
 
-      // Persistent notification for the offer
+      // 4. Persistent notification for the offer
       await createNotification({
         userId: booking.user,
-        title: "Limited Offer: 60% OFF Return Trip! 📉",
-        body: "Book your return trip now and save 60%. Offer valid for this ride only!",
-        type: "ride_accepted", // Using ride_accepted type for highlighting
+        title: "Limited Offer: 50% OFF Return Trip! 📉",
+        body: "Book your return trip now and save 50%. Offer valid for this ride only!",
+        type: "suggest_return", // Changed from ride_accepted to suggest_return for better tracking
         bookingId: booking._id
       });
     } catch (socketError) {

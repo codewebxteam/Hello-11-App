@@ -27,66 +27,40 @@ const RENTAL_EXTRA_RATES = {
   "7-seater": 13,
 };
 
-// Cab fare rates (per km) – legacy cab service
-const CAB_RATES = {
-  Mini: 12,    // ₹12/km
-  Sedan: 15,   // ₹15/km
-  SUV: 20,     // ₹20/km
-  Prime: 18,   // ₹18/km
-  Auto: 10,    // ₹10/km
-  Bike: 7,     // ₹7/km
-};
-
-// Outstation fare rates (Premium per km)
-const OUTSTATION_RATES = {
-  mini: 18,
-  hatchback: 18,
-  sedan: 25,
-  suv: 35,
-  prime: 28,
-  default: 20,
-};
-
 /**
  * Calculate the step-based fare for the first 40 KM (same for both services).
  * Returns the fare in ₹ for any distance between 0 and 40 KM (inclusive).
+ * 1 KM -> ₹69
+ * 2 KM -> ₹128
+ * 3 KM -> ₹177
+ * 4 KM -> ₹216
+ * 5 KM -> ₹245
+ * 5-15 KM -> +₹29/km
+ * 15-40 KM -> +₹22/km
  * @param {number} km - distance in kilometres (0 ≤ km ≤ 40)
  * @returns {number} fare in ₹
  */
 const calcFareUpTo40 = (km) => {
   if (km <= 0) return 0;
 
-  // Fixed step charges for km 1–5
-  const stepCharges = [69, 59, 49, 39, 29]; // index 0 = km 1, index 4 = km 5
-  let fare = 0;
+  // Exact cumulative totals for km 1-5
+  const stepTotals = [69, 128, 177, 216, 245];
   const whole = Math.floor(km);
   const fraction = km - whole;
 
-  for (let i = 1; i <= Math.min(whole, 5); i++) {
-    fare += stepCharges[i - 1];
-  }
+  let fare = 0;
 
-  // KM 6–15: ₹29 / km
-  if (whole > 5) {
-    fare += Math.min(whole - 5, 10) * 29;
-  }
-
-  // KM 16–40: ₹22 / km
-  if (whole > 15) {
-    fare += Math.min(whole - 15, 25) * 22;
-  }
-
-  // Pro-rate the fractional kilometre at the applicable slab rate
-  if (fraction > 0) {
-    let slabRate;
-    if (whole < 5) {
-      slabRate = stepCharges[whole]; // next step charge
-    } else if (whole < 15) {
-      slabRate = 29;
-    } else {
-      slabRate = 22;
-    }
-    fare += fraction * slabRate;
+  if (whole < 5) {
+    fare = stepTotals[Math.max(0, whole - 1)] || 0;
+    // For fractional part between steps
+    const nextStepRate = [69, 59, 49, 39, 29][whole];
+    fare += (whole === 0 ? km : fraction) * nextStepRate;
+  } else if (whole < 15) {
+    // fare at 5 KM is 245
+    fare = 245 + (km - 5) * 29;
+  } else {
+    // fare at 15 KM: 245 + 10*29 = 245 + 290 = 535
+    fare = 535 + (km - 15) * 22;
   }
 
   return Math.round(fare);
@@ -94,49 +68,41 @@ const calcFareUpTo40 = (km) => {
 
 /**
  * Calculate allowed time (minutes) for the trip.
- * First 40 KM → 12 min / km
- * Beyond 40 KM → 4 min / km
+ * First 1-40 KM -> 12 min / km (Max 480 min / 8 hours at 40km)
+ * Beyond 40 KM -> 4 min / km
  * @param {number} km - total distance in kilometres
  * @returns {number} total allowed time in minutes
  */
-const calcAllowedTime = (km) => {
+export const calcAllowedTime = (km) => {
   if (km <= 0) return 0;
   const baseKm = Math.min(km, 40);
   const extraKm = Math.max(km - 40, 0);
   return Math.round(baseKm * 12 + extraKm * 4);
 };
 
-// Get cab fare rates
+// Get cab fare rates - Updated for 5/7 seater
 export const getCabRates = (req, res) => {
   res.json({
     success: true,
     data: {
       cabTypes: [
-        { type: "Mini", ratePerKm: CAB_RATES.Mini, currency: "INR", description: "Affordable hatchback" },
-        { type: "Sedan", ratePerKm: CAB_RATES.Sedan, currency: "INR", description: "Comfortable sedan" },
-        { type: "SUV", ratePerKm: CAB_RATES.SUV, currency: "INR", description: "Spacious SUV" },
-        { type: "Prime", ratePerKm: CAB_RATES.Prime, currency: "INR", description: "Premium Sedan" },
-        { type: "Auto", ratePerKm: CAB_RATES.Auto, currency: "INR", description: "Reliable 3-wheeler" },
-        { type: "Bike", ratePerKm: CAB_RATES.Bike, currency: "INR", description: "Swift 2-wheeler" },
+        { type: "5-seater", ratePerKm: 0, currency: "INR", description: "Standard 5-seater car" },
+        { type: "7-seater", ratePerKm: 0, currency: "INR", description: "Spacious 7-seater car" },
       ],
-      baseFare: 0,
-      perKmRates: CAB_RATES,
+      description: "Step-based pricing: ₹1085 for first 40km, then per-km rates apply for 40km+."
     },
   });
 };
 
-// Get outstation fare rates
+// Get outstation fare rates - Consolidated to 5/7 seater
 export const getOutstationRates = (req, res) => {
   res.json({
     success: true,
     data: {
       vehicleTypes: [
-        { type: "mini", title: "Mini / Hatchback", ratePerKm: OUTSTATION_RATES.mini, icon: "car-sport-outline", desc: "Comfy, economical cars", capacity: "4" },
-        { type: "sedan", title: "Sedan", ratePerKm: OUTSTATION_RATES.sedan, icon: "car-outline", desc: "Spacious sedans for comfort", capacity: "4" },
-        { type: "prime", title: "Prime Sedan", ratePerKm: OUTSTATION_RATES.prime, icon: "shield-checkmark-outline", desc: "Top-rated drivers & cars", capacity: "4" },
-        { type: "suv", title: "SUV / Ertiga", ratePerKm: OUTSTATION_RATES.suv, icon: "bus-outline", desc: "Perfect for families & luggage", capacity: "6" },
+        { type: "5-seater", title: "5 Seater Car", ratePerKm: 12, icon: "car-outline", desc: "Comfortable hatchback/sedan", capacity: "4" },
+        { type: "7-seater", title: "7 Seater Car", ratePerKm: 13, icon: "bus-outline", desc: "Spacious SUV for families", capacity: "6" },
       ],
-      defaultRate: OUTSTATION_RATES.default,
       currency: "INR",
     },
   });
@@ -263,7 +229,7 @@ export const calculateTripFare = (req, res) => {
       });
     }
 
-    const validCarTypes = ["5-seater", "7-seater"];
+    const validCarTypes = ["5-seater", "7-seater", "any"];
     if (!validCarTypes.includes(carType)) {
       return res.status(400).json({
         success: false,
@@ -303,7 +269,7 @@ export const calculateTripFare = (req, res) => {
     const first40Fare = calcFareUpTo40(baseKm);
 
     // Extra fare (> 40 KM, Rental only)
-    const extraRatePerKm = RENTAL_EXTRA_RATES[carType];
+    const extraRatePerKm = RENTAL_EXTRA_RATES[carType] || 12;
     const extraFare = Math.round(extraKm * extraRatePerKm);
 
     let oneWayFare = first40Fare + extraFare;

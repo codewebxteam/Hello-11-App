@@ -50,6 +50,7 @@ export const updateProfile = async (req, res) => {
     if (mobile) updateData.mobile = mobile;
     if (email !== undefined) updateData.email = email;
     if (gender !== undefined) updateData.gender = gender;
+    if (req.body.pushToken !== undefined) updateData.pushToken = req.body.pushToken;
 
     const user = await User.findByIdAndUpdate(
       req.userId,

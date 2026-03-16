@@ -1,8 +1,11 @@
 import Booking from "../models/Booking.js";
 import Driver from "../models/Driver.js";
+import User from "../models/User.js";
 import { getIO } from "../utils/socketLogic.js";
 import { serverLog } from "../utils/logger.js";
 import { createNotification } from "./notificationController.js";
+import { sendPushNotification } from "../utils/notifications.js";
+import { calcAllowedTime } from "./fareController.js";
 
 // ================= CREATE BOOKING =================
 export const createBooking = async (req, res) => {
@@ -59,53 +62,39 @@ export const createBooking = async (req, res) => {
       duration: req.body.duration || 0,
       fare: req.body.fare || 0,
       totalFare: req.body.fare || 0, // Initial total is just the fare
+      waitingLimit: (calcAllowedTime(req.body.distance || 0)) * 60, // Store in seconds
     });
 
 
     // BROADCAST to nearby drivers — only for 'ride now' bookings
-    // Scheduled bookings skip the broadcast (drivers notified at ride time)
     if (bookingType !== "schedule") {
       const io = getIO();
       try {
-        serverLog(`BROADCAST: Searching for drivers | Vehicle: ${booking.vehicleType} | Location: [${booking.pickupLongitude}, ${booking.pickupLatitude}]`);
+        serverLog(`BROADCAST: Searching for drivers | RideType: ${booking.rideType} | Vehicle: ${booking.vehicleType}`);
 
-        // DYNAMIC SERVICE TYPE MATCHING
-        let serviceTypes = ["cab", "both"];
-        if (booking.rideType === 'outstation') {
-          // Outstation can be fulfilled by typical cabs OR existing rental-capable drivers
-          serviceTypes = ["cab", "rental", "both"];
-        }
-
-        const nearbyDrivers = await Driver.find({
+        const query = {
           available: true,
           online: true,
-          vehicleType: booking.vehicleType, // Strict match (e.g. 'sedan')
-          serviceType: { $in: serviceTypes },
           location: {
             $near: {
               $geometry: {
                 type: "Point",
                 coordinates: [booking.pickupLongitude, booking.pickupLatitude]
               },
-              $maxDistance: 50000 // 50KM
+              $maxDistance: 5000 // 5KM
             }
           }
-        });
+        };
 
-        serverLog(`BROADCAST: Req Vehicle: '${booking.vehicleType}' | Service: cab/both`);
-        if (nearbyDrivers.length === 0) {
-          const allDrivers = await Driver.find({ online: true, available: true });
-          serverLog(`DEBUG: Total Online: ${allDrivers.length}. Dump: ${allDrivers.map(d => `${d.name}:${d.vehicleType}:${d.serviceType}`).join(', ')}`);
+        // For outstation, strictly match the selected vehicle type
+        if (booking.rideType === 'outstation') {
+          query.vehicleType = booking.vehicleType;
         }
+        // For 'normal' rides, the user wants it to go to 'all' drivers (5-seater and 7-seater)
 
-        serverLog(`BROADCAST: Found ${nearbyDrivers.length} matching drivers (Online, Available, and type: ${booking.vehicleType})`);
+        const nearbyDrivers = await Driver.find(query);
 
-        if (nearbyDrivers.length === 0) {
-          // Check for ALL online/available drivers just to log why they didn't match
-          const totalOnline = await Driver.countDocuments({ online: true, available: true });
-          const onlineSameType = await Driver.countDocuments({ online: true, available: true, vehicleType: booking.vehicleType });
-          serverLog(`DEBUG: Total Online/Available: ${totalOnline} | Matching Type (${booking.vehicleType}): ${onlineSameType} | Result: 0 (Likely too far)`);
-        }
+        serverLog(`BROADCAST: Found ${nearbyDrivers.length} matching drivers for ${booking.rideType} trip`);
 
         nearbyDrivers.forEach(driver => {
           serverLog(`BROADCAST: Emitting 'newRideRequest' to room ${driver._id.toString()}`);
@@ -119,11 +108,20 @@ export const createBooking = async (req, res) => {
             vehicleType: booking.vehicleType,
             bookingType: booking.bookingType
           });
-        });
 
-        if (nearbyDrivers.length === 0) {
-          serverLog("BROADCAST: NO DRIVERS MATCHED CRITERIA");
-        }
+          // Send Push Notification if token exists
+          if (driver.pushToken) {
+            sendPushNotification(
+              driver.pushToken,
+              "New Ride Request! 🚕",
+              `${booking.rideType === 'outstation' ? '🛣️ Outstation' : '🚕 Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.fare}`,
+              { 
+                bookingId: booking._id.toString(),
+                type: 'new_ride'
+              }
+            );
+          }
+        });
       } catch (err) {
         serverLog(`BROADCAST ERROR: ${err.message}`);
       }
@@ -399,8 +397,20 @@ export const calculateAndUpdatePenalty = async (booking) => {
 
       try {
         const io = getIO();
-        const rooms = [booking.user.toString()];
+        const userRoom = booking.user.toString();
+        const rooms = [userRoom];
         if (booking.driver) rooms.push(booking.driver.toString());
+
+        // Send Push Notification to User
+        const user = await User.findById(booking.user);
+        if (user && user.pushToken) {
+          sendPushNotification(
+            user.pushToken,
+            "Wait Penalty Applied ⚠️",
+            `₹${penaltyIncrement} has been added to your fare due to extended waiting time.`,
+            { bookingId: booking._id.toString(), type: 'penalty_applied' }
+          );
+        }
 
         rooms.forEach(room => {
           io.to(room).emit("penaltyApplied", {
@@ -411,6 +421,7 @@ export const calculateAndUpdatePenalty = async (booking) => {
           });
         });
 
+        // Create persistent notification
         await createNotification({
           userId: booking.user,
           title: "Wait Penalty Applied ⚠️",
@@ -502,6 +513,17 @@ export const completeRide = async (req, res) => {
       });
     }
 
+    // Send Push Notification to User
+    const user = await User.findById(booking.user);
+    if (user && user.pushToken) {
+      sendPushNotification(
+        user.pushToken,
+        "Ride Completed! ✅",
+        `Your ride has been completed. Total fare: ₹${booking.totalFare}. Thank you for riding with Hello-11!`,
+        { bookingId: booking._id.toString(), type: 'ride_completed' }
+      );
+    }
+
     res.json({
       success: true,
       message: "Ride completed successfully",
@@ -569,12 +591,12 @@ export const acceptReturnOffer = async (req, res) => {
       });
     }
 
-    // Logic: 60% OFF on return trip
-    const returnFare = Math.round(booking.fare * 0.4);
+    // Logic: 50% OFF on return trip
+    const returnFare = Math.round(booking.fare * 0.5);
 
     booking.hasReturnTrip = true;
     booking.returnTripFare = returnFare;
-    booking.discount = 60; // 60% off
+    booking.discount = 50; // 50% off
 
     // Update totalFare
     booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0);
@@ -606,7 +628,7 @@ export const acceptReturnOffer = async (req, res) => {
     await createNotification({
       userId: booking.user,
       title: "Return Trip Offer Accepted! 🎉",
-      body: `Your return trip at 60% OFF (₹${returnFare}) has been confirmed.`,
+      body: `Your return trip at 50% OFF (₹${returnFare}) has been confirmed.`,
       type: "ride_accepted",
       bookingId: booking._id
     });
@@ -648,9 +670,6 @@ export const startWaiting = async (req, res) => {
     booking.status = "waiting";
     booking.isWaiting = true;
     booking.waitingStartedAt = new Date();
-
-    // For testing: 30 seconds free wait time
-    booking.waitingLimit = 30;
 
     await booking.save();
 

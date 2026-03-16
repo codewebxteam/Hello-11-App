@@ -1,21 +1,22 @@
-// Client App API Configuration
-import { Platform } from "react-native";
+import Constants from 'expo-constants';
 
 // Get API base URL based on environment
 const getApiBaseUrl = (): string => {
-    const PRODUCTION_API_URL = process.env.EXPO_PUBLIC_API_URL;
+    // 1. Check if an explicit URL is provided in .env (Priority)
+    const EXPLICIT_API_URL = process.env.EXPO_PUBLIC_API_URL;
+    if (EXPLICIT_API_URL) return EXPLICIT_API_URL;
 
-    if (PRODUCTION_API_URL) {
-        return PRODUCTION_API_URL;
+    // 2. Dynamic Detection for Development
+    // Works for both Emulator (localhost) and Physical Device (Local IP)
+    const debuggerHost = Constants.expoConfig?.hostUri;
+    const localhost = debuggerHost?.split(':').shift();
+
+    if (localhost) {
+        return `http://${localhost}:5001`;
     }
 
-    // Development mode
-    if (__DEV__) {
-        return "https://hello-11-app.onrender.com";
-    }
-
-    // Production fallback (also Render)
-    return "https://hello-11-app.onrender.com";
+    // 3. Fallback for all other cases
+    return "http://127.0.0.1:5001";
 };
 
 export const API_BASE_URL = getApiBaseUrl();

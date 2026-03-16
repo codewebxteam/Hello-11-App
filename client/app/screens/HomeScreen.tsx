@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";
 import { useLocalSearchParams, useRouter } from "expo-router"; //
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -65,6 +66,12 @@ const HomeScreen = () => {
           setAssignedDriver(data.booking.driver);
           setActiveBookingId(data.booking.id);
           setIsSearching(false);
+          
+          sendLocalNotification(
+            "Ride Accepted! 🚕",
+            `${data.booking.driver.name} is on the way in a ${data.booking.driver.vehicleModel}`
+          );
+          
           // Auto-redirect to tracking screen immediately
           router.push({
             pathname: "/screens/LiveRideTrackingScreen",
@@ -74,6 +81,7 @@ const HomeScreen = () => {
 
         socket.on("bookingCancelledByDriver", (data: any) => {
           console.log("Booking cancelled by driver:", data);
+          sendLocalNotification("Ride Cancelled ❌", "The driver has cancelled your ride request.");
           clearBookingState();
         });
 
@@ -93,6 +101,7 @@ const HomeScreen = () => {
           // Show toast for critical ride notifications
           if (data.notification.type.startsWith('ride_')) {
             showToast(data.notification.title, data.notification.body);
+            sendLocalNotification(data.notification.title, data.notification.body);
           }
         });
 
@@ -109,6 +118,17 @@ const HomeScreen = () => {
           setUnreadCount(notifRes.data.unreadCount || 0);
         } catch (e) {
           console.log("Unread count fetch error", e);
+        }
+
+        // Register for push notifications
+        try {
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            await userAPI.updateProfile({ pushToken: token });
+            console.log("Push token registered successfully");
+          }
+        } catch (tokenErr) {
+          console.log("Push token registration failed", tokenErr);
         }
 
       } catch (err) {

@@ -32,63 +32,6 @@ export default function ActiveRideScreen() {
     const [eta, setEta] = React.useState<string>("---");
 
     useEffect(() => {
-        let locationSubscription: any = null;
-
-        const startTracking = async () => {
-            try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== 'granted') return;
-
-                locationSubscription = await Location.watchPositionAsync(
-                    {
-                        accuracy: Location.Accuracy.High,
-                        distanceInterval: 10, // Update every 10 meters
-                    },
-                    (newLoc) => {
-                        const { latitude, longitude } = newLoc.coords;
-                        setRegion((prev: any) => ({
-                            latitude: latitude,
-                            longitude: longitude,
-                            latitudeDelta: prev?.latitudeDelta || 0.05,
-                            longitudeDelta: prev?.longitudeDelta || 0.05,
-                        }));
-
-                        // Update backend
-                        driverAPI.updateLocation({ latitude, longitude }).catch(err =>
-                            console.log("Failed to update driver location:", err)
-                        );
-
-                        // Update Route dynamically to target (Drop-off normally, Pickup for return)
-                        const targetLat = isReturnTrip ? Number(booking?.pickupLatitude) : Number(booking?.dropLatitude);
-                        const targetLon = isReturnTrip ? Number(booking?.pickupLongitude) : Number(booking?.dropLongitude);
-
-                        if (targetLat && targetLon) {
-                            locationAPI.getDirections(latitude, longitude, targetLat, targetLon)
-                                .then(res => {
-                                    if (res.data?.data) {
-                                        setDistance(`${res.data.data.distanceKm} km`);
-                                        const etaMin = Math.ceil(res.data.data.duration / 60);
-                                        setEta(`${etaMin} min`);
-
-                                        if (res.data.data.geometry && Array.isArray(res.data.data.geometry.coordinates)) {
-                                            const coords = res.data.data.geometry.coordinates
-                                                .filter((c: any) => Array.isArray(c) && c.length >= 2 && c[1] !== null && c[0] !== null)
-                                                .map((c: any) => ({
-                                                    latitude: Number(c[1]),
-                                                    longitude: Number(c[0])
-                                                }));
-                                            if (coords.length > 0) setRouteCoords(coords);
-                                        }
-                                    }
-                                }).catch(() => { });
-                        }
-                    }
-                );
-            } catch (err) {
-                console.error("Error starting location tracking:", err);
-            }
-        };
-
         const fetchBookingAndRoute = async () => {
             try {
                 // 1. Fetch booking
@@ -140,20 +83,70 @@ export default function ActiveRideScreen() {
                         }
                     }
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Error fetching booking or route:", error);
+                // Redirect back if no active booking found
+                if (error.message === "No active booking found" || error.status === 404) {
+                    Alert.alert("No Active Ride", "No active ride was found for this session.");
+                    router.replace("/");
+                }
             }
+        };
+
+        fetchBookingAndRoute();
+    }, [bookingId]);
+
+    useEffect(() => {
+        if (!booking) return;
+
+        let locationSubscription: any = null;
+        const startTracking = async () => {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
+
+                locationSubscription = await Location.watchPositionAsync(
+                    {
+                        accuracy: Location.Accuracy.High,
+                        distanceInterval: 10,
+                    },
+                    (newLoc) => {
+                        const { latitude, longitude } = newLoc.coords;
+                        setRegion((prev: any) => ({
+                            latitude,
+                            longitude,
+                            latitudeDelta: prev?.latitudeDelta || 0.05,
+                            longitudeDelta: prev?.longitudeDelta || 0.05,
+                        }));
+                        driverAPI.updateLocation({ latitude, longitude }).catch(() => { });
+
+                        const targetLat = isReturnTrip ? Number(booking?.pickupLatitude) : Number(booking?.dropLatitude);
+                        const targetLon = isReturnTrip ? Number(booking?.pickupLongitude) : Number(booking?.dropLongitude);
+
+                        if (targetLat && targetLon) {
+                            locationAPI.getDirections(latitude, longitude, targetLat, targetLon)
+                                .then(res => {
+                                    if (res.data?.data) {
+                                        setDistance(`${res.data.data.distanceKm} km`);
+                                        setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                                        if (res.data.data.geometry?.coordinates) {
+                                            const coords = res.data.data.geometry.coordinates.map((c: any) => ({
+                                                latitude: Number(c[1]),
+                                                longitude: Number(c[0])
+                                            }));
+                                            setRouteCoords(coords);
+                                        }
+                                    }
+                                }).catch(() => { });
+                        }
+                    }
+                );
+            } catch (err) { console.error(err); }
         };
 
         startTracking();
-        fetchBookingAndRoute();
-
-        return () => {
-            if (locationSubscription) {
-                locationSubscription.remove();
-            }
-        };
-    }, [bookingId]);
+        return () => locationSubscription?.remove();
+    }, [booking?._id]);
 
     useEffect(() => {
         const setupSocket = async () => {
@@ -407,7 +400,7 @@ export default function ActiveRideScreen() {
                                 <View className="flex-row items-center">
                                     <Text className="text-blue-400 text-xs">Return Trip </Text>
                                     <View className="bg-blue-500/20 px-1 py-0.5 rounded ml-1">
-                                        <Text className="text-blue-400 text-[8px] font-black italic">60% OFF</Text>
+                                        <Text className="text-blue-400 text-[8px] font-black italic">50% OFF</Text>
                                     </View>
                                 </View>
                                 <Text className="text-blue-400 text-sm font-bold">+₹{booking?.returnTripFare || 0}</Text>
@@ -473,11 +466,20 @@ export default function ActiveRideScreen() {
                             <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={handleEndLeg1}
-                                disabled={false}  // TODO: For production restore: disabled={distanceKm > 0.5}
-                                className={`w-full py-4 rounded-[24px] items-center flex-row justify-center border bg-slate-700 border-slate-600`}
+                                disabled={parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0]))}
+                                className={`w-full py-4 rounded-[24px] items-center flex-row justify-center border ${
+                                    (parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0])))
+                                        ? 'bg-slate-800 border-slate-700 opacity-50' 
+                                        : 'bg-slate-700 border-slate-600'
+                                }`}
                             >
-                                <Ionicons name="time" size={24} color={'#FFD700'} style={{ marginRight: 8 }} />
-                                <Text className="text-white font-black text-lg tracking-[3px] uppercase">
+                                <Ionicons 
+                                    name="time" 
+                                    size={24} 
+                                    color={(parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0]))) ? '#475569' : '#FFD700'} 
+                                    style={{ marginRight: 8 }} 
+                                />
+                                <Text className={`${(parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0]))) ? 'text-slate-500' : 'text-white'} font-black text-lg tracking-[3px] uppercase`}>
                                     Wait for Return
                                 </Text>
                             </TouchableOpacity>
