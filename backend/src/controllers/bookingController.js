@@ -52,7 +52,7 @@ export const createBooking = async (req, res) => {
       dropLatitude: req.body.dropLatitude || 0,
       dropLongitude: req.body.dropLongitude || 0,
       rideType: rideType || "normal",
-      vehicleType: req.body.vehicleType || "mini",
+      vehicleType: req.body.vehicleType || "any",
       bookingType: bookingType || "now",
       scheduledDate: bookingType === "schedule" ? scheduledDate : null,
       // Scheduled rides start as 'scheduled'; ride-now rides start as 'pending'
@@ -146,6 +146,8 @@ export const createBooking = async (req, res) => {
       }
     });
   } catch (error) {
+    serverLog(`CREATE BOOKING ERROR: ${error.message}`);
+    console.error("Booking Creation Error:", error);
     res.status(500).json({
       message: "Failed to create booking",
       error: error.message

@@ -27,6 +27,21 @@ const RENTAL_EXTRA_RATES = {
   "7-seater": 13,
 };
 
+// Legacy Rates (Used in calculateFareEstimate)
+const CAB_RATES = {
+  "Mini": 12,
+  "Sedan": 15,
+  "SUV": 20
+};
+
+const OUTSTATION_RATES = {
+  "mini": 12,
+  "sedan": 15,
+  "suv": 20,
+  "default": 15
+};
+
+
 /**
  * Calculate the step-based fare for the first 40 KM (same for both services).
  * Returns the fare in ₹ for any distance between 0 and 40 KM (inclusive).
