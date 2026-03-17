@@ -28,10 +28,10 @@ const OutstationBookingScreen = () => {
   );
 
   // Fare/Vehicle state
-  const [carType, setCarType] = useState<'5-seater' | '7-seater'>('5-seater');
+  const [carType, setCarType] = useState<'5seater' | '7seater'>('5seater');
   const [fares, setFares] = useState<{ [key: string]: { fare: number; total: number; time: number; nightSurcharge: number; isNight: boolean } }>({
-    '5-seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false },
-    '7-seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false },
+    '5seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false },
+    '7seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false },
   });
   const [loadingFares, setLoadingFares] = useState(false);
 
@@ -78,13 +78,13 @@ const OutstationBookingScreen = () => {
           const bookingTime = bookingType === 'schedule' ? scheduledDate.toISOString() : new Date().toISOString();
           
           const [res5, res7] = await Promise.all([
-            fareAPI.calculateTripFare({ distance: distanceKm, carType: '5-seater', service: 'rental', bookingTime }),
-            fareAPI.calculateTripFare({ distance: distanceKm, carType: '7-seater', service: 'rental', bookingTime })
+            fareAPI.calculateTripFare({ distance: distanceKm, carType: '5seater', service: 'rental', bookingTime }),
+            fareAPI.calculateTripFare({ distance: distanceKm, carType: '7seater', service: 'rental', bookingTime })
           ]);
 
           const newFares = { ...fares };
           if (res5.data?.success) {
-            newFares['5-seater'] = {
+            newFares['5seater'] = {
               fare: res5.data.data.oneWayFare,
               total: res5.data.data.totalFare,
               time: res5.data.data.allowedTimeMinutes,
@@ -93,7 +93,7 @@ const OutstationBookingScreen = () => {
             };
           }
           if (res7.data?.success) {
-            newFares['7-seater'] = {
+            newFares['7seater'] = {
               fare: res7.data.data.oneWayFare,
               total: res7.data.data.totalFare,
               time: res7.data.data.allowedTimeMinutes,
@@ -433,7 +433,7 @@ const OutstationBookingScreen = () => {
             <View className="w-[1px] bg-slate-100" />
             <View className="flex-1 items-center">
               <Text className="text-slate-400 text-[9px] font-black uppercase mb-1">Min Fare</Text>
-              <Text className="text-slate-900 font-black text-lg">₹{fares['5-seater'].fare || '--'}</Text>
+              <Text className="text-slate-900 font-black text-lg">₹{fares['5seater'].fare || '--'}</Text>
             </View>
           </View>
         )}
@@ -441,12 +441,12 @@ const OutstationBookingScreen = () => {
         {/* ─── CHOOSE VEHICLE TYPE ─── */}
         <Text className="text-xs font-black text-slate-500 mb-3 ml-1">CHOOSE VEHICLE</Text>
         <View>
-          {([{ type: '5-seater', icon: 'car-outline', title: '5-Seater', desc: 'Comfortable sedan/hatchback', capacity: '4+1', color: '#3B82F6' },
-             { type: '7-seater', icon: 'bus-outline', title: '7-Seater', desc: 'Spacious SUV / MUV', capacity: '6+1', color: '#10B981' }] as const).map((option) => {
+          {([{ type: '5seater', icon: 'car-outline', title: '5-Seater', desc: 'Comfortable sedan/hatchback', capacity: '4+1', color: '#3B82F6' },
+             { type: '7seater', icon: 'bus-outline', title: '7-Seater', desc: 'Spacious SUV / MUV', capacity: '6+1', color: '#10B981' }] as const).map((option) => {
             const isSelected = carType === option.type;
             const vehicleFare = fares[option.type].fare;
             const vehicleTime = fares[option.type].time;
-            const extraRate = option.type === '5-seater' ? '₹12/km' : '₹13/km';
+            const extraRate = option.type === '5seater' ? '₹12/km' : '₹13/km';
 
             return (
               <TouchableOpacity
@@ -528,18 +528,20 @@ const OutstationBookingScreen = () => {
           <View className="flex-row bg-slate-800 p-1.5 rounded-[15px] mb-4">
             <TouchableOpacity
               onPress={() => setBookingType('now')}
-              className={`flex-1 py-3 items-center rounded-xl ${bookingType === 'now' ? 'bg-[#FFD700]' : ''}`}
+              className={`flex-1 py-3 items-center rounded-xl flex-row justify-center ${bookingType === 'now' ? 'bg-[#FFD700]' : ''}`}
             >
+              <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
               <Text className={`text-[11px] font-black ${bookingType === 'now' ? 'text-black' : 'text-slate-400'}`}>
-                ⚡ RIDE NOW
+                RIDE NOW
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setBookingType('schedule')}
-              className={`flex-1 py-3 items-center rounded-xl ${bookingType === 'schedule' ? 'bg-[#FFD700]' : ''}`}
+              className={`flex-1 py-3 items-center rounded-xl flex-row justify-center ${bookingType === 'schedule' ? 'bg-[#FFD700]' : ''}`}
             >
+              <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
               <Text className={`text-[11px] font-black ${bookingType === 'schedule' ? 'text-black' : 'text-slate-400'}`}>
-                🗓️ SCHEDULE
+                SCHEDULE
               </Text>
             </TouchableOpacity>
           </View>
@@ -590,7 +592,7 @@ const OutstationBookingScreen = () => {
               )}
 
               <Text className="text-slate-500 text-[10px] font-bold mt-2 text-center">
-                📅 Scheduled: {formatScheduledDate(scheduledDate)}
+                Scheduled: {formatScheduledDate(scheduledDate)}
               </Text>
             </View>
           )}
@@ -605,12 +607,16 @@ const OutstationBookingScreen = () => {
                 </View>
                 <View className="items-end">
                   <Text className="text-slate-400 text-[9px] font-black uppercase">Allowed Time</Text>
-                  <Text className="text-white font-bold text-sm">⏱ {formatTime(fares[carType].time)} · {distanceKm.toFixed(0)}km</Text>
+                  <View className="flex-row items-center">
+                    <Ionicons name="time" size={12} color="white" style={{ marginRight: 4 }} />
+                    <Text className="text-white font-bold text-sm">{formatTime(fares[carType].time)} · {distanceKm.toFixed(0)}km</Text>
+                  </View>
                 </View>
               </View>
               {fares[carType].isNight && (
                 <View className="flex-row items-center mt-2 bg-slate-700 px-3 py-1.5 rounded-lg">
-                  <Text className="text-[10px] font-black text-amber-400">🌙 Night Surcharge (+20%) = ₹{fares[carType].nightSurcharge} included</Text>
+                  <Ionicons name="moon" size={12} color="#fbbf24" style={{ marginRight: 6 }} />
+                  <Text className="text-[10px] font-black text-amber-400">Night Surcharge (+20%) = ₹{fares[carType].nightSurcharge} included</Text>
                 </View>
               )}
             </View>

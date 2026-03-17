@@ -24,7 +24,7 @@ const RegisterScreen = () => {
     const [password, setPassword] = useState("");
     const [vehicleNumber, setVehicleNumber] = useState("");
     const [vehicleModel, setVehicleModel] = useState("");
-    const [vehicleType, setVehicleType] = useState("5-seater");
+    const [vehicleType, setVehicleType] = useState("5seater");
     const [serviceType, setServiceType] = useState("cab"); // 'cab', 'rental', 'both'
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -184,7 +184,7 @@ const RegisterScreen = () => {
                                 <View className="mt-4">
                                     <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 ml-1">Vehicle Category</Text>
                                     <View className="bg-slate-50 p-2 rounded-[24px] border border-slate-100 flex-row flex-wrap justify-between">
-                                        {['5-seater', '7-seater'].map((type) => (
+                                        {['5seater', '7seater'].map((type) => (
                                             <TouchableOpacity
                                                 key={type}
                                                 onPress={() => setVehicleType(type)}

@@ -1,5 +1,5 @@
 import express from "express";
-import { createBooking, getUserBookings, getScheduledBookings, getScheduledHistory, getBookingById, cancelBooking, getBookingStatus, startRide, completeRide, verifyPayment, acceptReturnOffer, startWaiting } from "../controllers/bookingController.js";
+import { createBooking, getUserBookings, getScheduledBookings, getScheduledHistory, getBookingById, cancelBooking, getBookingStatus, startRide, completeRide, verifyPayment, acceptReturnOffer, startWaiting, updatePaymentChoice, requestPayment } from "../controllers/bookingController.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -20,5 +20,7 @@ router.put("/:id/complete", completeRide);
 router.put("/:id/verify-payment", verifyPayment);
 router.put("/:id/accept-return", acceptReturnOffer);
 router.put("/:id/start-waiting", startWaiting);
+router.put("/:id/update-payment-choice", updatePaymentChoice);
+router.post("/:id/request-payment", requestPayment);
 
 export default router;

@@ -8,35 +8,13 @@ import * as Location from 'expo-location';
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { bookingAPI, locationAPI, driverAPI } from '../../utils/api';
+import { bookingAPI, locationAPI, driverAPI, fareAPI } from '../../utils/api';
 import SearchingRideOverlay from '../../components/SearchingRideOverlay';
 
 const VEHICLES = [
-  { id: '5-seater', label: '5 Seater', icon: 'car-sport', desc: 'Comfortable & Swift' },
-  { id: '7-seater', label: '7 Seater', icon: 'bus', desc: 'Perfect for Family' },
+  { id: '5seater', label: '5-Seater', icon: 'car-outline', title: '5-Seater', desc: 'Comfortable sedan/hatchback', capacity: '4+1', color: '#3B82F6', extraRate: '₹12/km' },
+  { id: '7seater', label: '7-Seater', icon: 'bus-outline', title: '7-Seater', desc: 'Spacious SUV / MUV', capacity: '6+1', color: '#10B981', extraRate: '₹13/km' },
 ];
-
-/**
- * Frontend helper to match backend pricing logic for 1-40 KM
- */
-const calculateLocalFare = (km: number) => {
-  if (km <= 0) return 0;
-  const stepTotals = [69, 128, 177, 216, 245];
-  const whole = Math.floor(km);
-  const fraction = km - whole;
-  let fare = 0;
-
-  if (whole < 5) {
-    fare = stepTotals[Math.max(0, whole - 1)] || 0;
-    const nextStepRate = [69, 59, 49, 39, 29][whole];
-    fare += (whole === 0 ? km : fraction) * nextStepRate;
-  } else if (whole < 15) {
-    fare = 245 + (km - 5) * 29;
-  } else {
-    fare = 535 + (km - 15) * 22;
-  }
-  return Math.round(fare);
-};
 
 const BookingScreen = () => {
   const router = useRouter();
@@ -47,9 +25,16 @@ const BookingScreen = () => {
   const [bookingType, setBookingType] = useState<'now' | 'schedule'>(
     (params.mode as 'now' | 'schedule') || 'now'
   );
-  const [selectedVehicle, setSelectedVehicle] = useState('any');
+  const [selectedVehicle, setSelectedVehicle] = useState('5seater');
   const [isSearching, setIsSearching] = useState(false);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
+
+  // Fare/Vehicle state
+  const [fares, setFares] = useState<{ [key: string]: { fare: number; total: number; isNight: boolean } }>({
+    '5seater': { fare: 0, total: 0, isNight: false },
+    '7seater': { fare: 0, total: 0, isNight: false },
+  });
+  const [loadingFares, setLoadingFares] = useState(false);
 
   // Location State
   const [pickup, setPickup] = useState(params.pickup as string || '');
@@ -125,6 +110,45 @@ const BookingScreen = () => {
     return () => clearTimeout(timer);
   }, [pickup, drop, activeInput]);
 
+  // --- FARE CALCULATION ---
+  useEffect(() => {
+    if (distanceKm > 0 && rideMode === 'normal') {
+      const fetchFares = async () => {
+        setLoadingFares(true);
+        try {
+          const bookingTime = bookingType === 'schedule' ? scheduledDate.toISOString() : new Date().toISOString();
+          
+          const [res5, res7] = await Promise.all([
+            fareAPI.calculateTripFare({ distance: distanceKm, carType: '5seater', service: 'cab', bookingTime }),
+            fareAPI.calculateTripFare({ distance: distanceKm, carType: '7seater', service: 'cab', bookingTime })
+          ]);
+
+          const newFares = { ...fares };
+          if (res5.data?.success) {
+            newFares['5seater'] = {
+              fare: res5.data.data.totalFare,
+              total: res5.data.data.totalFare,
+              isNight: res5.data.data.isNightSurcharge ?? false
+            };
+          }
+          if (res7.data?.success) {
+            newFares['7seater'] = {
+              fare: res7.data.data.totalFare,
+              total: res7.data.data.totalFare,
+              isNight: res7.data.data.isNightSurcharge ?? false
+            };
+          }
+          setFares(newFares);
+        } catch (err) {
+          console.error('Fare calculation error:', err);
+        } finally {
+          setLoadingFares(false);
+        }
+      };
+      fetchFares();
+    }
+  }, [distanceKm, bookingType, scheduledDate, rideMode]);
+
   // --- DISTANCE & DRIVER STATS LOGIC ---
   const fetchRideInfo = useCallback(async () => {
     if (!pickupCoords || !dropCoords) return;
@@ -165,9 +189,6 @@ const BookingScreen = () => {
           );
         }
       }
-
-      // Status card logic removed
-
     } catch (err) {
       console.error('Ride info fetch error:', err);
     }
@@ -190,8 +211,6 @@ const BookingScreen = () => {
     setActiveInput(null);
   };
 
-  const estimatedFare = calculateLocalFare(distanceKm);
-
   // --- HANDLE CONFIRM ---
   const handleConfirm = async () => {
     if (!pickup || !drop) {
@@ -203,7 +222,6 @@ const BookingScreen = () => {
       return;
     }
     if (rideMode === 'long') {
-      // Redirection to specialized outstation screen if user selects long distance tab
       router.push({
         pathname: "/screens/OutstationBookingScreen",
         params: {
@@ -217,7 +235,6 @@ const BookingScreen = () => {
       });
       return;
     }
-    // nearbyCount check removed
     if (bookingType === 'schedule' && scheduledDate <= new Date()) {
       Alert.alert('Invalid Time', 'Please select a future time for scheduling.');
       return;
@@ -233,9 +250,9 @@ const BookingScreen = () => {
         dropLongitude: dropCoords.lon,
         rideType: 'normal',
         bookingType: bookingType,
-        vehicleType: selectedVehicle, // Sent chosen vehicle to backend
+        vehicleType: selectedVehicle,
         scheduledDate: bookingType === 'schedule' ? scheduledDate.toISOString() : undefined,
-        fare: estimatedFare,
+        fare: fares[selectedVehicle].fare,
         distance: distanceKm,
       };
 
@@ -380,30 +397,49 @@ const BookingScreen = () => {
 
         {/* Fare Summary (For Normal) */}
         {distanceKm > 0 && rideMode === 'normal' && (
-          <View className="bg-slate-900 p-6 rounded-[35px] mb-8 flex-row justify-between items-center shadow-lg">
-            <View>
-              <Text className="text-slate-400 text-[10px] font-black uppercase">Estimated Fare</Text>
-              <Text style={{ color: '#FFD700', fontWeight: '900', fontSize: 30 }}>₹{estimatedFare}</Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-slate-400 text-[10px] font-black uppercase">Distance</Text>
-              <Text className="text-white font-black text-lg">{distanceKm.toFixed(1)} km</Text>
+          <View className="mb-8">
+            <View className="bg-white p-6 rounded-[35px] border border-slate-100 flex-row items-center justify-between shadow-sm">
+              <View className="flex-row items-center flex-1">
+                <View className="bg-slate-900 w-12 h-12 rounded-2xl items-center justify-center mr-4">
+                  <Ionicons name="car-sport" size={24} color="#FFD700" />
+                </View>
+                <View>
+                  <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Estimated Ride</Text>
+                  <Text className="text-slate-900 font-black text-base">{distanceKm.toFixed(1)} KM Trip</Text>
+                </View>
+              </View>
+              <View className="items-end">
+                {loadingFares ? (
+                  <ActivityIndicator size="small" color="#FFD700" />
+                ) : (
+                  <>
+                    <Text className="text-slate-900 font-black text-3xl">₹{fares['5seater']?.fare || '--'}</Text>
+                    {fares['5seater']?.isNight && (
+                      <View className="flex-row items-center mt-1">
+                        <Ionicons name="moon" size={10} color="#6366F1" />
+                        <Text className="text-[#6366F1] text-[8px] font-black uppercase ml-1">Night Fare</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
             </View>
           </View>
         )}
 
-
         <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 6, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9' }}>
           <TouchableOpacity
             onPress={() => setBookingType('now')}
-            style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', backgroundColor: bookingType === 'now' ? '#FFD700' : 'transparent' }}
+            style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'now' ? '#FFD700' : 'transparent' }}
           >
+            <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
             <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'now' ? '#000' : '#94a3b8' }}>RIDE NOW</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setBookingType('schedule')}
-            style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', backgroundColor: bookingType === 'schedule' ? '#FFD700' : 'transparent' }}
+            style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'schedule' ? '#FFD700' : 'transparent' }}
           >
+            <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
             <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'schedule' ? '#000' : '#94a3b8' }}>SCHEDULE</Text>
           </TouchableOpacity>
         </View>
@@ -448,9 +484,12 @@ const BookingScreen = () => {
 
         <TouchableOpacity
           onPress={handleConfirm}
-          className="bg-slate-900 py-[22px] rounded-[28px] items-center shadow-lg active:scale-95"
+          className="bg-slate-900 py-[22px] px-4 rounded-[28px] items-center shadow-lg active:scale-95"
         >
-          <Text className="text-white font-black text-lg tracking-[2px]">
+          <Text 
+            numberOfLines={1}
+            className="text-white font-black text-sm tracking-[1px] text-center uppercase"
+          >
             {rideMode === 'long' ? 'CONTINUE TO OUTSTATION' : (bookingType === 'schedule' ? 'PLAN MY TRIP' : 'SEARCH RIDE NOW')}
           </Text>
         </TouchableOpacity>

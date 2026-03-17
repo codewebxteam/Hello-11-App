@@ -7,9 +7,13 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate } from 'react-native-reanimated';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
 
 const { width, height } = Dimensions.get('window');
+const SHEET_MAX_HEIGHT = height * 0.85;
+const SHEET_MIN_HEIGHT = 140;
 
 export default function ActiveRideScreen() {
     const router = useRouter();
@@ -30,6 +34,49 @@ export default function ActiveRideScreen() {
     const [region, setRegion] = React.useState<any>(null);
     const [distance, setDistance] = React.useState<string>("---");
     const [eta, setEta] = React.useState<string>("---");
+
+    // Animation Shared Values
+    const translateY = useSharedValue(0);
+    const context = useSharedValue({ y: 0 });
+    const sheetHeight = useSharedValue(SHEET_MAX_HEIGHT); // Initial guess
+    const PEEK_HEIGHT = 120; // Increased peek height
+
+    const gesture = Gesture.Pan()
+        .onStart(() => {
+            context.value = { y: translateY.value };
+        })
+        .onUpdate((event) => {
+            const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+            translateY.value = Math.max(0, Math.min(event.translationY + context.value.y, maxDrag));
+        })
+        .onEnd((event) => {
+            const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+            const shouldCollapse = translateY.value > maxDrag / 2 || event.velocityY > 500;
+
+            translateY.value = withSpring(shouldCollapse ? maxDrag : 0, {
+                damping: 20,
+                stiffness: 90,
+                mass: 1,
+                overshootClamping: true
+            });
+        });
+
+    const animatedSheetStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: translateY.value }],
+        };
+    });
+
+    const animatedContentOpacity = useAnimatedStyle(() => {
+        const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+        const opacity = interpolate(
+            translateY.value,
+            [0, Math.max(1, maxDrag * 0.5)],
+            [1, 0],
+            Extrapolate.CLAMP
+        );
+        return { opacity };
+    });
 
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
@@ -202,7 +249,9 @@ export default function ActiveRideScreen() {
                                 returnFare: (booking?.returnTripFare || 0).toString(),
                                 pickup: booking?.pickupLocation || '',
                                 drop: booking?.dropLocation || '',
-                                isReturn: isReturnTrip ? 'true' : 'false'
+                                isReturn: isReturnTrip ? 'true' : 'false',
+                                hasReturnTrip: hasReturnTrip ? 'true' : 'false',
+                                firstLegPaid: booking?.firstLegPaid ? 'true' : 'false'
                             }
                         });
                     }
@@ -212,36 +261,76 @@ export default function ActiveRideScreen() {
     };
 
     const handleEndLeg1 = () => {
-        Alert.alert(
-            "Start Waiting?",
-            "Begin the waiting timer for return trip?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Yes, Start Wait",
-                    onPress: async () => {
-                        try {
-                            if (bookingId) {
-                                const { driverAPI } = require("../utils/api");
-                                await driverAPI.startWaiting(bookingId);
+        const isOutstation = booking?.rideType === 'outstation';
+        const distanceVal = booking?.distance || 0;
+
+        if (isOutstation && distanceVal > 40) {
+            Alert.alert(
+                "End of First Leg",
+                "This is an outstation trip. How would the passenger like to pay?",
+                [
+                    {
+                        text: "Collect Half Fare Now",
+                        onPress: () => {
+                            router.push({
+                                pathname: "/payment",
+                                params: {
+                                    bookingId,
+                                    nextRoute: "/waiting-for-return",
+                                    isFirstLeg: 'true',
+                                    baseFare: (booking?.fare || 0).toString(),
+                                    distance: distance.replace(' km', '') || distanceKm.toString(),
+                                    pickup: booking?.pickupLocation || '',
+                                    drop: booking?.dropLocation || '',
+                                }
+                            });
+                        }
+                    },
+                    {
+                        text: "Pay Total at End",
+                        onPress: async () => {
+                            try {
+                                await driverAPI.updatePaymentChoice(bookingId, 'total_at_end');
                                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                                // Navigate to Waiting Screen
                                 router.push({
                                     pathname: "/waiting-for-return",
-                                    params: {
-                                        bookingId,
-                                        distance: distanceKm.toString()
-                                    }
+                                    params: { bookingId, distance: distanceKm.toString() }
                                 });
+                            } catch (err) {
+                                Alert.alert("Error", "Failed to update payment choice.");
                             }
-                        } catch (error) {
-                            console.error("Failed to start waiting:", error);
-                            Alert.alert("Error", "Could not start waiting timer.");
+                        }
+                    },
+                    { text: "Cancel", style: "cancel" }
+                ]
+            );
+        } else {
+            // Normal trip (local) - Enforce intermediate payment
+            Alert.alert(
+                "Start Waiting?",
+                "Finish first leg? (Mandatory half-fare collection for local rides)",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                        text: "Collect Fare & Wait",
+                        onPress: () => {
+                            router.push({
+                                pathname: "/payment",
+                                params: {
+                                    bookingId,
+                                    nextRoute: "/waiting-for-return",
+                                    isFirstLeg: 'true',
+                                    baseFare: (booking?.fare || 0).toString(),
+                                    distance: distance.replace(' km', '') || distanceKm.toString(),
+                                    pickup: booking?.pickupLocation || '',
+                                    drop: booking?.dropLocation || '',
+                                }
+                            });
                         }
                     }
-                }
-            ]
-        );
+                ]
+            );
+        }
     };
 
     return (
@@ -351,153 +440,99 @@ export default function ActiveRideScreen() {
             </View>
 
             {/* --- BOTTOM SHEET (RIDE CONTROLS) --- */}
-            <View className="absolute bottom-0 w-full z-20">
-                <View
-                    style={{ paddingBottom: insets.bottom + 20 }}
-                    className="bg-[#0F172A] rounded-t-[40px] px-6 pt-8 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50"
-                >
-                    {/* Handle Indicator */}
-                    <View className="self-center w-12 h-1.5 bg-slate-700 rounded-full mb-8 opacity-50" />
+            <Animated.View
+                style={[{ position: 'absolute', bottom: 0, width: '100%', zIndex: 20 }, animatedSheetStyle]}
+            >
+                <GestureDetector gesture={gesture}>
+                    <View
+                        onLayout={(e) => {
+                            const { height: h } = e.nativeEvent.layout;
+                            if (h > 0 && Math.abs(sheetHeight.value - h) > 1) {
+                                sheetHeight.value = h;
+                            }
+                        }}
+                        style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT }}
+                        className="bg-[#0F172A] rounded-t-[40px] px-6 pt-4 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50"
+                    >
+                        {/* Handle Indicator */}
+                        <View className="self-center w-12 h-1.5 bg-slate-700 rounded-full mb-4 opacity-50" />
 
-                    {/* Ride Progress */}
-                    <View className="flex-row justify-between items-end mb-6">
-                        <View>
-                            <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Time Remaining</Text>
-                            <Text className="text-white text-4xl font-black italic">{eta.split(' ')[0]} <Text className="text-lg text-slate-500 not-italic">{eta.split(' ')[1] || 'min'}</Text></Text>
-                        </View>
-                        <View className="items-end">
-                            <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Distance</Text>
-                            <Text className="text-white text-4xl font-black italic">{distance.split(' ')[0]} <Text className="text-lg text-slate-500 not-italic">{distance.split(' ')[1] || 'km'}</Text></Text>
-                        </View>
-                    </View>
-
-                    {/* Destination Address */}
-                    <View className="bg-slate-800/50 p-4 rounded-2xl mb-4 border border-slate-700/50 flex-row items-center">
-                        <View className="w-10 h-10 rounded-full bg-red-500/20 items-center justify-center border border-red-500/30 mr-4">
-                            <Ionicons name="flag" size={20} color="#EF4444" />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">
-                                {isReturnTrip ? 'Return To (Original Pickup)' : 'Destination'}
-                            </Text>
-                            <Text className="text-white text-sm font-bold leading-5" numberOfLines={2}>
-                                {isReturnTrip ? (booking?.pickupLocation || '---') : (booking?.dropLocation || '---')}
-                            </Text>
-                        </View>
-                    </View>
-
-                    {/* Fare Breakdown (Added for Transparency) */}
-                    <View className="bg-slate-800/80 p-4 rounded-2xl mb-4 border border-slate-700">
-                        <Text className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">Itemized Fare</Text>
-
-                        <View className="flex-row justify-between mb-1">
-                            <Text className="text-slate-400 text-xs">Outbound Trip</Text>
-                            <Text className="text-white text-sm font-bold">₹{booking?.fare || 0}</Text>
-                        </View>
-
-                        {booking?.hasReturnTrip && (
-                            <View className="flex-row justify-between mb-1">
-                                <View className="flex-row items-center">
-                                    <Text className="text-blue-400 text-xs">Return Trip </Text>
-                                    <View className="bg-blue-500/20 px-1 py-0.5 rounded ml-1">
-                                        <Text className="text-blue-400 text-[8px] font-black italic">50% OFF</Text>
-                                    </View>
+                        {/* Collapsed view info */}
+                        <View className="flex-row items-center justify-between mb-4">
+                            <View className="flex-row items-center flex-1">
+                                <View className="w-10 h-10 bg-slate-700 rounded-full items-center justify-center border border-slate-600 overflow-hidden">
+                                    {booking?.user?.profileImage ? (
+                                        <Image source={{ uri: booking.user.profileImage }} className="w-full h-full" />
+                                    ) : (
+                                        <Text className="text-lg">👤</Text>
+                                    )}
                                 </View>
-                                <Text className="text-blue-400 text-sm font-bold">+₹{booking?.returnTripFare || 0}</Text>
+                                <View className="ml-3">
+                                    <Text className="text-white font-bold">{booking?.user?.name || 'Passenger'}</Text>
+                                    <Text className="text-slate-400 text-[10px] uppercase font-bold">{eta} • {distance}</Text>
+                                </View>
                             </View>
-                        )}
-
-                        {Number(penaltyAmount) > 0 && (
-                            <View className="flex-row justify-between mb-1">
-                                <Text className="text-red-400 text-xs">Waiting Penalties</Text>
-                                <Text className="text-red-400 text-sm font-bold">+₹{penaltyAmount}</Text>
-                            </View>
-                        )}
-
-                        <View className="mt-2 pt-2 border-t border-slate-700 flex-row justify-between items-center">
-                            <View>
-                                <Text className="text-white text-base font-black italic tracking-wider">Total Collection</Text>
-                                <Text className="text-slate-500 text-[8px] font-bold uppercase tracking-widest italic">{booking?.paymentMethod || 'Cash'}</Text>
-                            </View>
-                            <Text className="text-[#FFD700] text-2xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(penaltyAmount))}</Text>
-                        </View>
-                    </View>
-
-                    <View className="h-[1px] bg-slate-800 w-full mb-8" />
-
-                    {/* Passenger & End Ride */}
-                    <View className="flex-row items-center justify-between mb-2">
-                        <View className="flex-row items-center flex-1">
-                            <View className="w-12 h-12 bg-slate-700 rounded-full items-center justify-center border-2 border-slate-600 mr-3 overflow-hidden">
-                                {booking?.user?.profileImage ? (
-                                    <Image source={{ uri: booking.user.profileImage }} className="w-full h-full" />
-                                ) : (
-                                    <Text className="text-xl">👤</Text>
-                                )}
-                            </View>
-                            <View>
-                                <Text className="text-white font-bold text-base">{booking?.user?.name || 'Passenger'}</Text>
-                                <Text className="text-green-400 text-xs font-bold">Trip in Progress</Text>
+                            <View className="bg-red-500/20 px-3 py-1 rounded-lg border border-red-500/30">
+                                <Text className="text-red-400 font-bold text-[10px] uppercase tracking-wider">LIVE TRIP</Text>
                             </View>
                         </View>
 
-                        <TouchableOpacity
-                            onPress={() => router.push({
-                                pathname: "/chat",
-                                params: {
-                                    bookingId: bookingId,
-                                    userName: booking?.user?.name || 'Passenger'
-                                }
-                            })}
-                            className="w-12 h-12 bg-blue-600 rounded-2xl items-center justify-center border border-blue-500 mr-2"
-                        >
-                            <Ionicons name="chatbubbles" size={24} color="white" />
-                        </TouchableOpacity>
+                        <Animated.View style={animatedContentOpacity}>
+                            <View className="h-[1px] bg-slate-800 w-full mb-6" />
 
-                        <TouchableOpacity className="w-12 h-12 bg-slate-800 rounded-2xl items-center justify-center border border-slate-700">
-                            <Ionicons name="shield-checkmark" size={24} color="#CBD5E1" />
-                        </TouchableOpacity>
-                    </View>
+                            {/* Ride Progress */}
+                            <View className="flex-row justify-between items-end mb-6">
+                                <View>
+                                    <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Time Remaining</Text>
+                                    <Text className="text-white text-4xl font-black italic">{eta.split(' ')[0]} <Text className="text-lg text-slate-500 not-italic">{eta.split(' ')[1] || 'min'}</Text></Text>
+                                </View>
+                                <View className="items-end">
+                                    <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Distance</Text>
+                                    <Text className="text-white text-4xl font-black italic">{distance.split(' ')[0]} <Text className="text-lg text-slate-500 not-italic">{distance.split(' ')[1] || 'km'}</Text></Text>
+                                </View>
+                            </View>
 
-                    {/* End Rides Buttons */}
-                    <View className="mt-6 gap-4">
-                        {/* Only show Wait for Return if NOT already in return mode AND user accepted it */}
-                        {!isReturnTrip && hasReturnTrip && (
+                            {/* Destination Address */}
+                            <View className="bg-slate-800/50 p-4 rounded-2xl mb-4 border border-slate-700/50 flex-row items-center">
+                                <View className="w-10 h-10 rounded-full bg-red-500/20 items-center justify-center border border-red-500/30 mr-4">
+                                    <Ionicons name="flag" size={20} color="#EF4444" />
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">
+                                        {isReturnTrip ? 'Return To (Original Pickup)' : 'Destination'}
+                                    </Text>
+                                    <Text className="text-white text-sm font-bold leading-5" numberOfLines={2}>
+                                        {isReturnTrip ? (booking?.pickupLocation || '---') : (booking?.dropLocation || '---')}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* Itemized Fare */}
+                            <View className="bg-slate-800/80 p-4 rounded-2xl mb-6 border border-slate-700">
+                                <View className="mt-2 flex-row justify-between items-center">
+                                    <View>
+                                        <Text className="text-white text-base font-black italic tracking-wider">Estimated Total</Text>
+                                        <Text className="text-slate-500 text-[8px] font-bold uppercase tracking-widest italic">{booking?.paymentMethod || 'Cash'}</Text>
+                                    </View>
+                                    <Text className="text-[#FFD700] text-2xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(penaltyAmount))}</Text>
+                                </View>
+                            </View>
+
+                            {/* End Ride Button */}
                             <TouchableOpacity
                                 activeOpacity={0.9}
-                                onPress={handleEndLeg1}
-                                disabled={parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0]))}
-                                className={`w-full py-4 rounded-[24px] items-center flex-row justify-center border ${
-                                    (parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0])))
-                                        ? 'bg-slate-800 border-slate-700 opacity-50' 
-                                        : 'bg-slate-700 border-slate-600'
-                                }`}
+                                onPress={(hasReturnTrip && !isReturnTrip) ? handleEndLeg1 : handleEndRide}
+                                className={`w-full ${(hasReturnTrip && !isReturnTrip) ? 'bg-blue-600' : 'bg-red-500'} py-5 rounded-[24px] items-center flex-row justify-center shadow-lg`}
                             >
-                                <Ionicons 
-                                    name="time" 
-                                    size={24} 
-                                    color={(parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0]))) ? '#475569' : '#FFD700'} 
-                                    style={{ marginRight: 8 }} 
-                                />
-                                <Text className={`${(parseFloat(distance.split(' ')[0]) > 0.5 || isNaN(parseFloat(distance.split(' ')[0]))) ? 'text-slate-500' : 'text-white'} font-black text-lg tracking-[3px] uppercase`}>
-                                    Wait for Return
+                                <Ionicons name={(hasReturnTrip && !isReturnTrip) ? "arrow-forward-circle" : "stop-circle"} size={24} color="#FFF" style={{ marginRight: 8 }} />
+                                <Text className="text-white font-black text-lg tracking-[3px] uppercase">
+                                    {(hasReturnTrip && !isReturnTrip) ? "End First Leg" : "End Ride"}
                                 </Text>
                             </TouchableOpacity>
-                        )}
-
-                        <TouchableOpacity
-                            activeOpacity={0.9}
-                            onPress={handleEndRide}
-                            className="w-full bg-red-500 py-5 rounded-[24px] items-center flex-row justify-center shadow-lg shadow-red-500/20"
-                        >
-                            <Ionicons name="stop-circle" size={24} color="#FFF" style={{ marginRight: 8 }} />
-                            <Text className="text-white font-black text-lg tracking-[3px] uppercase">End Ride</Text>
-                        </TouchableOpacity>
+                        </Animated.View>
                     </View>
-
-                </View>
-            </View>
-
+                </GestureDetector>
+            </Animated.View>
         </View>
     );
 }

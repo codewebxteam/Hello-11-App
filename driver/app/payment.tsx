@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, ScrollView, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +6,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getSocket } from '../utils/socket';
+import { driverAPI } from '../utils/api';
 
 const { width } = Dimensions.get('window');
 
@@ -16,11 +18,30 @@ export default function PaymentScreen() {
 
     // Calculate totals
     const isPartialPayment = !!params.nextRoute;
+    const firstLegPaid = params.firstLegPaid === 'true';
     const baseFare = params.baseFare ? Number(params.baseFare) : (params.fare ? Number(params.fare) : 450);
     const returnFare = params.returnFare ? Number(params.returnFare) : 0;
     const penalty = params.penalty ? Number(params.penalty) : 0;
 
-    const totalAmount = isPartialPayment ? baseFare : (baseFare + returnFare + penalty);
+    // Total Amount: If final payment and first leg already paid, only collect return + penalty
+    const totalAmount = isPartialPayment 
+        ? baseFare 
+        : (firstLegPaid ? (returnFare + penalty) : (baseFare + returnFare + penalty));
+
+    useEffect(() => {
+        if (params.bookingId) {
+            driverAPI.requestPayment(params.bookingId as string, {
+                amount: totalAmount,
+                isPartial: isPartialPayment,
+                breakdown: {
+                    baseFare: firstLegPaid ? 0 : baseFare,
+                    returnFare,
+                    penalty,
+                    firstLegPaid
+                }
+            }).catch(err => console.error("Failed to request payment via API:", err));
+        }
+    }, [params.bookingId, totalAmount, isPartialPayment, firstLegPaid]);
 
     const handlePaymentVerified = async () => {
         try {
@@ -34,7 +55,15 @@ export default function PaymentScreen() {
 
             if (isPartialPayment && typeof params.nextRoute === 'string') {
                 // START WAITING Logic (USP)
+                // 1. Verify intermediate payment
+                await driverAPI.verifyPayment(bookingId, {
+                    paymentMethod: "cash", // Assuming cash for now as per current app flow
+                    isFirstLeg: true
+                });
+
+                // 2. Start waiting
                 await driverAPI.startWaiting(bookingId);
+
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 router.push({
                     pathname: params.nextRoute as any,
@@ -69,7 +98,8 @@ export default function PaymentScreen() {
                         time: params.time as string || "24",
                         pickup: params.pickup as string || "",
                         drop: params.drop as string || "",
-                        isReturn: params.isReturn || 'false'
+                        isReturn: params.isReturn || 'false',
+                        hasReturnTrip: params.hasReturnTrip || 'false'
                     }
                 });
             }
@@ -107,14 +137,21 @@ export default function PaymentScreen() {
                             <View className="w-full bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
                                 <View className="flex-row justify-between mb-2">
                                     <Text className="text-slate-400 text-xs text-left">Base Outbound</Text>
-                                    <Text className="text-white text-xs font-bold">₹{baseFare}</Text>
+                                    <View className="flex-row items-center">
+                                        {firstLegPaid && (
+                                            <View className="bg-green-500/20 px-1.5 py-0.5 rounded-md mr-1.5 border border-green-500/30">
+                                                <Text className="text-green-400 text-[8px] font-black uppercase">Already Paid</Text>
+                                            </View>
+                                        )}
+                                        <Text className={`text-xs font-bold ${firstLegPaid ? 'text-slate-500 line-through' : 'text-white'}`}>₹{baseFare}</Text>
+                                    </View>
                                 </View>
                                 {returnFare > 0 && (
                                     <View className="flex-row justify-between mb-2">
                                         <View className="flex-row items-center">
                                             <Text className="text-blue-400 text-xs">Return Trip </Text>
                                             <View className="bg-blue-500/20 px-1 py-0.5 rounded ml-1">
-                                                <Text className="text-blue-400 text-[8px] font-black italic">60% OFF</Text>
+                                                <Text className="text-blue-400 text-[8px] font-black italic">50% OFF</Text>
                                             </View>
                                         </View>
                                         <Text className="text-blue-400 text-xs font-bold">+₹{returnFare}</Text>

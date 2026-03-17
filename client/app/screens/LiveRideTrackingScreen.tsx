@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import ReturnTripOfferModal from '../../components/ReturnTripOfferModal';
+import PaymentPromptModal from '../../components/PaymentPromptModal';
 import { bookingAPI, locationAPI } from '../../utils/api';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -13,6 +14,7 @@ import { getSocket, initSocket } from '../../utils/socket';
 import { userAPI } from '../../utils/api';
 import { showToast } from '../../components/NotificationToast';
 import { sendLocalNotification } from '../../utils/notifications';
+import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,6 +27,8 @@ const LiveRideTrackingScreen = () => {
     const bookingId = params.bookingId as string;
 
     const [showReturnOffer, setShowReturnOffer] = useState(false);
+    const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
+    const [paymentDetails, setPaymentDetails] = useState<any>(null);
     const [isAcceptingReturn, setIsAcceptingReturn] = useState(false);
     const isAcceptingReturnRef = useRef(false);
     const [booking, setBooking] = useState<any>(null);
@@ -159,7 +163,16 @@ const LiveRideTrackingScreen = () => {
                 const userId = profile.data?.user?._id || profile.data?.user?.id;
 
                 if (userId && s) {
-                    s.emit("join", userId);
+                    // Join specific rooms for reliability
+                    if (userId) s.emit("join", userId);
+                    if (bookingId) s.emit("joinChat", bookingId); // Also joins the booking-specific room
+
+                    // Re-join on reconnection
+                    s.on("connect", () => {
+                        console.log("[Socket] Reconnected, re-joining rooms...");
+                        if (userId) s.emit("join", userId);
+                        if (bookingId) s.emit("joinChat", bookingId);
+                    });
                     lastSocketRef.current = s;
                     setSocketReady(true);
                 }
@@ -180,7 +193,7 @@ const LiveRideTrackingScreen = () => {
                 isAcceptingReturnRef.current = true;
                 setIsAcceptingReturn(true);
                 console.log("[Return] Calling API...");
-                
+
                 const res = await bookingAPI.acceptReturnOffer(bookingId);
                 console.log("[Return] API response:", res.data);
 
@@ -300,7 +313,8 @@ const LiveRideTrackingScreen = () => {
 
                 // Reliability Check: If ride started but we haven't accepted return trip yet, 
                 // and it's not already shown, double check if we should show offer
-                if (data.status === 'started' && !bookingRef.current?.hasReturnTrip && !showReturnOffer) {
+                // Use a ref or local state to ensure we don't reopen if actively accepting
+                if (data.status === 'started' && !bookingRef.current?.hasReturnTrip && !showReturnOffer && !isAcceptingReturnRef.current) {
                     console.log("[Client] Ride started, checking for return trip offer...");
                     setShowReturnOffer(true);
                 }
@@ -345,12 +359,22 @@ const LiveRideTrackingScreen = () => {
             }
         };
 
+        const onPaymentRequested = (data: any) => {
+            if (String(data.bookingId) === String(bookingId)) {
+                console.log('[Socket] Payment Requested:', data.amount);
+                setPaymentDetails(data);
+                setShowPaymentPrompt(true);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+        };
+
         socket.on("waitingStarted", onWaitingStarted);
         socket.on("penaltyApplied", onPenaltyApplied);
         socket.on("driverLocationUpdate", onLocationUpdate);
         socket.on("rideStatusUpdate", onStatusUpdate);
         socket.on("suggestReturnTrip", onSuggestReturn);
         socket.on("driverArrived", onDriverArrived);
+        socket.on("paymentRequested", onPaymentRequested);
 
         return () => {
             console.log(`[Socket] Cleaning up tracking listeners for booking: ${bookingId}`);
@@ -360,6 +384,7 @@ const LiveRideTrackingScreen = () => {
             socket.off("rideStatusUpdate", onStatusUpdate);
             socket.off("suggestReturnTrip", onSuggestReturn);
             socket.off("driverArrived", onDriverArrived);
+            socket.off("paymentRequested", onPaymentRequested);
         };
     }, [socketReady, bookingId, fetchInitialData]);
 
@@ -398,7 +423,7 @@ const LiveRideTrackingScreen = () => {
             case 'arrived': return { text: 'Driver has arrived', color: 'bg-green-500', icon: 'checkmark-circle' as const };
             case 'started': return { text: 'Ride in progress', color: 'bg-blue-500', icon: 'navigate-circle' as const };
             case 'waiting': return { text: 'Driver is waiting', color: 'bg-orange-500', icon: 'time' as const };
-            case 'return_ride_started': return { text: 'Return trip started', color: 'bg-purple-500', icon: 'repeat' as const };
+            case 'return_ride_started': return { text: 'Return trip started', color: 'bg-[#FFD700]', icon: 'repeat' as const };
             default: return { text: 'Driver is on the way', color: 'bg-[#FFD700]', icon: 'car' as const };
         }
     };
@@ -415,39 +440,47 @@ const LiveRideTrackingScreen = () => {
                         {routeCoords.length > 0 && <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor="#3b82f6" />}
                         {booking && (
                             <>
-                                {/* Pickup / Return-Start Marker */}
-                                {Number(booking.pickupLatitude) !== 0 && Number(booking.pickupLongitude) !== 0 && (
-                                    <Marker coordinate={{
-                                        latitude: Number(currentStatus === 'return_ride_started' ? booking.dropLatitude : booking.pickupLatitude) || 0,
-                                        longitude: Number(currentStatus === 'return_ride_started' ? booking.dropLongitude : booking.pickupLongitude) || 0
-                                    }}>
+                                {/* Pickup / Return-Start Marker (Show only when driver is arriving or waiting at pickup) */}
+                                {Number(booking.pickupLatitude) !== 0 && Number(booking.pickupLongitude) !== 0 && 
+                                 ['accepted', 'arrived', 'waiting', 'pending'].includes(currentStatus) && (
+                                    <Marker 
+                                        coordinate={{
+                                            latitude: Number(currentStatus === 'return_ride_started' ? booking.dropLatitude : booking.pickupLatitude) || 0,
+                                            longitude: Number(currentStatus === 'return_ride_started' ? booking.dropLongitude : booking.pickupLongitude) || 0
+                                        }}
+                                        zIndex={1}
+                                    >
                                         <View className="items-center">
                                             <View className="bg-[#FFD700] px-2 py-0.5 rounded mb-1 shadow-md">
                                                 <Text className="text-black text-[9px] font-black uppercase tracking-widest">
                                                     {currentStatus === 'return_ride_started' ? 'START' : 'PICKUP'}
                                                 </Text>
                                             </View>
-                                            <View className="bg-blue-600 p-2.5 rounded-full border-2 border-white shadow-lg">
-                                                <Ionicons name="location" size={18} color="white" />
+                                            <View className="bg-blue-600 w-10 h-10 rounded-full border-2 border-white shadow-lg items-center justify-center">
+                                                <Ionicons name="location" size={20} color="white" />
                                             </View>
                                         </View>
                                     </Marker>
                                 )}
 
-                                {/* Drop / Return-End Marker */}
-                                {Number(booking.dropLatitude) !== 0 && Number(booking.dropLongitude) !== 0 && (
-                                    <Marker coordinate={{
-                                        latitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLatitude : booking.dropLatitude) || 0,
-                                        longitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLongitude : booking.dropLongitude) || 0
-                                    }}>
+                                {/* Drop / Return-End Marker (Show only when ride is in progress) */}
+                                {Number(booking.dropLatitude) !== 0 && Number(booking.dropLongitude) !== 0 && 
+                                 ['started'].includes(currentStatus) && (
+                                    <Marker 
+                                        coordinate={{
+                                            latitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLatitude : booking.dropLatitude) || 0,
+                                            longitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLongitude : booking.dropLongitude) || 0
+                                        }}
+                                        zIndex={1}
+                                    >
                                         <View className="items-center">
                                             <View className="bg-red-500 px-2 py-0.5 rounded mb-1 shadow-md">
                                                 <Text className="text-white text-[9px] font-black uppercase tracking-widest">
                                                     {currentStatus === 'return_ride_started' ? 'HOME' : 'DROP'}
                                                 </Text>
                                             </View>
-                                            <View className="bg-green-600 p-2.5 rounded-full border-2 border-white shadow-lg">
-                                                <Ionicons name="flag" size={18} color="white" />
+                                            <View className="bg-green-600 w-10 h-10 rounded-full border-2 border-white shadow-lg items-center justify-center">
+                                                <Ionicons name="flag" size={20} color="white" />
                                             </View>
                                         </View>
                                     </Marker>
@@ -455,8 +488,10 @@ const LiveRideTrackingScreen = () => {
                             </>
                         )}
                         {driverLocation && (
-                            <Marker coordinate={driverLocation}>
-                                <View className="bg-slate-900 p-2 rounded-full border-2 border-white shadow-2xl"><Ionicons name="car-sport" size={20} color="#FFD700" /></View>
+                            <Marker coordinate={driverLocation} zIndex={10}>
+                                <View className="bg-slate-900 w-10 h-10 rounded-full border-2 border-white shadow-2xl items-center justify-center">
+                                    <Ionicons name="car-sport" size={22} color="#FFD700" />
+                                </View>
                             </Marker>
                         )}
                     </MapView>
@@ -468,168 +503,188 @@ const LiveRideTrackingScreen = () => {
                     <View className="flex-row justify-between items-start">
                         <TouchableOpacity onPress={() => router.replace("/screens/HomeScreen")} className="bg-white w-12 h-12 rounded-full items-center justify-center shadow-lg"><Ionicons name="arrow-back" size={24} color="#000" /></TouchableOpacity>
 
-                        <View className="bg-white rounded-2xl shadow-xl p-1.5 flex-row items-center">
-                            <View className="bg-[#FFD700] px-4 py-2 rounded-xl items-center justify-center mr-3">
-                                <Text className="text-[10px] font-black text-slate-800 uppercase tracking-wider">otp</Text>
-                                <Text className="text-xl font-black text-black leading-5">{booking?.otp || '----'}</Text>
-                            </View>
+                        <View className="flex-1 ml-3 bg-white/95 rounded-3xl shadow-2xl p-2 flex-row items-center border border-white/20">
+                            {!['started', 'return_ride_started'].includes(currentStatus) && (
+                                <View className="bg-[#FFD700] px-3.5 py-2 rounded-2xl items-center justify-center mr-2 shadow-sm">
+                                    <Text className="text-[8px] font-black text-slate-900 uppercase tracking-[2px] mb-0.5">otp</Text>
+                                    <Text className="text-xl font-black text-black leading-5">{booking?.otp || '----'}</Text>
+                                </View>
+                            )}
+
                             {currentStatus === 'waiting' ? (
-                                <View className="px-4 py-1">
-                                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{isPenaltyActive ? 'Overdue' : 'Free Wait'}</Text>
+                                <View className="flex-1 items-center justify-center py-1">
+                                    <View className="flex-row items-center mb-0.5">
+                                        <Ionicons name="time" size={12} color="#94a3b8" />
+                                        <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">{isPenaltyActive ? 'Overdue' : 'Free Wait'}</Text>
+                                    </View>
                                     <Text className={`text-lg font-black ${isPenaltyActive ? 'text-red-500' : 'text-slate-900'}`}>{formatTime(remainingSeconds)}</Text>
                                 </View>
                             ) : (
-                                <>
-                                    <View className="px-4 py-1 border-r border-slate-100">
-                                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                            {currentStatus === 'return_ride_started' ? 'Heading Home' : (currentStatus === 'arrived' ? 'Reached' : 'Arriving')}
-                                        </Text>
-                                        <Text className="text-lg font-black text-slate-900">
+                                <View className="flex-row flex-1 divide-x divide-slate-100">
+                                    <View className="flex-1 items-center justify-center px-2">
+                                        <View className="flex-row items-center mb-0.5">
+                                            <Ionicons name="time" size={12} color="#3b82f6" />
+                                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                                                {currentStatus === 'return_ride_started' ? 'Home In' : (currentStatus === 'arrived' ? 'Reached' : 'Arriving')}
+                                            </Text>
+                                        </View>
+                                        <Text className="text-lg font-black text-slate-900" numberOfLines={1}>
                                             {currentStatus === 'return_ride_started' ? eta : (currentStatus === 'arrived' ? 'At Pickup' : eta)}
                                         </Text>
                                     </View>
-                                    <View className="pr-4 py-1 ml-3">
-                                        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dist</Text>
-                                        <Text className="text-lg font-black text-slate-900">{distance}</Text>
+                                    <View className="flex-1 items-center justify-center px-2">
+                                        <View className="flex-row items-center mb-0.5">
+                                            <Ionicons name="navigate" size={12} color="#10b981" />
+                                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Dist</Text>
+                                        </View>
+                                        <Text className="text-lg font-black text-slate-900" numberOfLines={1}>{distance}</Text>
                                     </View>
-                                </>
+                                </View>
                             )}
                         </View>
                     </View>
                 </SafeAreaView>
             </View>
 
-            <View className="flex-[2] bg-white rounded-t-[35px] -mt-8 shadow-2xl px-6 py-4">
-                <View className="items-center mb-3"><View className="w-12 h-1 bg-slate-200 rounded-full" /></View>
+            <View className="flex-[2] bg-white rounded-t-[40px] shadow-2xl overflow-hidden -mt-10">
+                <ScrollView
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 20, paddingHorizontal: 24 }}
+                    showsVerticalScrollIndicator={false}
+                    bounces={true}
+                >
+                    <View className="items-center mb-6"><View className="w-10 h-1.5 bg-slate-200 rounded-full" /></View>
 
-                {currentStatus === 'waiting' && (
-                    <Animated.View entering={FadeIn} className={`${isPenaltyActive ? 'bg-red-500' : 'bg-orange-500'} p-3 rounded-2xl mb-4 flex-row items-center justify-between shadow-md`}>
-                        <View className="flex-row items-center flex-1">
-                            <Ionicons name="time" size={20} color="white" />
-                            <View className="ml-2">
-                                <Text className="text-white text-sm font-black">{isPenaltyActive ? 'PENALTY ACTIVE' : 'WAITING FOR YOU'}</Text>
-                                <Text className="text-white/80 text-[10px] font-bold">Wait Penalty: ₹100/Hour after free limit</Text>
-                            </View>
-                        </View>
-                        {isPenaltyActive && (
-                            <Text className="text-white font-black text-base">+₹{booking?.penaltyApplied || 0}</Text>
-                        )}
-                    </Animated.View>
-                )}
-
-                {!isPenaltyActive && currentStatus !== 'waiting' && (
-                    <View className={`${statusConfig.color} p-3 rounded-2xl mb-4 flex-row items-center`}><Ionicons name={statusConfig.icon} size={20} color="black" /><Text className="text-black text-sm font-black ml-2">{statusConfig.text}</Text></View>
-                )}
-
-                {/* RETURN TRIP BANNER */}
-                {currentStatus === 'return_ride_started' && (
-                    <View className="bg-purple-600 p-2.5 rounded-2xl mb-3 flex-row items-center">
-                        <Ionicons name="repeat" size={16} color="white" />
-                        <Text className="text-white text-xs font-black ml-2">↩ RETURN TRIP — Heading back to pickup</Text>
-                    </View>
-                )}
-
-                {/* TRIP ROUTE DETAILS */}
-                <View className="mb-4 bg-slate-50 rounded-2xl p-3 border border-slate-100 space-y-3">
-                    {/* FROM row */}
-                    <View className="flex-row items-start">
-                        <View className="w-7 h-7 rounded-full bg-green-100 items-center justify-center mr-3 mt-0.5">
-                            <Ionicons name="radio-button-on" size={14} color="#22c55e" />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider mb-0.5">
-                                {currentStatus === 'return_ride_started' ? 'STARTING FROM (DROP POINT)' : 'PICKUP'}
-                            </Text>
-                            <Text className="text-slate-800 text-xs font-bold leading-4" numberOfLines={2}>
-                                {currentStatus === 'return_ride_started'
-                                    ? (booking?.dropLocation || 'Your Location')
-                                    : (booking?.pickupLocation || 'Pickup Location')}
-                            </Text>
-                        </View>
-                    </View>
-
-                    <View className="w-[1px] h-4 bg-slate-200 ml-[13px]" />
-
-                    {/* TO row */}
-                    <View className="flex-row items-start">
-                        <View className="w-7 h-7 rounded-full bg-red-100 items-center justify-center mr-3 mt-0.5">
-                            <Ionicons name="location" size={14} color="#ef4444" />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider mb-0.5">
-                                {currentStatus === 'return_ride_started' ? 'DESTINATION (HOME)' : 'DROP'}
-                            </Text>
-                            <Text className="text-slate-800 text-xs font-bold leading-4" numberOfLines={2}>
-                                {currentStatus === 'return_ride_started'
-                                    ? (booking?.pickupLocation || 'Return Destination')
-                                    : (booking?.dropLocation || 'Drop Location')}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-
-                <View className="bg-slate-50 p-3 rounded-2xl mb-4 border border-slate-100">
-                    <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-slate-200 rounded-full items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                            {booking?.driver?.profileImage ? <Image source={{ uri: booking.driver.profileImage }} className="w-full h-full" /> : <Ionicons name="person" size={24} color="#64748B" />}
-                        </View>
-                        <View className="ml-3 flex-1">
-                            <Text className="text-slate-900 text-base font-black">{booking?.driver?.name || 'Driver'}</Text>
-                            <Text className="text-slate-500 text-xs font-bold">{booking?.driver?.vehicleModel || 'Car'} • {booking?.driver?.vehicleNumber || '----'}</Text>
-                        </View>
-                        <View className="flex-row items-center bg-slate-900 px-2 py-1 rounded-full"><Ionicons name="star" size={10} color="#FFD700" /><Text className="text-white text-xs font-bold ml-1">{booking?.driver?.rating?.toFixed(1) || '5.0'}</Text></View>
-                    </View>
-                </View>
-
-                <View className="flex-row gap-3 mb-3">
-                    <TouchableOpacity onPress={() => booking?.driver?.mobile && Linking.openURL(`tel:${booking.driver.mobile}`)} className="flex-1 bg-green-500 py-3 rounded-2xl items-center flex-row justify-center shadow-lg"><Ionicons name="call" size={18} color="white" /><Text className="text-white font-black text-sm ml-2">CALL</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.push({ pathname: "/screens/ChatScreen", params: { bookingId, driverName: booking?.driver?.name || 'Driver' } })} className="bg-blue-500 w-12 h-12 rounded-2xl items-center justify-center shadow-lg"><Ionicons name="chatbubble-ellipses" size={20} color="white" /></TouchableOpacity>
-
-                    {['pending', 'accepted', 'driver_assigned', 'arrived'].includes(currentStatus) && (
-                        <TouchableOpacity
-                            onPress={() => Alert.alert("Cancel Ride", "Are you sure?", [{ text: "No" }, { text: "Yes", onPress: () => bookingAPI.cancelBooking(bookingId).then(() => router.replace("/screens/HomeScreen")) }])}
-                            className="bg-red-500 w-12 h-12 rounded-2xl items-center justify-center shadow-lg"
-                        >
-                            <Ionicons name="close" size={24} color="white" />
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                <View className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex-1">
-                    <Text className="text-slate-400 text-[10px] uppercase font-black tracking-widest mb-2">Fare Breakdown</Text>
-
-                    <View className="flex-row justify-between mb-1.5">
-                        <Text className="text-slate-600 text-xs font-bold">Base Trip</Text>
-                        <Text className="text-slate-900 text-sm font-black">₹{Number(booking?.fare || 0)}</Text>
-                    </View>
-
-                    {booking?.hasReturnTrip && (
-                        <View className="flex-row justify-between mb-1.5">
-                            <View className="flex-row items-center">
-                                <Text className="text-blue-600 text-xs font-bold">Return Trip </Text>
-                                <View className="bg-blue-100 px-1 py-0.5 rounded-md">
-                                    <Text className="text-blue-700 text-[7px] font-black italic">50% OFF</Text>
+                    {currentStatus === 'waiting' && (
+                        <Animated.View entering={FadeIn} className={`${isPenaltyActive ? 'bg-red-500' : 'bg-orange-500'} p-3 rounded-2xl mb-4 flex-row items-center justify-between shadow-md`}>
+                            <View className="flex-row items-center flex-1">
+                                <Ionicons name="time" size={20} color="white" />
+                                <View className="ml-2">
+                                    <Text className="text-white text-sm font-black">{isPenaltyActive ? 'PENALTY ACTIVE' : 'WAITING FOR YOU'}</Text>
+                                    <Text className="text-white/80 text-[10px] font-bold">Wait Penalty: ₹100/Hour after free limit</Text>
                                 </View>
                             </View>
-                            <Text className="text-blue-600 text-sm font-black">+₹{booking?.returnTripFare || 0}</Text>
+                            {isPenaltyActive && (
+                                <Text className="text-white font-black text-base">+₹{booking?.penaltyApplied || 0}</Text>
+                            )}
+                        </Animated.View>
+                    )}
+
+                    {!isPenaltyActive && currentStatus !== 'waiting' && (
+                        <View className={`${statusConfig.color} p-3 rounded-2xl mb-4 flex-row items-center`}><Ionicons name={statusConfig.icon} size={20} color="black" /><Text className="text-black text-sm font-black ml-2">{statusConfig.text}</Text></View>
+                    )}
+
+                    {/* RETURN TRIP BANNER */}
+                    {currentStatus === 'return_ride_started' && (
+                        <View className="bg-[#FFD700] p-2.5 rounded-2xl mb-3 flex-row items-center border border-yellow-600/30">
+                            <Ionicons name="repeat" size={16} color="black" />
+                            <Text className="text-black text-xs font-black ml-2">↩ RETURN TRIP — Heading back to pickup</Text>
                         </View>
                     )}
 
-                    {isPenaltyActive && (
-                        <View className="flex-row justify-between mb-1.5">
-                            <Text className="text-red-500 text-xs font-bold">Waiting Charges</Text>
-                            <Text className="text-red-500 text-sm font-black">+₹{booking?.penaltyApplied || 0}</Text>
+                    {/* TRIP ROUTE DETAILS */}
+                    <View className="mb-4 bg-white rounded-3xl p-4 space-y-4">
+                        {/* FROM row */}
+                        <View className="flex-row items-start">
+                            <View className="w-7 h-7 rounded-full bg-green-100 items-center justify-center mr-3 mt-0.5">
+                                <Ionicons name="radio-button-on" size={14} color="#22c55e" />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider mb-0.5">
+                                    {currentStatus === 'return_ride_started' ? 'STARTING FROM (DROP POINT)' : 'PICKUP'}
+                                </Text>
+                                <Text className="text-slate-800 text-xs font-bold leading-4" numberOfLines={2}>
+                                    {currentStatus === 'return_ride_started'
+                                        ? (booking?.dropLocation || 'Your Location')
+                                        : (booking?.pickupLocation || 'Pickup Location')}
+                                </Text>
+                            </View>
                         </View>
-                    )}
 
-                    <View className="border-t border-slate-100 mt-2 pt-2 flex-row justify-between items-center">
-                        <View>
-                            <Text className="text-slate-900 text-sm font-black">Total Amount</Text>
-                            <Text className="text-slate-400 text-[8px] font-bold italic uppercase">{booking?.paymentMethod || 'Cash'}</Text>
+                        <View className="w-[1px] h-4 bg-slate-200 ml-[13px]" />
+
+                        {/* TO row */}
+                        <View className="flex-row items-start">
+                            <View className="w-7 h-7 rounded-full bg-red-100 items-center justify-center mr-3 mt-0.5">
+                                <Ionicons name="location" size={14} color="#ef4444" />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider mb-0.5">
+                                    {currentStatus === 'return_ride_started' ? 'DESTINATION (HOME)' : 'DROP'}
+                                </Text>
+                                <Text className="text-slate-800 text-xs font-bold leading-4" numberOfLines={2}>
+                                    {currentStatus === 'return_ride_started'
+                                        ? (booking?.pickupLocation || 'Return Destination')
+                                        : (booking?.dropLocation || 'Drop Location')}
+                                </Text>
+                            </View>
                         </View>
-                        <Text className="text-[#000] text-xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
                     </View>
-                </View>
+
+                    <View className="p-3 rounded-2xl mb-4">
+                        <View className="flex-row items-center">
+                            <View className="w-12 h-12 bg-slate-200 rounded-full items-center justify-center border-2 border-white shadow-sm overflow-hidden">
+                                {booking?.driver?.profileImage ? <Image source={{ uri: booking.driver.profileImage }} className="w-full h-full" /> : <Ionicons name="person" size={24} color="#64748B" />}
+                            </View>
+                            <View className="ml-3 flex-1">
+                                <Text className="text-slate-900 text-base font-black">{booking?.driver?.name || 'Driver'}</Text>
+                                <Text className="text-slate-500 text-xs font-bold">{booking?.driver?.vehicleModel || 'Car'} • {booking?.driver?.vehicleNumber || '----'}</Text>
+                            </View>
+                            <View className="flex-row items-center bg-slate-900 px-2 py-1 rounded-full"><Ionicons name="star" size={10} color="#FFD700" /><Text className="text-white text-xs font-bold ml-1">{booking?.driver?.rating?.toFixed(1) || '5.0'}</Text></View>
+                        </View>
+                    </View>
+
+                    {!['started', 'return_ride_started'].includes(currentStatus) && (
+                        <View className="flex-row gap-3 mb-3">
+                            <TouchableOpacity onPress={() => booking?.driver?.mobile && Linking.openURL(`tel:${booking.driver.mobile}`)} className="flex-1 bg-green-500 py-3 rounded-2xl items-center flex-row justify-center shadow-lg"><Ionicons name="call" size={18} color="white" /><Text className="text-white font-black text-sm ml-2">CALL</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={() => router.push({ pathname: "/screens/ChatScreen", params: { bookingId, driverName: booking?.driver?.name || 'Driver' } })} className="bg-blue-500 w-12 h-12 rounded-2xl items-center justify-center shadow-lg"><Ionicons name="chatbubble-ellipses" size={20} color="white" /></TouchableOpacity>
+
+                            {['pending', 'accepted', 'driver_assigned', 'arrived'].includes(currentStatus) && (
+                                <TouchableOpacity
+                                    onPress={() => Alert.alert("Cancel Ride", "Are you sure?", [{ text: "No" }, { text: "Yes", onPress: () => bookingAPI.cancelBooking(bookingId).then(() => router.replace("/screens/HomeScreen")) }])}
+                                    className="bg-red-500 w-12 h-12 rounded-2xl items-center justify-center shadow-lg"
+                                >
+                                    <Ionicons name="close" size={24} color="white" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    )}
+
+                    <View className="bg-white p-5 rounded-3xl mb-6">
+                        <Text className="text-slate-400 text-[9px] uppercase font-black tracking-[2px] mb-4">Fare Details</Text>
+
+                        <View className="flex-row justify-between mb-2">
+                            <Text className="text-slate-600 text-sm font-medium">Base Fare</Text>
+                            <Text className="text-slate-900 text-sm font-bold">₹{Number(booking?.fare || 0)}</Text>
+                        </View>
+
+                        {booking?.hasReturnTrip && (
+                            <View className="flex-row justify-between mb-2">
+                                <View className="flex-row items-center">
+                                    <Text className="text-yellow-600 text-sm font-medium">Return Trip </Text>
+                                    <View className="bg-yellow-100 px-1.5 py-0.5 rounded-md ml-1">
+                                        <Text className="text-yellow-700 text-[8px] font-black uppercase">Save 50%</Text>
+                                    </View>
+                                </View>
+                                <Text className="text-yellow-600 text-sm font-bold">+₹{booking?.returnTripFare || 0}</Text>
+                            </View>
+                        )}
+
+                        {isPenaltyActive && (
+                            <View className="flex-row justify-between mb-2">
+                                <Text className="text-red-500 text-sm font-medium">Waiting Charges</Text>
+                                <Text className="text-red-500 text-sm font-bold">+₹{booking?.penaltyApplied || 0}</Text>
+                            </View>
+                        )}
+
+                        <View className="border-t border-slate-100 mt-4 pt-4 flex-row justify-between items-center">
+                            <View>
+                                <Text className="text-slate-900 text-sm font-bold">Total Amount</Text>
+                                <Text className="text-slate-400 text-[10px] uppercase tracking-wider">{booking?.paymentMethod || 'Cash Payment'}</Text>
+                            </View>
+                            <Text className="text-black text-2xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
+                        </View>
+                    </View>
+                </ScrollView>
             </View>
 
             {showReturnOffer && !['completed', 'cancelled'].includes(currentStatus) && (
@@ -641,6 +696,12 @@ const LiveRideTrackingScreen = () => {
                     onAccept={handleAcceptReturn}
                 />
             )}
+
+            <PaymentPromptModal
+                isVisible={showPaymentPrompt}
+                onClose={() => setShowPaymentPrompt(false)}
+                details={paymentDetails}
+            />
         </View>
     );
 };

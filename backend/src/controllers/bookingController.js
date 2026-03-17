@@ -52,7 +52,7 @@ export const createBooking = async (req, res) => {
       dropLatitude: req.body.dropLatitude || 0,
       dropLongitude: req.body.dropLongitude || 0,
       rideType: rideType || "normal",
-      vehicleType: req.body.vehicleType || "any",
+      vehicleType: req.body.vehicleType || "5seater",
       bookingType: bookingType || "now",
       scheduledDate: bookingType === "schedule" ? scheduledDate : null,
       // Scheduled rides start as 'scheduled'; ride-now rides start as 'pending'
@@ -81,16 +81,16 @@ export const createBooking = async (req, res) => {
                 type: "Point",
                 coordinates: [booking.pickupLongitude, booking.pickupLatitude]
               },
-              $maxDistance: 5000 // 5KM
+              $maxDistance: booking.rideType === 'outstation' ? 20000 : 5000 // 20KM for outstation, 5KM for local
             }
           }
         };
 
-        // For outstation, strictly match the selected vehicle type
+        // For outstation, strictly match the selected vehicle type and service support
         if (booking.rideType === 'outstation') {
           query.vehicleType = booking.vehicleType;
+          query.serviceType = { $in: ['rental', 'both'] };
         }
-        // For 'normal' rides, the user wants it to go to 'all' drivers (5-seater and 7-seater)
 
         const nearbyDrivers = await Driver.find(query);
 
@@ -543,7 +543,7 @@ export const completeRide = async (req, res) => {
 // ================= VERIFY PAYMENT =================
 export const verifyPayment = async (req, res) => {
   try {
-    const { paymentMethod } = req.body;
+    const { paymentMethod, isFirstLeg } = req.body;
     const booking = await Booking.findById(req.params.id);
 
     if (!booking) {
@@ -552,21 +552,117 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    booking.paymentStatus = "paid";
+    if (isFirstLeg) {
+      booking.firstLegPaid = true;
+      serverLog(`Intermediate payment (Leg 1) verified for booking ${booking._id}`);
+    } else {
+      booking.paymentStatus = "paid";
+      serverLog(`Final payment verified for booking ${booking._id}`);
+    }
+
     booking.paymentMethod = paymentMethod || "cash";
     await booking.save();
 
     res.json({
-      message: "Payment verified successfully",
+      message: isFirstLeg ? "First leg payment verified successfully" : "Payment verified successfully",
       booking: {
         id: booking._id,
         paymentStatus: booking.paymentStatus,
-        paymentMethod: booking.paymentMethod
+        paymentMethod: booking.paymentMethod,
+        firstLegPaid: booking.firstLegPaid
       }
     });
   } catch (error) {
     res.status(500).json({
       message: "Failed to verify payment",
+      error: error.message
+    });
+  }
+};
+
+// ================= UPDATE PAYMENT CHOICE =================
+export const updatePaymentChoice = async (req, res) => {
+  try {
+    const { paymentChoice } = req.body;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (!["leg_by_leg", "total_at_end"].includes(paymentChoice)) {
+      return res.status(400).json({ message: "Invalid payment choice" });
+    }
+
+    booking.paymentChoice = paymentChoice;
+    
+    // If user chooses total_at_end for an outstation trip, we can proceed to waiting
+    if (paymentChoice === "total_at_end" && booking.rideType === "outstation") {
+      booking.status = "waiting";
+      booking.isWaiting = true;
+      booking.waitingStartedAt = new Date();
+    }
+
+    await booking.save();
+
+    res.json({
+      success: true,
+      message: `Payment choice updated to ${paymentChoice}`,
+      booking: {
+        id: booking._id,
+        paymentChoice: booking.paymentChoice,
+        status: booking.status
+      }
+    });
+
+    // Notify user via socket
+    try {
+      const io = getIO();
+      if (booking.user) {
+        io.to(booking.user.toString()).emit("rideStatusUpdate", {
+          bookingId: booking._id.toString(),
+          status: booking.status,
+          message: `Payment choice updated: ${paymentChoice}`
+        });
+      }
+    } catch (err) {}
+
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update payment choice", error: error.message });
+  }
+};
+
+// ================= REQUEST PAYMENT =================
+export const requestPayment = async (req, res) => {
+  try {
+    const { amount, isPartial, breakdown } = req.body;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Emit to passenger (User room and Booking room)
+    const io = getIO();
+    const userRoom = booking.user.toString();
+    const bookingRoom = `chat_${booking._id}`;
+
+    [userRoom, bookingRoom].forEach(room => {
+      io.to(room).emit("paymentRequested", {
+        bookingId: booking._id,
+        amount,
+        isPartial,
+        breakdown
+      });
+    });
+
+    res.json({
+      success: true,
+      message: "Payment request sent to terminal"
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to request payment",
       error: error.message
     });
   }
@@ -667,6 +763,21 @@ export const startWaiting = async (req, res) => {
 
     if (!booking.hasReturnTrip) {
       return res.status(400).json({ message: "No return trip offer active for this booking" });
+    }
+
+    // Logic: Split payment check
+    if (booking.rideType === "normal" && !booking.firstLegPaid) {
+      return res.status(400).json({ 
+        message: "Payment for the first leg is required before starting the waiting timer for normal trips.",
+        requiresPayment: true 
+      });
+    }
+
+    if (booking.rideType === "outstation" && booking.paymentChoice === "leg_by_leg" && !booking.firstLegPaid) {
+      return res.status(400).json({ 
+        message: "Confirmation required: Collect payment or choose 'Total at end' for outstation return.",
+        requiresChoice: true 
+      });
     }
 
     booking.status = "waiting";

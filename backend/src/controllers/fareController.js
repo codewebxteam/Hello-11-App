@@ -23,8 +23,8 @@
 
 // Per-km rate beyond 40 KM for Rental Car Service
 const RENTAL_EXTRA_RATES = {
-  "5-seater": 12,
-  "7-seater": 13,
+  "5seater": 12,
+  "7seater": 13,
 };
 
 // Legacy Rates (Used in calculateFareEstimate)
@@ -115,8 +115,8 @@ export const getOutstationRates = (req, res) => {
     success: true,
     data: {
       vehicleTypes: [
-        { type: "5-seater", title: "5 Seater Car", ratePerKm: 12, icon: "car-outline", desc: "Comfortable hatchback/sedan", capacity: "4" },
-        { type: "7-seater", title: "7 Seater Car", ratePerKm: 13, icon: "bus-outline", desc: "Spacious SUV for families", capacity: "6" },
+        { type: "5seater", title: "5 Seater Car", ratePerKm: 12, icon: "car-outline", desc: "Comfortable hatchback/sedan", capacity: "4" },
+        { type: "7seater", title: "7 Seater Car", ratePerKm: 13, icon: "bus-outline", desc: "Spacious SUV for families", capacity: "6" },
       ],
       currency: "INR",
     },
@@ -201,7 +201,7 @@ export const calculateFareEstimate = (req, res) => {
 //
 // Request body:
 //   distance    {number}  - trip distance in KM (required, ≥ 1)
-//   carType     {string}  - "5-seater" | "7-seater" (required)
+//   carType     {string}  - "5seater" | "7seater" (required)
 //   service     {string}  - "cab" | "rental" (required)
 //   tripType    {string}  - "one-way" | "round-trip" (default: "one-way")
 //   bookingTime {string}  - ISO datetime string of the booking (optional)
@@ -244,7 +244,7 @@ export const calculateTripFare = (req, res) => {
       });
     }
 
-    const validCarTypes = ["5-seater", "7-seater", "any"];
+    const validCarTypes = ["5seater", "7seater"];
     if (!validCarTypes.includes(carType)) {
       return res.status(400).json({
         success: false,

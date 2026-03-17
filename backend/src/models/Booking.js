@@ -42,8 +42,8 @@ const bookingSchema = new mongoose.Schema(
     },
     vehicleType: {
       type: String,
-      enum: ["5-seater", "7-seater", "any"],
-      default: "any"
+      enum: ["5seater", "7seater"],
+      default: "5seater"
     },
     bookingType: {
       type: String,
@@ -172,9 +172,33 @@ const bookingSchema = new mongoose.Schema(
     totalFare: {
       type: Number,
       default: 0
+    },
+    firstLegPaid: {
+      type: Boolean,
+      default: false
+    },
+    paymentChoice: {
+      type: String,
+      enum: ["leg_by_leg", "total_at_end"],
+      default: "leg_by_leg"
     }
   },
   { timestamps: true }
 );
+
+bookingSchema.pre('validate', function() {
+  if (this.vehicleType) {
+    const vType = this.vehicleType.toLowerCase();
+    // Map legacy values to new ones
+    if (vType === 'sedan' || vType === '5-seater' || vType === 'any' || vType === 'mini') {
+      this.vehicleType = '5seater';
+    } else if (vType === '7-seater' || vType === 'suv') {
+      this.vehicleType = '7seater';
+    } else if (vType !== '5seater' && vType !== '7seater') {
+      // Catch-all for any other legacy value
+      this.vehicleType = '5seater';
+    }
+  }
+});
 
 export default mongoose.model("Booking", bookingSchema);

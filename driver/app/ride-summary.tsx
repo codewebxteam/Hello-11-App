@@ -32,12 +32,12 @@ export default function RideSummaryScreen() {
                 <ScrollView contentContainerStyle={{ padding: 24 }}>
 
                     {/* Success Animation Placeholder */}
-                    <View className="items-center mb-8 mt-4">
-                        <View className="w-20 h-20 bg-green-500/20 rounded-full items-center justify-center border border-green-500/50 mb-4 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
-                            <Ionicons name="checkmark" size={40} color="#4ADE80" />
+                    <View className="items-center mb-8 mt-4 w-full">
+                        <View className="w-24 h-24 bg-green-500/20 rounded-full items-center justify-center border border-green-500/50 mb-6 shadow-[0_0_40px_rgba(34,197,94,0.3)]">
+                            <Ionicons name="checkmark-circle" size={56} color="#4ADE80" />
                         </View>
-                        <Text className="text-white text-3xl font-black italic tracking-tight">Ride Completed</Text>
-                        <Text className="text-slate-400 text-sm mt-1">Payment Verified Successfully</Text>
+                        <Text className="text-white text-6xl font-black italic tracking-tighter text-center">Ride</Text>
+                        <Text className="text-slate-400 text-sm mt-2 text-center font-bold tracking-wider">Payment Verified Successfully</Text>
                     </View>
 
                     {/* Trip Summary Card */}
@@ -86,7 +86,14 @@ export default function RideSummaryScreen() {
 
                         <View className="flex-row justify-between mb-3">
                             <Text className="text-slate-300 text-sm font-medium">Base Fare (Outbound)</Text>
-                            <Text className="text-white text-sm font-bold">₹{fare}</Text>
+                            <View className="flex-row items-center">
+                                {params.firstLegPaid === 'true' && (
+                                    <View className="bg-green-500/20 px-1.5 py-0.5 rounded-md mr-1.5 border border-green-500/30">
+                                        <Text className="text-green-400 text-[8px] font-black uppercase">Already Paid</Text>
+                                    </View>
+                                )}
+                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-slate-500 line-through' : 'text-white'}`}>₹{fare}</Text>
+                            </View>
                         </View>
 
                         {Number(penalty) > 0 && (
@@ -96,13 +103,13 @@ export default function RideSummaryScreen() {
                             </View>
                         )}
 
-                        {Number(returnFare) > 0 && (
+                        {(Number(returnFare) > 0 || params.hasReturnTrip === 'true') && (
                             <View className="flex-row justify-between mb-3">
                                 <View className="flex-row items-center">
                                     <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
-                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (60% OFF)</Text>
+                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (50% OFF)</Text>
                                 </View>
-                                <Text className="text-blue-400 text-sm font-bold">+ ₹{returnFare}</Text>
+                                <Text className="text-blue-400 text-sm font-bold">+ ₹{returnFare || 0}</Text>
                             </View>
                         )}
 
@@ -119,12 +126,27 @@ export default function RideSummaryScreen() {
 
             {/* Bottom Button */}
             <View className="absolute bottom-0 w-full p-6 bg-slate-900 border-t border-slate-800" style={{ paddingBottom: insets.bottom + 20 }}>
-                <TouchableOpacity
-                    onPress={handleExit}
-                    className="w-full bg-slate-800 py-5 rounded-[24px] items-center border border-slate-700 active:bg-slate-700"
-                >
-                    <Text className="text-white font-black text-lg tracking-[2px] uppercase">Back to Dashboard</Text>
-                </TouchableOpacity>
+                {params.hasReturnTrip === 'true' && params.isReturn !== 'true' ? (
+                    <TouchableOpacity
+                        onPress={() => {
+                            router.dismissAll();
+                            router.replace({
+                                pathname: "/waiting-for-return",
+                                params: { bookingId: params.bookingId, distance: params.distance }
+                            });
+                        }}
+                        className="w-full bg-[#FFD700] py-5 rounded-[24px] items-center shadow-lg shadow-orange-500/20 active:scale-95"
+                    >
+                        <Text className="text-black font-black text-lg tracking-[2px] uppercase">Start Waiting / Return Trip</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity
+                        onPress={handleExit}
+                        className="w-full bg-slate-800 py-5 rounded-[24px] items-center border border-slate-700 active:bg-slate-700"
+                    >
+                        <Text className="text-white font-black text-lg tracking-[2px] uppercase">Back to Dashboard</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </View>
     );

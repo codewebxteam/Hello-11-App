@@ -7,10 +7,14 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate } from 'react-native-reanimated';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
 import { getSocket, initSocket } from '../utils/socket';
 
 const { width, height } = Dimensions.get('window');
+const SHEET_MAX_HEIGHT = height * 0.75;
+const SHEET_MIN_HEIGHT = 120;
 
 export default function PickupScreen() {
     const router = useRouter();
@@ -23,6 +27,49 @@ export default function PickupScreen() {
     const [distance, setDistance] = useState<string>("---");
     const [eta, setEta] = useState<string>("---");
 
+    // Animation Shared Values
+    const translateY = useSharedValue(0);
+    const context = useSharedValue({ y: 0 });
+    const sheetHeight = useSharedValue(SHEET_MAX_HEIGHT); // Initial guess to prevent jump
+    const PEEK_HEIGHT = 120; // Increased peek height
+
+    const gesture = Gesture.Pan()
+        .onStart(() => {
+            context.value = { y: translateY.value };
+        })
+        .onUpdate((event) => {
+            const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+            translateY.value = Math.max(0, Math.min(event.translationY + context.value.y, maxDrag));
+        })
+        .onEnd((event) => {
+            const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+            const shouldCollapse = translateY.value > maxDrag / 2 || event.velocityY > 500;
+
+            translateY.value = withSpring(shouldCollapse ? maxDrag : 0, {
+                damping: 20,
+                stiffness: 90,
+                mass: 1,
+                overshootClamping: true
+            });
+        });
+
+    const animatedSheetStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: translateY.value }],
+        };
+    });
+
+    const animatedContentOpacity = useAnimatedStyle(() => {
+        const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+        const opacity = interpolate(
+            translateY.value,
+            [0, Math.max(1, maxDrag * 0.5)],
+            [1, 0],
+            Extrapolate.CLAMP
+        );
+        return { opacity };
+    });
+
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
             try {
@@ -34,7 +81,6 @@ export default function PickupScreen() {
                     currentLat = loc.coords.latitude;
                     currentLon = loc.coords.longitude;
                     setDriverLoc(loc.coords);
-                    setDriverLoc(loc.coords);
                     if (!isNaN(loc.coords.latitude) && !isNaN(loc.coords.longitude)) {
                         setRegion({
                             latitude: loc.coords.latitude,
@@ -45,13 +91,11 @@ export default function PickupScreen() {
                     }
                 }
 
-                // 2. Fetch booking
                 const response = await driverAPI.getCurrentBooking();
                 if (response.data && response.data.booking) {
                     const b = response.data.booking;
                     setBooking(b);
 
-                    // 3. Get directions if we have driver location
                     if (status === 'granted' && currentLat && currentLon) {
                         const pickupLat = Number(b.pickupLatitude);
                         const pickupLon = Number(b.pickupLongitude);
@@ -88,7 +132,6 @@ export default function PickupScreen() {
                 const driverId = profile.data?.driver?._id || profile.data?.driver?.id;
                 if (driverId) {
                     s.emit("join", driverId);
-                    console.log("Pickup Screen joined socket room:", driverId);
                 }
 
                 s.on("bookingCancelledByUser", (data: any) => {
@@ -173,14 +216,6 @@ export default function PickupScreen() {
         }
     };
 
-    const handleChat = () => {
-        if (booking?.user?.mobile) {
-            Linking.openURL(`sms:${booking.user.mobile}`);
-        } else {
-            Alert.alert("Chat", "Chat feature coming soon!");
-        }
-    };
-
     const handleNavigate = () => {
         if (booking?.pickupLatitude && booking?.pickupLongitude) {
             const url = Platform.select({
@@ -189,31 +224,6 @@ export default function PickupScreen() {
             });
             if (url) Linking.openURL(url);
         }
-    };
-
-    const handleCancelRide = async () => {
-        Alert.alert(
-            "Cancel Ride",
-            "Are you sure you want to cancel this ride?",
-            [
-                { text: "No", style: "cancel" },
-                {
-                    text: "Yes, Cancel",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            if (booking?._id) {
-                                await driverAPI.cancelBooking(booking._id, "Driver cancelled");
-                                Alert.alert("Success", "Ride cancelled successfully");
-                                router.replace("/");
-                            }
-                        } catch (error: any) {
-                            Alert.alert("Error", error?.response?.data?.message || "Failed to cancel ride");
-                        }
-                    }
-                }
-            ]
-        );
     };
 
     return (
@@ -229,7 +239,6 @@ export default function PickupScreen() {
                         showsUserLocation={true}
                         provider={PROVIDER_GOOGLE}
                     >
-
                         {routeCoords.length > 0 && (
                             <Polyline
                                 coordinates={routeCoords}
@@ -280,141 +289,125 @@ export default function PickupScreen() {
             </SafeAreaView>
 
             {/* --- BOTTOM SHEET (INFORMATION) --- */}
-            <View className="absolute bottom-0 w-full z-20">
-                <View
-                    style={{ paddingBottom: insets.bottom + 20 }}
-                    className="bg-[#0F172A] rounded-t-[40px] px-6 pt-8 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50"
-                >
-                    {/* Handle Indicator */}
-                    <View className="self-center w-12 h-1.5 bg-slate-700 rounded-full mb-8 opacity-50" />
+            <Animated.View
+                style={[{ position: 'absolute', bottom: 0, width: '100%', zIndex: 20 }, animatedSheetStyle]}
+            >
+                <GestureDetector gesture={gesture}>
+                    <View
+                        onLayout={(e) => {
+                            const { height: h } = e.nativeEvent.layout;
+                            if (h > 0 && Math.abs(sheetHeight.value - h) > 1) {
+                                sheetHeight.value = h;
+                            }
+                        }}
+                        style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT }}
+                        className="bg-[#0F172A] rounded-t-[40px] px-6 pt-4 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50"
+                    >
+                        {/* Handle Indicator */}
+                        <View className="self-center w-12 h-1.5 bg-slate-700 rounded-full mb-4 opacity-50" />
 
-                    {/* User Profile Row */}
-                    <View className="flex-row items-center justify-between mb-8">
-                        <View className="flex-row items-center flex-1">
-                            <View className="relative">
-                                <View className="w-16 h-16 bg-slate-700 rounded-full items-center justify-center border-2 border-[#FFD700] shadow-glow overflow-hidden">
+                        {/* Collapsed view info (visible when dragging) */}
+                        <View className="flex-row items-center justify-between mb-4">
+                            <View className="flex-row items-center flex-1">
+                                <View className="w-10 h-10 bg-slate-700 rounded-full items-center justify-center border border-[#FFD700] overflow-hidden">
                                     {booking?.user?.profileImage ? (
-                                        <Image
-                                            source={{ uri: booking.user.profileImage }}
-                                            className="w-full h-full"
-                                        />
+                                        <Image source={{ uri: booking.user.profileImage }} className="w-full h-full" />
                                     ) : (
-                                        <Text className="text-2xl">👤</Text>
+                                        <Text className="text-lg">👤</Text>
                                     )}
+                                </View>
+                                <View className="ml-3">
+                                    <Text className="text-white font-bold">{booking?.user?.name || 'Passenger'}</Text>
+                                    <Text className="text-slate-400 text-[10px] uppercase font-bold">{eta} • {distance}</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity onPress={handleCall} className="w-10 h-10 bg-[#FFD700] rounded-xl items-center justify-center">
+                                <Ionicons name="call" size={18} color="#0F172A" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Animated.View style={animatedContentOpacity}>
+                            <View className="h-[1px] bg-slate-800 w-full mb-6" />
+
+                            {/* Stats Grid */}
+                            <View className="flex-row justify-between mb-6">
+                                <View className="flex-1 items-center">
+                                    <Text className="text-slate-500 text-[10px] font-black uppercase tracking-wider mb-1">Time to Pickup</Text>
+                                    <Text className="text-white text-xl font-black italic">{eta}</Text>
+                                </View>
+                                <View className="w-[1px] h-8 bg-slate-800 self-center" />
+                                <View className="flex-1 items-center">
+                                    <Text className="text-slate-500 text-[10px] font-black uppercase tracking-wider mb-1">Distance</Text>
+                                    <Text className="text-white text-xl font-black italic">{distance}</Text>
+                                </View>
+                                <View className="w-[1px] h-8 bg-slate-800 self-center" />
+                                <View className="flex-1 items-center">
+                                    <Text className="text-slate-500 text-[10px] font-black uppercase tracking-wider mb-1">Method</Text>
+                                    <Text className="text-green-400 text-xl font-black italic uppercase">{booking?.paymentMethod || 'Cash'}</Text>
                                 </View>
                             </View>
 
-                            <View className="ml-4 flex-1">
-                                <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Passenger</Text>
-                                <Text className="text-white text-xl font-black" numberOfLines={2}>{booking?.user?.name || 'Passenger'}</Text>
-                            </View>
-                        </View>
-
-                        {/* Communication Actions */}
-                        <View className="flex-row gap-3">
+                            {/* Location Details */}
                             <TouchableOpacity
-                                onPress={handleCall}
-                                className="w-12 h-12 bg-[#FFD700] rounded-2xl items-center justify-center shadow-lg shadow-yellow-500/20 active:bg-[#FCD34D]"
+                                onPress={handleNavigate}
+                                className="flex-row items-center mb-6 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50"
                             >
-                                <Ionicons name="call" size={22} color="#0F172A" />
+                                <View className="w-10 h-10 rounded-full bg-blue-500/20 items-center justify-center border border-blue-500/30 mr-4">
+                                    <Ionicons name="location" size={20} color="#3B82F6" />
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">Pickup Location</Text>
+                                    <Text className="text-white text-sm font-bold leading-5" numberOfLines={2}>{booking?.pickupLocation || 'Unknown'}</Text>
+                                </View>
+                                <View className="bg-slate-700 p-2 rounded-lg">
+                                    <Ionicons name="navigate" size={18} color="#FFF" />
+                                </View>
                             </TouchableOpacity>
-                        </View>
+
+                            {/* Chat Button */}
+                            <TouchableOpacity
+                                onPress={() => router.push({
+                                    pathname: "/chat",
+                                    params: { bookingId: bookingId, userName: booking?.user?.name || 'Passenger' }
+                                })}
+                                className="bg-blue-500 rounded-[20px] p-4 flex-row items-center justify-between mb-4"
+                            >
+                                <View className="flex-row items-center">
+                                    <View className="w-10 h-10 bg-white/20 rounded-full items-center justify-center mr-3">
+                                        <Ionicons name="chatbubbles" size={20} color="#FFF" />
+                                    </View>
+                                    <View>
+                                        <Text className="text-white font-bold text-base">Chat with Passenger</Text>
+                                        <Text className="text-blue-100 text-xs font-bold">Send a message</Text>
+                                    </View>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color="#FFF" />
+                            </TouchableOpacity>
+
+                            {/* Arrived Button */}
+                            <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={async () => {
+                                    try {
+                                        if (booking?._id) {
+                                            await driverAPI.updateBookingStatus(booking._id, 'arrived');
+                                        }
+                                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                        router.push("/start-ride");
+                                    } catch (err) {
+                                        console.log("Arrived update error:", err);
+                                        router.push("/start-ride");
+                                    }
+                                }}
+                                className="w-full bg-[#22C55E] py-5 rounded-[24px] items-center flex-row justify-center shadow-lg"
+                            >
+                                <Text className="text-[#0F172A] font-black text-lg tracking-[3px] uppercase mr-2">I Have Arrived</Text>
+                                <Ionicons name="arrow-forward-circle" size={24} color="#0F172A" />
+                            </TouchableOpacity>
+                        </Animated.View>
                     </View>
-
-                    <View className="h-[1px] bg-slate-800 w-full mb-8" />
-
-                    {/* Stats Grid */}
-                    <View className="flex-row justify-between mb-8">
-                        <View className="flex-1 items-center">
-                            <Text className="text-slate-500 text-[10px] font-black uppercase tracking-wider mb-1">Time to Pickup</Text>
-                            <View className="flex-row items-end">
-                                <Text className="text-white text-xl font-black italic">{eta}</Text>
-                            </View>
-                        </View>
-                        <View className="w-[1px] h-8 bg-slate-800 self-center" />
-                        <View className="flex-1 items-center">
-                            <Text className="text-slate-500 text-[10px] font-black uppercase tracking-wider mb-1">Distance</Text>
-                            <Text className="text-white text-xl font-black italic">{distance}</Text>
-                        </View>
-                        <View className="w-[1px] h-8 bg-slate-800 self-center" />
-                        <View className="flex-1 items-center">
-                            <Text className="text-slate-500 text-[10px] font-black uppercase tracking-wider mb-1">Method</Text>
-                            <Text className="text-green-400 text-xl font-black italic uppercase">{booking?.paymentMethod || 'Cash'}</Text>
-                        </View>
-                    </View>
-
-                    {/* Location Details */}
-                    <TouchableOpacity
-                        onPress={handleNavigate}
-                        className="flex-row items-center mb-10 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50"
-                    >
-                        <View className="w-10 h-10 rounded-full bg-blue-500/20 items-center justify-center border border-blue-500/30 mr-4">
-                            <Ionicons name="location" size={20} color="#3B82F6" />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">Pickup Location</Text>
-                            <Text className="text-white text-sm font-bold leading-5" numberOfLines={3}>{booking?.pickupLocation || 'Unknown'}</Text>
-                        </View>
-                        <View className="bg-slate-700 p-2 rounded-lg">
-                            <Ionicons name="navigate" size={18} color="#FFF" />
-                        </View>
-                    </TouchableOpacity>
-
-                    {/* Chat Button */}
-                    <TouchableOpacity
-                        onPress={() => router.push({
-                            pathname: "/chat",
-                            params: {
-                                bookingId: bookingId,
-                                userName: booking?.user?.name || 'Passenger'
-                            }
-                        })}
-                        className="bg-blue-500 rounded-[20px] p-4 flex-row items-center justify-between mb-4 shadow-sm"
-                    >
-                        <View className="flex-row items-center">
-                            <View className="w-10 h-10 bg-white/20 rounded-full items-center justify-center mr-3">
-                                <Ionicons name="chatbubbles" size={20} color="#FFF" />
-                            </View>
-                            <View>
-                                <Text className="text-white font-bold text-base">Chat with Passenger</Text>
-                                <Text className="text-blue-100 text-xs font-bold">Send a message</Text>
-                            </View>
-                        </View>
-                        <View className="bg-white/20 p-2 rounded-lg">
-                            <Ionicons name="chevron-forward" size={18} color="#FFF" />
-                        </View>
-                    </TouchableOpacity>
-
-
-
-                    {/* Slider / Button */}
-                    <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={async () => {
-                            try {
-                                if (booking?._id) {
-                                    await driverAPI.updateBookingStatus(booking._id, 'arrived');
-                                }
-                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                                router.push("/start-ride");
-                            } catch (err) {
-                                console.log("Arrived update error:", err);
-                                // Fallback navigation if API fails
-                                router.push("/start-ride");
-                            }
-                        }}
-                        className="w-full bg-[#22C55E] py-5 rounded-[24px] items-center flex-row justify-center shadow-lg shadow-green-500/20 relative overflow-hidden"
-                    >
-                        {/* Shine Effect */}
-                        <View className="absolute top-0 bottom-0 left-0 w-full bg-white/10 skew-x-12 -ml-[100%]" />
-
-                        <Text className="text-[#0F172A] font-black text-lg tracking-[3px] uppercase mr-2">I Have Arrived</Text>
-                        <Ionicons name="arrow-forward-circle" size={24} color="#0F172A" />
-                    </TouchableOpacity>
-
-                </View>
-            </View>
-
-        </View >
+                </GestureDetector>
+            </Animated.View>
+        </View>
     );
 }

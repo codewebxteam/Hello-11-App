@@ -60,6 +60,9 @@ export const API_ENDPOINTS = {
   GET_BOOKING_BY_ID: (id: string) => `/api/drivers/bookings/${id}/details`,
   BOOKING_STATUS: (id: string) => `/api/bookings/${id}/status`,
   START_WAITING: (id: string) => `/api/bookings/${id}/start-waiting`,
+  VERIFY_PAYMENT: (id: string) => `/api/bookings/${id}/verify-payment`,
+  UPDATE_PAYMENT_CHOICE: (id: string) => `/api/bookings/${id}/update-payment-choice`,
+  REQUEST_PAYMENT: (id: string) => `/api/bookings/${id}/request-payment`,
 
   // Chat
   GET_CHAT_HISTORY: (bookingId: string) => `/api/chat/${bookingId}`,
@@ -127,7 +130,7 @@ export const driverAuthAPI = {
     password: string;
     vehicleModel: string;
     vehicleNumber: string;
-    vehicleType?: string;
+    vehicleType?: string; // "5seater" | "7seater"
     serviceType?: string;
   }) => api.post(API_ENDPOINTS.DRIVER_REGISTER, data),
 
@@ -147,7 +150,7 @@ export const driverAPI = {
   getProfile: () => api.get(API_ENDPOINTS.DRIVER_PROFILE),
   updateProfile: (data: { name?: string; mobile?: string; experienceYears?: number }) =>
     api.put(API_ENDPOINTS.UPDATE_PROFILE, data),
-  updateVehicle: (data: { vehicleModel?: string; vehicleNumber?: string; vehicleColor?: string; vehicleType?: string; serviceType?: string; pushToken?: string }) =>
+  updateVehicle: (data: { vehicleModel?: string; vehicleNumber?: string; vehicleColor?: string; vehicleType?: string; serviceType?: string; pushToken?: string }) => // vehicleType: "5seater" | "7seater"
     api.put(API_ENDPOINTS.UPDATE_VEHICLE, data),
   updateDocuments: (data: { license?: string; insurance?: string; registration?: string }) =>
     api.put(API_ENDPOINTS.UPDATE_DOCUMENTS, data),
@@ -187,6 +190,12 @@ export const driverAPI = {
     api.put(API_ENDPOINTS.START_WAITING(bookingId)),
   getBookingStatus: (bookingId: string) =>
     api.get(API_ENDPOINTS.BOOKING_STATUS(bookingId)),
+  verifyPayment: (bookingId: string, data: { paymentMethod: string; isFirstLeg?: boolean }) =>
+    api.put(API_ENDPOINTS.VERIFY_PAYMENT(bookingId), data),
+  updatePaymentChoice: (bookingId: string, paymentChoice: 'leg_by_leg' | 'total_at_end') =>
+    api.put(API_ENDPOINTS.UPDATE_PAYMENT_CHOICE(bookingId), { paymentChoice }),
+  requestPayment: (bookingId: string, data: { amount: number; isPartial: boolean; breakdown: any }) =>
+    api.post(API_ENDPOINTS.REQUEST_PAYMENT(bookingId), data),
 
   // Chat
   getChatHistory: (bookingId: string) => api.get(API_ENDPOINTS.GET_CHAT_HISTORY(bookingId)),
@@ -221,13 +230,13 @@ export const fareAPI = {
   /**
    * Calculate trip fare using the step-based pricing model.
    * @param distance - trip distance in KM (≥ 1)
-   * @param carType  - "5-seater" | "7-seater"
+   * @param carType  - "5seater" | "7seater"
    * @param service  - "cab" (max 40 KM) | "rental" (unlimited)
    * @param tripType - "one-way" | "round-trip" (default: "one-way")
    */
   calculateTripFare: (data: {
     distance: number;
-    carType: "5-seater" | "7-seater";
+    carType: "5seater" | "7seater";
     service: "cab" | "rental";
     tripType?: "one-way" | "round-trip";
   }) => api.post("/api/fare/trip", data),

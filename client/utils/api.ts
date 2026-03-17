@@ -116,8 +116,11 @@ export const bookingAPI = {
   acceptReturnOffer: (id: string) =>
     api.put(API_ENDPOINTS.ACCEPT_RETURN(id)),
 
-  verifyPayment: (id: string, paymentMethod: string) =>
-    api.put(API_ENDPOINTS.VERIFY_PAYMENT(id), { paymentMethod }),
+  verifyPayment: (id: string, paymentMethod: string, isFirstLeg?: boolean) =>
+    api.put(API_ENDPOINTS.VERIFY_PAYMENT(id), { paymentMethod, isFirstLeg }),
+
+  updatePaymentChoice: (id: string, paymentChoice: 'leg_by_leg' | 'total_at_end') =>
+    api.put(`/api/bookings/${id}/update-payment-choice`, { paymentChoice }),
 };
 
 // ================= DRIVER API =================
@@ -171,14 +174,14 @@ export const fareAPI = {
   /**
    * Calculate trip fare using the step-based pricing model.
    * @param distance    - trip distance in KM (≥ 1)
-   * @param carType     - "5-seater" | "7-seater"
+   * @param carType     - "5seater" | "7seater"
    * @param service     - "cab" (max 40 KM) | "rental" (unlimited)
    * @param tripType    - "one-way" | "round-trip" (default: "one-way")
    * @param bookingTime - ISO datetime string; if hour ≥ 18 or < 9 a 20% night surcharge is applied
    */
   calculateTripFare: (data: {
     distance: number;
-    carType: "5-seater" | "7-seater";
+    carType: "5seater" | "7seater";
     service: "cab" | "rental";
     tripType?: "one-way" | "round-trip";
     bookingTime?: string;

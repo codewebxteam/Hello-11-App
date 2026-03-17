@@ -25,7 +25,7 @@ export default function EditVehicleScreen() {
         vehicleModel: '',
         vehicleNumber: '',
         vehicleColor: '',
-        vehicleType: '5-seater'
+        vehicleType: '5seater'
     });
 
     React.useEffect(() => {
@@ -36,7 +36,7 @@ export default function EditVehicleScreen() {
                     vehicleModel: data.vehicleModel || '',
                     vehicleNumber: data.vehicleNumber || '',
                     vehicleColor: data.vehicleColor || '',
-                    vehicleType: data.vehicleType || '5-seater'
+                    vehicleType: data.vehicleType || '5seater'
                 });
             }
         };
@@ -128,7 +128,7 @@ export default function EditVehicleScreen() {
                             <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Vehicle Category</Text>
                         </View>
                         <View className="bg-white p-2 rounded-[24px] border border-slate-100 flex-row flex-wrap justify-between">
-                            {['5-seater', '7-seater'].map((type) => (
+                            {['5seater', '7seater'].map((type) => (
                                 <TouchableOpacity
                                     key={type}
                                     onPress={() => setForm({ ...form, vehicleType: type })}

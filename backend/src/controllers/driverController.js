@@ -39,7 +39,7 @@ export const registerDriver = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const vType = vehicleType || "5-seater";
+    const vType = vehicleType || "5seater";
     let sType = serviceType || "cab";
 
     const driver = await Driver.create({
@@ -589,6 +589,7 @@ export const toggleOnlineStatus = async (req, res) => {
     } else {
       // Transitioning from OFFLINE to ONLINE
       driver.online = true;
+      driver.available = true; // Fix: Ensure driver is available when going online
       driver.lastOnlineToggle = now;
     }
 
@@ -709,6 +710,8 @@ export const getCurrentBooking = async (req, res) => {
         penaltyApplied: booking.penaltyApplied || 0,
         waitingStartedAt: booking.waitingStartedAt,
         waitingLimit: booking.waitingLimit,
+        firstLegPaid: booking.firstLegPaid || false,
+        paymentChoice: booking.paymentChoice || "leg_by_leg",
         createdAt: booking.createdAt
       }
     });
