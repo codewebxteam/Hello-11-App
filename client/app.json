@@ -20,11 +20,6 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyChfzWHWK0Gk8oNeqK2_6HoxOpBf78YTJ8"
-        }
-      },
       "package": "com.pmup53.hello11"
     },
     "web": {
@@ -54,8 +49,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a08c12b4-f831-4a5f-b9cc-1153b20e2683"
+        "projectId": "edf723e3-be39-4af6-a88b-fabf62814e11"
       }
-    }
+    },
+    "owner": "maiadityahoon"
   }
 }

@@ -1,11 +1,23 @@
 import React from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { Search, Bell } from 'lucide-react';
 
 const DashboardLayout: React.FC = () => {
     const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+    const globalQuery = searchParams.get("q") || "";
+
+    const updateGlobalSearch = (value: string) => {
+        const next = new URLSearchParams(searchParams);
+        if (value.trim()) {
+            next.set("q", value);
+        } else {
+            next.delete("q");
+        }
+        setSearchParams(next, { replace: true });
+    };
 
     // Helper to get title based on path
     const getTitle = (path: string) => {
@@ -39,7 +51,9 @@ const DashboardLayout: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                             <input
                                 type="text"
-                                placeholder="Search..."
+                                value={globalQuery}
+                                onChange={(e) => updateGlobalSearch(e.target.value)}
+                                placeholder="Global Search..."
                                 className="pl-10 pr-4 py-2 bg-gray-50 border border-transparent focus:border-yellow-400 focus:bg-white focus:outline-none rounded-lg text-sm w-64 transition-all placeholder-gray-400"
                             />
                         </div>

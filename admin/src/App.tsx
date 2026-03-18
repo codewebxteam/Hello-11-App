@@ -4,15 +4,13 @@ import DashboardHome from './components/DashboardHome';
 import UsersList from './components/UsersList';
 import RidersList from './components/RidersList';
 import BookingsList from './components/BookingsList';
+import LiveMapPage from './components/LiveMapPage';
+import DispatchPage from './components/DispatchPage';
+import RatingsPage from './components/RatingsPage';
+import CouponsPage from './components/CouponsPage';
+import AnalyticsPage from './components/AnalyticsPage';
+import SettingsPage from './components/SettingsPage';
 import './App.css';
-
-// Placeholder for other pages
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
-    <h1 className="text-3xl font-bold text-gray-300">{title}</h1>
-    <p>This feature is coming soon.</p>
-  </div>
-);
 
 function App() {
   return (
@@ -22,12 +20,12 @@ function App() {
         <Route path="users" element={<UsersList />} />
         <Route path="riders" element={<RidersList />} />
         <Route path="bookings" element={<BookingsList />} />
-        <Route path="live-map" element={<PlaceholderPage title="Live Map" />} />
-        <Route path="allotment" element={<PlaceholderPage title="Dispatch / Allotment" />} />
-        <Route path="ratings" element={<PlaceholderPage title="Ratings" />} />
-        <Route path="coupons" element={<PlaceholderPage title="Coupons" />} />
-        <Route path="analytics" element={<PlaceholderPage title="Analytics" />} />
-        <Route path="settings" element={<PlaceholderPage title="Settings" />} />
+        <Route path="live-map" element={<LiveMapPage />} />
+        <Route path="allotment" element={<DispatchPage />} />
+        <Route path="ratings" element={<RatingsPage />} />
+        <Route path="coupons" element={<CouponsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

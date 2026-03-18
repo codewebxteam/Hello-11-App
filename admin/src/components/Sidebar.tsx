@@ -19,8 +19,15 @@ interface SidebarProps {
     toggleSidebar: () => void;
 }
 
+type MenuItem = {
+    path: string;
+    label: string;
+    icon: React.ReactNode;
+    badge?: string;
+};
+
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
-    const menuItems = [
+    const menuItems: MenuItem[] = [
         { path: '/', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
         { path: '/live-map', label: 'Live Map', icon: <MapPin size={20} /> },
         { path: '/users', label: 'Users', icon: <Users size={20} /> },
@@ -29,8 +36,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
         { path: '/allotment', label: 'Dispatch', icon: <ListRestart size={20} /> },
         { path: '/ratings', label: 'Ratings', icon: <Star size={20} /> },
         { path: '/coupons', label: 'Coupons', icon: <Ticket size={20} /> },
-        { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={20} />, badge: 'Soon' },
-        { path: '/settings', label: 'Settings', icon: <Settings size={20} />, badge: 'Soon' },
+        { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={20} /> },
+        { path: '/settings', label: 'Settings', icon: <Settings size={20} /> },
     ];
 
     return (
