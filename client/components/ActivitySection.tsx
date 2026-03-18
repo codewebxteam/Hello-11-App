@@ -94,6 +94,13 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ onBookRide }) => {
                     {/* Price - REMOVED per user request */}
                 </View>
 
+                {Number(item.tollFee || 0) > 0 && (
+                    <View className="flex-row justify-between items-center mb-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                        <Text className="text-amber-700 text-[10px] font-black uppercase tracking-wider">Toll Charges</Text>
+                        <Text className="text-amber-700 text-xs font-black">+₹{Number(item.tollFee || 0)}</Text>
+                    </View>
+                )}
+
                 {/* Footer Info – Showing Ride Type & More */}
                 <View className="flex-row justify-between items-center pt-2 border-t border-slate-50 mt-1">
                     <View className="flex-row items-center">

@@ -15,6 +15,7 @@ export default function RideSummaryScreen() {
     const fare = params.fare || "0";
     const returnFare = params.returnFare || "0";
     const penalty = params.penalty || "0";
+    const toll = params.toll || "0";
     const totalAmount = params.totalAmount || "0";
     const distance = params.distance || "0";
     const time = params.time || "0";
@@ -29,7 +30,7 @@ export default function RideSummaryScreen() {
         <View className="flex-1 bg-slate-900">
             <StatusBar style="light" />
             <SafeAreaView className="flex-1">
-                <ScrollView contentContainerStyle={{ padding: 24 }}>
+                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 160 }}>
 
                     {/* Success Animation Placeholder */}
                     <View className="items-center mb-8 mt-4 w-full">
@@ -41,9 +42,10 @@ export default function RideSummaryScreen() {
                     </View>
 
                     {/* Trip Summary Card */}
+                    <View className="rounded-[30px] overflow-hidden border-2 border-[#FACC15]/50 bg-[#1E293B] shadow-xl mb-6">
                     <LinearGradient
-                        colors={['#1E293B', '#1E293B']}
-                        className="rounded-[28px] p-6 border border-slate-700/50 shadow-xl mb-6"
+                        colors={['#1E293B', '#0F172A']}
+                        className="p-6"
                     >
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-6 border-b border-slate-700/50 pb-4">Trip Summary</Text>
 
@@ -79,9 +81,10 @@ export default function RideSummaryScreen() {
                             </View>
                         </View>
                     </LinearGradient>
+                    </View>
 
                     {/* Fare Breakdown */}
-                    <View className="bg-slate-800/50 rounded-[24px] p-6 border border-slate-700/30">
+                    <View className="bg-slate-800/60 rounded-[24px] p-6 border border-slate-600/50">
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-6">Fare Breakdown</Text>
 
                         <View className="flex-row justify-between mb-3">
@@ -103,6 +106,13 @@ export default function RideSummaryScreen() {
                             </View>
                         )}
 
+                        {Number(toll) > 0 && (
+                            <View className="flex-row justify-between mb-3">
+                                <Text className="text-amber-400 text-sm font-medium">Toll Charges</Text>
+                                <Text className="text-amber-400 text-sm font-bold">+ ₹{toll}</Text>
+                            </View>
+                        )}
+
                         {(Number(returnFare) > 0 || params.hasReturnTrip === 'true') && (
                             <View className="flex-row justify-between mb-3">
                                 <View className="flex-row items-center">
@@ -117,7 +127,7 @@ export default function RideSummaryScreen() {
 
                         <View className="flex-row justify-between items-center">
                             <Text className="text-white text-lg font-black">Total Earned</Text>
-                            <Text className="text-[#FFD700] text-3xl font-black">₹{totalAmount}</Text>
+                            <Text className="text-[#FFD700] text-3xl font-black">₹{(Number(fare) + Number(returnFare) + Number(penalty) + Number(toll))}</Text>
                         </View>
                     </View>
 

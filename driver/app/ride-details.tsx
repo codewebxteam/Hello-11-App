@@ -243,6 +243,14 @@ export default function RideDetailsScreen() {
                         </View>
                     )}
 
+                    {(booking.tollFee || 0) > 0 && (
+                        <View className="bg-amber-50 rounded-[24px] p-5 shadow-sm border border-amber-100 w-[48%] mb-4">
+                            <Ionicons name="git-network-outline" size={20} color="#d97706" />
+                            <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Toll</Text>
+                            <Text className="text-amber-700 font-bold text-xs">₹{booking.tollFee}</Text>
+                        </View>
+                    )}
+
                     {/* Payment */}
                     <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
                         <Ionicons name="wallet-outline" size={20} color="#94A3B8" />

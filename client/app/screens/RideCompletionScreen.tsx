@@ -19,6 +19,7 @@ const RideCompletionScreen = () => {
         fare: params.fare || "0",
         totalFare: params.totalFare || params.fare || "0",
         penaltyApplied: 0,
+        tollFee: 0,
         returnTripFare: 0,
         hasReturnTrip: false,
         firstLegPaid: false,
@@ -40,6 +41,7 @@ const RideCompletionScreen = () => {
                             fare: b.fare ? b.fare.toString() : (params.fare as string || "0"),
                             totalFare: b.totalFare ? b.totalFare.toString() : (b.fare ? b.fare.toString() : "0"),
                             penaltyApplied: b.penaltyApplied || 0,
+                            tollFee: b.tollFee || 0,
                             returnTripFare: b.returnTripFare || 0,
                             hasReturnTrip: b.hasReturnTrip || false,
                             firstLegPaid: b.firstLegPaid || false,
@@ -64,8 +66,8 @@ const RideCompletionScreen = () => {
         <View className="flex-1 bg-white">
             <StatusBar style="dark" />
             <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
-                <ScrollView 
-                    className="flex-1" 
+                <ScrollView
+                    className="flex-1"
                     contentContainerStyle={{ paddingBottom: 100 }}
                     showsVerticalScrollIndicator={false}
                 >
@@ -96,20 +98,18 @@ const RideCompletionScreen = () => {
                         <View className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full opacity-10 -ml-10 -mb-10" />
 
                         <Text className="text-slate-400 font-bold tracking-widest uppercase text-xs mb-2">
-                            {bookingDetails.firstLegPaid ? "REMAINING TO PAY" : "TOTAL FARE"}
+                            TOTAL PAYMENT
                         </Text>
                         {loading ? (
                             <ActivityIndicator size="large" color="#FFD700" />
                         ) : (
                             <Text className="text-5xl font-black text-[#FFD700]">
-                                ₹{bookingDetails.firstLegPaid 
-                                    ? (Number(bookingDetails.totalFare) - Number(bookingDetails.fare)) 
-                                    : bookingDetails.totalFare}
+                                ₹{(Number(bookingDetails.fare) + Number(bookingDetails.returnTripFare) + Number(bookingDetails.penaltyApplied) + Number(bookingDetails.tollFee))}
                             </Text>
                         )}
                         {bookingDetails.firstLegPaid && (
                             <Text className="text-slate-500 text-[10px] font-bold mt-2 uppercase tracking-wider">
-                                Total Trip Cost: ₹{bookingDetails.totalFare}
+                                (Leg 1 of ₹{bookingDetails.fare} already settled)
                             </Text>
                         )}
                     </View>
@@ -117,12 +117,14 @@ const RideCompletionScreen = () => {
                     {/* Fare Breakdown */}
                     {!loading && (
                         <View className="mx-6 bg-slate-50 p-5 rounded-3xl mb-6 border border-slate-100">
+                            <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">Fare Breakdown</Text>
+                            
                             <View className="flex-row justify-between mb-3 items-center">
-                                <Text className="text-slate-500 font-bold">Base Outbound</Text>
+                                <Text className="text-slate-600 font-bold">Base Fare (Outbound)</Text>
                                 <View className="flex-row items-center">
                                     {bookingDetails.firstLegPaid && (
                                         <View className="bg-green-100 px-2 py-0.5 rounded-md mr-2 border border-green-200">
-                                            <Text className="text-green-700 text-[8px] font-black uppercase">Settled</Text>
+                                            <Text className="text-green-700 text-[8px] font-black uppercase">Already Paid</Text>
                                         </View>
                                     )}
                                     <Text className={`font-bold ${bookingDetails.firstLegPaid ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
@@ -131,24 +133,38 @@ const RideCompletionScreen = () => {
                                 </View>
                             </View>
 
-                            {bookingDetails.hasReturnTrip && (
+                            {(Number(bookingDetails.returnTripFare) > 0 || bookingDetails.hasReturnTrip) && (
                                 <View className="flex-row justify-between mb-3 items-center">
                                     <View className="flex-row items-center">
-                                        <Text className="text-blue-600 font-bold">Return Journey</Text>
-                                        <View className="bg-blue-100 px-1.5 py-0.5 rounded ml-2">
-                                            <Text className="text-blue-700 text-[8px] font-black uppercase">50% OFF</Text>
-                                        </View>
+                                        <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
+                                        <Text className="text-blue-600 font-bold">Return Trip (50% OFF)</Text>
                                     </View>
                                     <Text className="text-blue-600 font-black">+₹{bookingDetails.returnTripFare}</Text>
                                 </View>
                             )}
 
                             {bookingDetails.penaltyApplied > 0 && (
-                                <View className="flex-row justify-between items-center">
-                                    <Text className="text-red-500 font-bold">Waiting Charges</Text>
+                                <View className="flex-row justify-between items-center mb-3">
+                                    <Text className="text-red-500 font-bold">Waiting Penalty</Text>
                                     <Text className="text-red-500 font-black">+₹{bookingDetails.penaltyApplied}</Text>
                                 </View>
                             )}
+
+                            {bookingDetails.tollFee > 0 && (
+                                <View className="flex-row justify-between items-center mb-3">
+                                    <Text className="text-amber-600 font-bold">Toll Charges</Text>
+                                    <Text className="text-amber-600 font-black">+₹{bookingDetails.tollFee}</Text>
+                                </View>
+                            )}
+
+                            <View className="h-[1px] bg-slate-200 w-full my-3" />
+
+                            <View className="flex-row justify-between items-center">
+                                <Text className="text-slate-900 font-black text-base">Total Trip Cost</Text>
+                                <Text className="text-slate-900 font-black text-xl">
+                                    ₹{(Number(bookingDetails.fare) + Number(bookingDetails.returnTripFare) + Number(bookingDetails.penaltyApplied) + Number(bookingDetails.tollFee))}
+                                </Text>
+                            </View>
                         </View>
                     )}
 

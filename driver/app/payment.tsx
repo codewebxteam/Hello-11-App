@@ -22,11 +22,12 @@ export default function PaymentScreen() {
     const baseFare = params.baseFare ? Number(params.baseFare) : (params.fare ? Number(params.fare) : 450);
     const returnFare = params.returnFare ? Number(params.returnFare) : 0;
     const penalty = params.penalty ? Number(params.penalty) : 0;
+    const toll = params.toll ? Number(params.toll) : 0;
 
     // Total Amount: If final payment and first leg already paid, only collect return + penalty
     const totalAmount = isPartialPayment 
         ? baseFare 
-        : (firstLegPaid ? (returnFare + penalty) : (baseFare + returnFare + penalty));
+        : (firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll));
 
     useEffect(() => {
         if (params.bookingId) {
@@ -34,14 +35,15 @@ export default function PaymentScreen() {
                 amount: totalAmount,
                 isPartial: isPartialPayment,
                 breakdown: {
-                    baseFare: firstLegPaid ? 0 : baseFare,
+                    baseFare,
                     returnFare,
                     penalty,
+                    toll,
                     firstLegPaid
                 }
             }).catch(err => console.error("Failed to request payment via API:", err));
         }
-    }, [params.bookingId, totalAmount, isPartialPayment, firstLegPaid]);
+    }, [params.bookingId, totalAmount, isPartialPayment, firstLegPaid, toll]);
 
     const handlePaymentVerified = async () => {
         try {
@@ -80,6 +82,11 @@ export default function PaymentScreen() {
                     ? (outboundDistance + returnDistance).toFixed(1)
                     : returnDistance.toFixed(1);
 
+                // Mark payment as received so passenger prompt can close immediately
+                await driverAPI.verifyPayment(bookingId, {
+                    paymentMethod: "cash"
+                });
+
                 await driverAPI.completeRide(bookingId, {
                     fare: totalAmount,
                     distance: parseFloat(finalTotalDistance)
@@ -94,6 +101,7 @@ export default function PaymentScreen() {
                         fare: baseFare.toString(),
                         returnFare: returnFare.toString(),
                         penalty: penalty.toString(),
+                        toll: toll.toString(),
                         distance: finalTotalDistance,
                         time: params.time as string || "24",
                         pickup: params.pickup as string || "",
@@ -125,9 +133,10 @@ export default function PaymentScreen() {
                     </View>
 
                     {/* Total Amount Card */}
+                    <View className="w-full rounded-[34px] overflow-hidden border-2 border-[#FACC15]/60 bg-[#0F172A] shadow-[0_0_50px_rgba(255,215,0,0.15)] mb-10">
                     <LinearGradient
                         colors={['#1E293B', '#0F172A']}
-                        className="w-full rounded-[40px] p-10 items-center border border-[#FFD700]/30 shadow-[0_0_50px_rgba(255,215,0,0.15)] mb-10"
+                        className="w-full p-10 items-center"
                     >
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-[3px] mb-6">Total Collection</Text>
                         <Text className="text-[#FFD700] text-7xl font-black mb-6">₹{totalAmount}</Text>
@@ -163,6 +172,12 @@ export default function PaymentScreen() {
                                         <Text className="text-red-400 text-xs font-bold">+₹{penalty}</Text>
                                     </View>
                                 )}
+                                {toll > 0 && (
+                                    <View className="flex-row justify-between mt-2">
+                                        <Text className="text-amber-400 text-xs">Toll Charges</Text>
+                                        <Text className="text-amber-400 text-xs font-bold">+₹{toll}</Text>
+                                    </View>
+                                )}
                             </View>
                         )}
 
@@ -173,6 +188,7 @@ export default function PaymentScreen() {
                             </View>
                         )}
                     </LinearGradient>
+                    </View>
 
                 </ScrollView>
             </SafeAreaView>

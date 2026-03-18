@@ -47,6 +47,20 @@ const NotificationToast = () => {
 
     if (!visible) return null;
 
+    const iconName =
+        data.type === 'success'
+            ? 'checkmark-circle'
+            : data.type === 'error'
+                ? 'alert-circle'
+                : 'notifications';
+    const iconBgClass =
+        data.type === 'success'
+            ? 'bg-green-500'
+            : data.type === 'error'
+                ? 'bg-red-500'
+                : 'bg-[#FFD700]';
+    const iconColor = data.type === 'info' ? 'black' : 'white';
+
     return (
         <Animated.View
             style={[
@@ -64,8 +78,8 @@ const NotificationToast = () => {
                 onPress={hide}
                 className="bg-slate-900 rounded-[24px] p-4 flex-row items-center shadow-2xl border border-slate-700"
             >
-                <View className="bg-[#FFD700] w-10 h-10 rounded-full items-center justify-center mr-3">
-                    <Ionicons name="notifications" size={20} color="black" />
+                <View className={`${iconBgClass} w-10 h-10 rounded-full items-center justify-center mr-3`}>
+                    <Ionicons name={iconName as any} size={20} color={iconColor} />
                 </View>
                 <View className="flex-1">
                     <Text className="text-white font-black text-sm" numberOfLines={1}>{data.title}</Text>

@@ -53,7 +53,16 @@ export default function WaitingForReturnScreen() {
                         setBooking((prev: any) => ({
                             ...prev,
                             penaltyApplied: data.penaltyApplied,
-                            fare: data.totalFare
+                            totalFare: data.totalFare
+                        }));
+                    }
+                });
+                socket.on("tollFeeUpdated", (data: any) => {
+                    if (String(data.bookingId) === String(bookingId)) {
+                        setBooking((prev: any) => ({
+                            ...prev,
+                            tollFee: data.tollFee,
+                            totalFare: data.totalFare
                         }));
                     }
                 });
@@ -67,6 +76,7 @@ export default function WaitingForReturnScreen() {
         return () => {
             clearInterval(poll);
             if (socket) socket.off("penaltyApplied");
+            if (socket) socket.off("tollFeeUpdated");
         };
     }, [bookingId]);
 
@@ -106,6 +116,7 @@ export default function WaitingForReturnScreen() {
                                 params: {
                                     mode: 'return',
                                     penalty: booking?.penaltyApplied || '0',
+                                    toll: booking?.tollFee || '0',
                                     bookingId: bookingId
                                 }
                             });
@@ -167,16 +178,25 @@ export default function WaitingForReturnScreen() {
                         </View>
                     )}
 
+                    {Number(booking?.tollFee) > 0 && (
+                        <View className="flex-row justify-between mb-4">
+                            <Text className="text-amber-400 font-bold">Toll Charges</Text>
+                            <Text className="text-amber-400 font-black">+ ₹{booking?.tollFee || 0}</Text>
+                        </View>
+                    )}
+
                     <View className="border-t border-slate-700/50 pt-4 flex-row justify-between items-center">
                         <Text className="text-white text-sm font-black uppercase tracking-wider">Estimated Total</Text>
-                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
+                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.penaltyApplied || 0) + Number(booking?.tollFee || 0))}</Text>
                     </View>
                 </View>
 
                 <View className="w-full flex-row gap-4 mb-4">
                     <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-white/10 items-center">
                         <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Allocated Wait</Text>
-                        <Text className="text-white text-xl font-bold">{Math.round(waitingLimit / 60)} Min</Text>
+                        <Text className="text-white text-xl font-bold">
+                            {waitingLimit < 60 ? `${waitingLimit} Sec` : `${Math.round(waitingLimit / 60)} Min`}
+                        </Text>
                     </View>
                 </View>
 

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, Image, StatusBar as RNStatusBar, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, Image, StatusBar as RNStatusBar, Alert, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -25,6 +25,8 @@ export default function ActiveRideScreen() {
     const isReturnTrip = params.mode === 'return';
     // penaltyAmount: use live state (updated by API and socket), fallback to params
     const [penaltyAmount, setPenaltyAmount] = React.useState<number>(params.penalty ? Number(params.penalty) : 0);
+    const [tollAmount, setTollAmount] = React.useState<number>(params.toll ? Number(params.toll) : 0);
+    const [tollInput, setTollInput] = React.useState<string>(params.toll ? String(params.toll) : "");
 
     const bookingId = params.bookingId as string;
     const distanceKm = params.distance ? parseFloat(params.distance as string) : 12.4;
@@ -90,6 +92,11 @@ export default function ActiveRideScreen() {
                     // Sync penalty from backend
                     if (b.penaltyApplied !== undefined) {
                         setPenaltyAmount(Number(b.penaltyApplied) || 0);
+                    }
+                    if (b.tollFee !== undefined) {
+                        const nextToll = Number(b.tollFee) || 0;
+                        setTollAmount(nextToll);
+                        setTollInput(nextToll > 0 ? String(nextToll) : "");
                     }
 
                     // 2. Set initial region
@@ -220,10 +227,40 @@ export default function ActiveRideScreen() {
                         setBooking((prev: any) => prev ? { ...prev, penaltyApplied: data.penaltyApplied } : prev);
                     }
                 });
+
+                socket.on("tollFeeUpdated", (data: any) => {
+                    if (String(data.bookingId) === String(bookingId)) {
+                        const nextToll = Number(data.tollFee) || 0;
+                        setTollAmount(nextToll);
+                        setTollInput(nextToll > 0 ? String(nextToll) : "");
+                        setBooking((prev: any) => prev ? { ...prev, tollFee: data.tollFee, totalFare: data.totalFare } : prev);
+                    }
+                });
             }
         };
         setupSocket();
     }, [bookingId]);
+
+    const updateTollFee = (value: number) => {
+        const next = Math.max(0, Number(value) || 0);
+        driverAPI.updateTollFee(bookingId, next)
+            .then(() => {
+                setTollAmount(next);
+                setTollInput(next > 0 ? String(next) : "");
+                setBooking((prev: any) => prev ? { ...prev, tollFee: next } : prev);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            })
+            .catch(() => Alert.alert("Error", "Failed to update toll fee."));
+    };
+
+    const handleApplyManualToll = () => {
+        const parsed = Number((tollInput || "").trim());
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            Alert.alert("Invalid Toll", "Please enter a valid toll amount.");
+            return;
+        }
+        updateTollFee(parsed);
+    };
 
     const handleEndRide = () => {
         Alert.alert(
@@ -242,6 +279,7 @@ export default function ActiveRideScreen() {
                             params: {
                                 bookingId,
                                 penalty: penaltyAmount || '0',
+                                toll: tollAmount || '0',
                                 distance: distance.replace(' km', '') || distanceKm.toString(),
                                 outboundDistance: (booking?.distance || 0).toString(),
                                 time: eta.replace(' min', '') || '0',
@@ -278,6 +316,7 @@ export default function ActiveRideScreen() {
                                     bookingId,
                                     nextRoute: "/waiting-for-return",
                                     isFirstLeg: 'true',
+                                    toll: tollAmount || '0',
                                     baseFare: (booking?.fare || 0).toString(),
                                     distance: distance.replace(' km', '') || distanceKm.toString(),
                                     pickup: booking?.pickupLocation || '',
@@ -320,6 +359,7 @@ export default function ActiveRideScreen() {
                                     bookingId,
                                     nextRoute: "/waiting-for-return",
                                     isFirstLeg: 'true',
+                                    toll: tollAmount || '0',
                                     baseFare: (booking?.fare || 0).toString(),
                                     distance: distance.replace(' km', '') || distanceKm.toString(),
                                     pickup: booking?.pickupLocation || '',
@@ -507,14 +547,136 @@ export default function ActiveRideScreen() {
                                 </View>
                             </View>
 
-                            {/* Itemized Fare */}
-                            <View className="bg-slate-800/80 p-4 rounded-2xl mb-6 border border-slate-700">
-                                <View className="mt-2 flex-row justify-between items-center">
-                                    <View>
-                                        <Text className="text-white text-base font-black italic tracking-wider">Estimated Total</Text>
-                                        <Text className="text-slate-500 text-[8px] font-bold uppercase tracking-widest italic">{booking?.paymentMethod || 'Cash'}</Text>
+                            {/* ── LIVE BILLING CARD ── */}
+                            <View className="bg-slate-800/80 p-5 rounded-3xl mb-6 border border-slate-700">
+
+                                {/* Header row: title + current-leg badge */}
+                                <View className="flex-row items-center justify-between mb-4">
+                                    <Text className="text-slate-400 text-[9px] uppercase font-black tracking-[2px]">Current Billing</Text>
+                                    <View className={`px-2.5 py-1 rounded-full ${isReturnTrip ? 'bg-yellow-400' : 'bg-blue-500'}`}>
+                                        <Text className={`text-[8px] font-black uppercase tracking-widest ${isReturnTrip ? 'text-slate-900' : 'text-white'}`}>
+                                            {isReturnTrip ? '↩ Leg 2 – Return' : hasReturnTrip ? 'Leg 1 – Outbound' : 'Single Trip'}
+                                        </Text>
                                     </View>
-                                    <Text className="text-[#FFD700] text-2xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(penaltyAmount))}</Text>
+                                </View>
+
+                                {/* Leg 1 – Base Fare row */}
+                                <View className="flex-row justify-between items-center mb-3">
+                                    <View className="flex-row items-center flex-1">
+                                        <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${booking?.firstLegPaid ? 'bg-green-500' : 'bg-blue-500/20'}`}>
+                                            <Ionicons
+                                                name={booking?.firstLegPaid ? 'checkmark' : 'navigate'}
+                                                size={12}
+                                                color={booking?.firstLegPaid ? 'white' : '#60a5fa'}
+                                            />
+                                        </View>
+                                        <View>
+                                            <Text className="text-white text-sm font-bold">
+                                                {hasReturnTrip ? 'Leg 1 Fare' : 'Ride Fare'}
+                                            </Text>
+                                            {booking?.firstLegPaid && (
+                                                <Text className="text-green-400 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                    <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-400' : 'text-white'}`}>
+                                        ₹{Number(booking?.fare || 0)}
+                                    </Text>
+                                </View>
+
+                                {/* Leg 2 – Return Fare row (only if return trip booked) */}
+                                {hasReturnTrip && (
+                                    <View className="flex-row justify-between items-center mb-3">
+                                        <View className="flex-row items-center flex-1">
+                                            <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${isReturnTrip ? 'bg-yellow-400' : 'bg-slate-700'}`}>
+                                                <Ionicons
+                                                    name="repeat"
+                                                    size={12}
+                                                    color={isReturnTrip ? '#0f172a' : '#64748b'}
+                                                />
+                                            </View>
+                                            <View>
+                                                <Text className={`text-sm font-bold ${isReturnTrip ? 'text-yellow-400' : 'text-slate-400'}`}>
+                                                    Leg 2 Fare
+                                                </Text>
+                                                <View className="flex-row items-center">
+                                                    <View className="bg-yellow-400/20 px-1 py-0.5 rounded mr-1">
+                                                        <Text className="text-yellow-400 text-[7px] font-black uppercase">50% OFF</Text>
+                                                    </View>
+                                                    {isReturnTrip && (
+                                                        <Text className="text-yellow-400 text-[9px] font-bold uppercase tracking-wider">Active</Text>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        </View>
+                                        <Text className={`text-sm font-bold ${isReturnTrip ? 'text-yellow-400' : 'text-slate-500'}`}>
+                                            +₹{booking?.returnTripFare || 0}
+                                        </Text>
+                                    </View>
+                                )}
+
+                                {/* Waiting Charges row (only when penalty active) */}
+                                {(Number(penaltyAmount) > 0) && (
+                                    <View className="flex-row justify-between items-center mb-3">
+                                        <View className="flex-row items-center flex-1">
+                                            <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-2">
+                                                <Ionicons name="time" size={12} color="#ef4444" />
+                                            </View>
+                                            <Text className="text-red-400 text-sm font-bold">Waiting Charges</Text>
+                                        </View>
+                                        <Text className="text-red-400 text-sm font-bold">+₹{penaltyAmount || 0}</Text>
+                                    </View>
+                                )}
+
+                                {(Number(tollAmount) > 0) && (
+                                    <View className="flex-row justify-between items-center mb-3">
+                                        <View className="flex-row items-center flex-1">
+                                            <View className="w-6 h-6 rounded-full bg-amber-500/20 items-center justify-center mr-2">
+                                                <Ionicons name="cash-outline" size={12} color="#f59e0b" />
+                                            </View>
+                                            <Text className="text-amber-400 text-sm font-bold">Toll Charges</Text>
+                                        </View>
+                                        <Text className="text-amber-400 text-sm font-bold">+₹{tollAmount || 0}</Text>
+                                    </View>
+                                )}
+
+                                <View className="flex-row items-center gap-2 mb-3">
+                                    <TextInput
+                                        value={tollInput}
+                                        onChangeText={setTollInput}
+                                        placeholder="Enter toll amount"
+                                        placeholderTextColor="#94a3b8"
+                                        keyboardType="number-pad"
+                                        className="flex-1 bg-slate-900 text-white text-sm font-bold px-3 py-2.5 rounded-lg border border-slate-600"
+                                    />
+                                    <TouchableOpacity onPress={handleApplyManualToll} className="bg-amber-500 px-4 py-2.5 rounded-lg">
+                                        <Text className="text-slate-900 text-[10px] font-black uppercase">Apply</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => updateTollFee(0)} className="bg-slate-700 px-3 py-2.5 rounded-lg">
+                                        <Text className="text-slate-300 text-[10px] font-black uppercase">Clear Toll</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Divider + Total */}
+                                <View className="border-t border-slate-700 mt-3 pt-4 flex-row justify-between items-center">
+                                    <View>
+                                        <Text className="text-white text-sm font-bold">
+                                            Estimated Total
+                                        </Text>
+                                        <Text className="text-slate-500 text-[9px] uppercase tracking-wider">
+                                            {booking?.paymentMethod || 'Cash'} • {booking?.paymentChoice === 'total_at_end' ? 'Pay at End' : booking?.firstLegPaid ? 'Leg 1 settled' : 'Leg-by-leg'}
+                                        </Text>
+                                    </View>
+                                    <View className="items-end">
+                                        <Text className="text-[#FFD700] text-2xl font-black italic">
+                                            ₹{Math.round(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(penaltyAmount || 0) + Number(tollAmount || 0))}
+                                        </Text>
+                                        {booking?.firstLegPaid && (
+                                            <Text className="text-green-400 text-xs font-bold mt-1">
+                                                Balance: ₹{(Number(booking?.returnTripFare || 0) + Number(penaltyAmount || 0) + Number(tollAmount || 0))}
+                                            </Text>
+                                        )}
+                                    </View>
                                 </View>
                             </View>
 

@@ -7,6 +7,11 @@ import { createNotification } from "./notificationController.js";
 import { sendPushNotification } from "../utils/notifications.js";
 import { calcAllowedTime } from "./fareController.js";
 
+// Keep this null in normal flow; only set a value for temporary testing overrides.
+const TEST_WAITING_LIMIT_SECONDS = null;
+const resolveWaitingLimitSeconds = (distanceKm = 0) =>
+  TEST_WAITING_LIMIT_SECONDS ?? (calcAllowedTime(distanceKm) * 60);
+
 // ================= CREATE BOOKING =================
 export const createBooking = async (req, res) => {
   try {
@@ -62,7 +67,8 @@ export const createBooking = async (req, res) => {
       duration: req.body.duration || 0,
       fare: req.body.fare || 0,
       totalFare: req.body.fare || 0, // Initial total is just the fare
-      waitingLimit: (calcAllowedTime(req.body.distance || 0)) * 60, // Store in seconds
+      tollFee: req.body.tollFee || 0,
+      waitingLimit: resolveWaitingLimitSeconds(req.body.distance || 0), // Store in seconds
     });
 
 
@@ -113,8 +119,8 @@ export const createBooking = async (req, res) => {
           if (driver.pushToken) {
             sendPushNotification(
               driver.pushToken,
-              "New Ride Request! 🚕",
-              `${booking.rideType === 'outstation' ? '🛣️ Outstation' : '🚕 Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.fare}`,
+              "New Ride Request",
+              `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.fare}`,
               { 
                 bookingId: booking._id.toString(),
                 type: 'new_ride'
@@ -238,6 +244,9 @@ export const getBookingById = async (req, res) => {
       });
     }
 
+    // Always expose computed trip total for consistency in history/details
+    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+
     res.json({
       booking
     });
@@ -316,7 +325,7 @@ export const cancelBooking = async (req, res) => {
       // Create persistent notification for user (confirmation of their cancellation)
       await createNotification({
         userId: booking.user,
-        title: "Ride Cancelled ❌",
+        title: "Ride Cancelled",
         body: "You have successfully cancelled your ride booking.",
         type: "ride_cancelled",
         bookingId: booking._id
@@ -353,6 +362,9 @@ export const getBookingStatus = async (req, res) => {
     if (booking.waitingStartedAt) {
       await calculateAndUpdatePenalty(booking);
     }
+
+    // Always expose computed trip total for consistency in tracking/details
+    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
 
     res.json({
       success: true,
@@ -391,7 +403,7 @@ export const calculateAndUpdatePenalty = async (booking) => {
       booking.lastPenaltyAppliedAt = now;
 
       // Update totalFare dynamically
-      const totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + currentPenalty;
+      const totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + currentPenalty + (booking.tollFee || 0);
       booking.totalFare = totalFare;
 
       await booking.save();
@@ -408,7 +420,7 @@ export const calculateAndUpdatePenalty = async (booking) => {
         if (user && user.pushToken) {
           sendPushNotification(
             user.pushToken,
-            "Wait Penalty Applied ⚠️",
+            "Wait Penalty Applied",
             `₹${penaltyIncrement} has been added to your fare due to extended waiting time.`,
             { bookingId: booking._id.toString(), type: 'penalty_applied' }
           );
@@ -426,7 +438,7 @@ export const calculateAndUpdatePenalty = async (booking) => {
         // Create persistent notification
         await createNotification({
           userId: booking.user,
-          title: "Wait Penalty Applied ⚠️",
+          title: "Wait Penalty Applied",
           body: `₹${penaltyIncrement} has been added to your fare due to extended waiting time.`,
           type: "ride_nearby",
           bookingId: booking._id
@@ -492,11 +504,11 @@ export const completeRide = async (req, res) => {
       booking.fare = fare || 0;
     }
     booking.distance = distance || booking.distance || 0;
-    booking.paymentStatus = "pending";
+    booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
     booking.rideCompletedAt = new Date();
 
-    // Final totalFare calculation: Use incoming fare as total if it exists
-    booking.totalFare = fare || ((booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0));
+    // Always store full trip total (base + return + penalty)
+    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
 
     await booking.save();
 
@@ -504,7 +516,7 @@ export const completeRide = async (req, res) => {
     getIO().to(booking.user.toString()).emit("rideCompleted", {
       bookingId: booking._id,
       status: "completed",
-      finalFare: booking.fare
+      finalFare: booking.totalFare
     });
 
     // Clear driver status
@@ -520,7 +532,7 @@ export const completeRide = async (req, res) => {
     if (user && user.pushToken) {
       sendPushNotification(
         user.pushToken,
-        "Ride Completed! ✅",
+        "Ride Completed",
         `Your ride has been completed. Total fare: ₹${booking.totalFare}. Thank you for riding with Hello-11!`,
         { bookingId: booking._id.toString(), type: 'ride_completed' }
       );
@@ -529,7 +541,7 @@ export const completeRide = async (req, res) => {
     res.json({
       success: true,
       message: "Ride completed successfully",
-      fare: booking.fare,
+      fare: booking.totalFare,
       distance: booking.distance
     });
   } catch (error) {
@@ -562,6 +574,23 @@ export const verifyPayment = async (req, res) => {
 
     booking.paymentMethod = paymentMethod || "cash";
     await booking.save();
+
+    // Close active payment prompt on passenger app
+    try {
+      const io = getIO();
+      const userRoom = booking.user.toString();
+      const bookingRoom = `chat_${booking._id}`;
+      [userRoom, bookingRoom].forEach(room => {
+        io.to(room).emit("paymentResolved", {
+          bookingId: booking._id.toString(),
+          isFirstLeg: !!isFirstLeg,
+          paymentStatus: booking.paymentStatus || "pending",
+          firstLegPaid: !!booking.firstLegPaid
+        });
+      });
+    } catch (socketError) {
+      serverLog(`paymentResolved socket error: ${socketError.message}`);
+    }
 
     res.json({
       message: isFirstLeg ? "First leg payment verified successfully" : "Payment verified successfully",
@@ -642,6 +671,20 @@ export const requestPayment = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    const parsedAmount = Number(amount);
+    const baseFare = Number(breakdown?.baseFare || 0);
+    const returnFare = Number(breakdown?.returnFare || 0);
+    const penalty = Number(breakdown?.penalty || 0);
+    const toll = Number(breakdown?.toll || 0);
+    const firstLegPaid = !!breakdown?.firstLegPaid;
+
+    // Guard against undefined/invalid amount reaching passenger UI.
+    const safeAmount = Number.isFinite(parsedAmount)
+      ? parsedAmount
+      : (isPartial
+        ? baseFare
+        : (firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll)));
+
     // Emit to passenger (User room and Booking room)
     const io = getIO();
     const userRoom = booking.user.toString();
@@ -650,9 +693,15 @@ export const requestPayment = async (req, res) => {
     [userRoom, bookingRoom].forEach(room => {
       io.to(room).emit("paymentRequested", {
         bookingId: booking._id,
-        amount,
+        amount: safeAmount,
         isPartial,
-        breakdown
+        breakdown: {
+          baseFare,
+          returnFare,
+          penalty,
+          toll,
+          firstLegPaid
+        }
       });
     });
 
@@ -697,7 +746,7 @@ export const acceptReturnOffer = async (req, res) => {
     booking.discount = 50; // 50% off
 
     // Update totalFare
-    booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0);
+    booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
 
     await booking.save();
 
@@ -715,7 +764,7 @@ export const acceptReturnOffer = async (req, res) => {
       // Create persistent notification for driver
       await createNotification({
         userId: booking.driver,
-        title: "Return Trip Confirmed! 📉",
+        title: "Return Trip Confirmed",
         body: `The user has accepted the return trip offer for ₹${returnFare}.`,
         type: "ride_accepted",
         bookingId: booking._id
@@ -725,7 +774,7 @@ export const acceptReturnOffer = async (req, res) => {
     // Create persistent notification for user
     await createNotification({
       userId: booking.user,
-      title: "Return Trip Offer Accepted! 🎉",
+      title: "Return Trip Offer Accepted",
       body: `Your return trip at 50% OFF (₹${returnFare}) has been confirmed.`,
       type: "ride_accepted",
       bookingId: booking._id
@@ -782,6 +831,11 @@ export const startWaiting = async (req, res) => {
 
     booking.status = "waiting";
     booking.isWaiting = true;
+    if (TEST_WAITING_LIMIT_SECONDS) {
+      booking.waitingLimit = TEST_WAITING_LIMIT_SECONDS;
+    } else if (!booking.waitingLimit || booking.waitingLimit <= 0) {
+      booking.waitingLimit = resolveWaitingLimitSeconds(booking.distance || 0);
+    }
     booking.waitingStartedAt = new Date();
 
     await booking.save();
@@ -810,3 +864,4 @@ export const startWaiting = async (req, res) => {
     res.status(500).json({ message: "Failed to start waiting", error: error.message });
   }
 };
+

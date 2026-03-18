@@ -304,37 +304,70 @@ const OutstationBookingScreen = () => {
   // ─── Render ──────────────────────────────────────────────────────────────────
   if (isSearchingDriver && activeBookingId) {
     return (
-      <View className="flex-1 bg-slate-900 items-center justify-center px-8">
+      <View className="flex-1 bg-slate-900 items-center justify-center px-6">
         <Stack.Screen options={{ headerShown: false }} />
         <StatusBar style="light" />
-        <Animated.View
-          style={{ opacity: searchingDotAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }}
-          className="w-32 h-32 rounded-full border-4 border-[#FFD700] items-center justify-center mb-8"
-        >
-          <Ionicons name="car" size={52} color="#FFD700" />
-        </Animated.View>
-        <Text className="text-white font-black text-2xl text-center mb-3">requesting {carType}</Text>
-        <Text className="text-slate-400 font-bold text-sm text-center mb-2">🛣️ Outstation Ride</Text>
-        <Text className="text-slate-500 text-xs font-bold text-center mb-1" numberOfLines={1}>{pickup}</Text>
-        <Text className="text-slate-500 text-xs font-bold text-center mb-8" numberOfLines={1}>→ {drop}</Text>
-        <View className="bg-slate-800 px-8 py-4 rounded-[20px] mb-10 items-center">
-          <Text className="text-slate-400 text-[9px] font-black uppercase">Estimated Fare</Text>
-          <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare}</Text>
-          <Text className="text-slate-500 text-[10px] font-bold mt-1">{distanceKm.toFixed(1)} km · ⏱ {formatTime(fares[carType].time)}</Text>
+
+        <View className="w-full max-w-[430px] rounded-[30px] border border-slate-700 bg-slate-800/70 p-6 shadow-2xl">
+          <Animated.View
+            style={{ opacity: searchingDotAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }}
+            className="w-24 h-24 self-center rounded-full border-4 border-[#FFD700] items-center justify-center mb-5 bg-slate-900"
+          >
+            <Ionicons name={carType === '7seater' ? "bus" : "car"} size={42} color="#FFD700" />
+          </Animated.View>
+
+          <Text className="text-white font-black text-2xl text-center mb-2">
+            Requesting {carType === '7seater' ? '7-Seater' : '5-Seater'}
+          </Text>
+
+          <View className="self-center flex-row items-center bg-blue-500/20 border border-blue-400/40 px-3 py-1 rounded-full mb-4">
+            <Ionicons name="navigate" size={12} color="#60A5FA" />
+            <Text className="text-blue-300 font-black text-[10px] ml-1.5 uppercase tracking-widest">Outstation Ride</Text>
+          </View>
+
+          <View className="bg-slate-900/70 border border-slate-700 rounded-2xl px-4 py-3 mb-4">
+            <View className="flex-row items-start mb-2">
+              <Ionicons name="radio-button-on" size={13} color="#3B82F6" />
+              <Text className="text-slate-300 text-xs font-bold ml-2 flex-1" numberOfLines={1}>{pickup}</Text>
+            </View>
+            <View className="ml-[5px] h-3 w-[1px] bg-slate-600 mb-2" />
+            <View className="flex-row items-start">
+              <Ionicons name="location" size={13} color="#EF4444" />
+              <Text className="text-slate-300 text-xs font-bold ml-2 flex-1" numberOfLines={1}>{drop}</Text>
+            </View>
+          </View>
+
+          <View className="bg-slate-900/80 border border-slate-700 px-5 py-4 rounded-2xl mb-6 items-center">
+            <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Estimated Fare</Text>
+            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare}</Text>
+            <View className="flex-row items-center mt-1">
+              <Ionicons name="speedometer-outline" size={11} color="#94A3B8" />
+              <Text className="text-slate-500 text-[10px] font-bold ml-1">{distanceKm.toFixed(1)} km</Text>
+              <Text className="text-slate-600 text-[10px] font-bold mx-1.5">•</Text>
+              <Ionicons name="time-outline" size={11} color="#94A3B8" />
+              <Text className="text-slate-500 text-[10px] font-bold ml-1">{formatTime(fares[carType].time)}</Text>
+            </View>
+          </View>
+
+          <View className="items-center">
+            <ActivityIndicator color="#FFD700" size="large" />
+            <Text className="text-slate-500 text-xs font-bold mt-3 mb-6">
+              Searching nearby {carType === '7seater' ? '7-Seaters' : '5-Seaters'}...
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={async () => {
+              clearInterval(pollInterval.current);
+              try { await bookingAPI.cancelBooking(activeBookingId); } catch { }
+              setIsSearchingDriver(false);
+              setActiveBookingId(null);
+            }}
+            className="bg-slate-900 border border-slate-600 py-4 rounded-[16px] items-center"
+          >
+            <Text className="text-slate-200 font-black text-sm tracking-widest">CANCEL REQUEST</Text>
+          </TouchableOpacity>
         </View>
-        <ActivityIndicator color="#FFD700" size="large" />
-        <Text className="text-slate-600 text-xs font-bold mt-4 mb-10">Searching nearby {carType}s...</Text>
-        <TouchableOpacity
-          onPress={async () => {
-            clearInterval(pollInterval.current);
-            try { await bookingAPI.cancelBooking(activeBookingId); } catch { }
-            setIsSearchingDriver(false);
-            setActiveBookingId(null);
-          }}
-          className="bg-slate-800 border border-slate-700 px-10 py-4 rounded-[18px]"
-        >
-          <Text className="text-slate-300 font-black text-sm tracking-widest">CANCEL REQUEST</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -353,8 +386,9 @@ const OutstationBookingScreen = () => {
           <View className="items-center">
             <Text className="text-base font-black text-black">OUTSTATION RIDE</Text>
             {isLongDistance && distanceKm > 0 && (
-              <View className="bg-slate-900 px-2 py-0.5 rounded-full mt-1">
-                <Text className="text-[#FFD700] text-[9px] font-black">🛣️ LONG DISTANCE · {distanceKm.toFixed(0)} KM</Text>
+              <View className="bg-slate-900 px-2 py-1 rounded-full mt-1 flex-row items-center">
+                <Ionicons name="navigate" size={10} color="#FACC15" />
+                <Text className="text-[#FFD700] text-[9px] font-black ml-1">LONG DISTANCE · {distanceKm.toFixed(0)} KM</Text>
               </View>
             )}
           </View>

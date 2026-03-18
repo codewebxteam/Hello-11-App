@@ -7,14 +7,14 @@ import {
     Platform,
     StatusBar as RNStatusBar,
     Alert,
-    TextInput
+    Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { driverAPI } from '../utils/api';
-import { getDriverData } from '../utils/storage';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
@@ -61,17 +61,76 @@ export default function DocumentsScreen() {
         }
     };
 
+    const pickDocumentImage = async (key: keyof typeof docs, title: string) => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission Denied', 'Gallery permission is required to upload document images.');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.45,
+            base64: true
+        });
+
+        if (!result.canceled && result.assets?.[0]?.base64) {
+            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            setDocs((prev) => ({ ...prev, [key]: base64Image }));
+            Haptics.selectionAsync();
+            Alert.alert("Selected", `${title} image is ready to save.`);
+        }
+    };
+
+    const removeDocumentImage = (key: keyof typeof docs) => {
+        setDocs((prev) => ({ ...prev, [key]: '' }));
+    };
+
     const renderDocItem = (title: string, value: string, key: keyof typeof docs, icon: any) => (
         <View className="mb-6">
             <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">{title}</Text>
-            <View className="bg-white border border-slate-200 rounded-[20px] px-5 py-4 shadow-sm flex-row items-center">
-                <Ionicons name={icon} size={20} color="#94A3B8" />
-                <TextInput
-                    value={value}
-                    onChangeText={(text) => setDocs({ ...docs, [key]: text })}
-                    placeholder={`Enter ${title.toLowerCase()} link/ID`}
-                    className="flex-1 ml-3 text-slate-900 font-bold"
-                />
+            <View className="bg-white border border-slate-200 rounded-[20px] px-4 py-4 shadow-sm">
+                <View className="flex-row items-center mb-3">
+                    <View className="w-9 h-9 rounded-full bg-slate-100 items-center justify-center">
+                        <Ionicons name={icon} size={18} color="#64748B" />
+                    </View>
+                    <Text className="ml-3 text-slate-700 font-bold flex-1">
+                        {value ? 'Document image selected' : 'No image selected'}
+                    </Text>
+                </View>
+
+                {value ? (
+                    <View className="rounded-2xl overflow-hidden border border-slate-100 mb-3">
+                        <Image source={{ uri: value }} className="w-full h-40" resizeMode="cover" />
+                    </View>
+                ) : (
+                    <View className="h-24 rounded-2xl border border-dashed border-slate-300 items-center justify-center mb-3 bg-slate-50">
+                        <Text className="text-slate-400 text-xs font-bold">Upload clear photo of {title.toLowerCase()}</Text>
+                    </View>
+                )}
+
+                <View className="flex-row gap-2">
+                    <TouchableOpacity
+                        onPress={() => pickDocumentImage(key, title)}
+                        className="flex-1 bg-slate-900 py-3 rounded-xl flex-row items-center justify-center"
+                    >
+                        <Ionicons name="image-outline" size={16} color="#FFFFFF" />
+                        <Text className="text-white font-black text-xs uppercase tracking-wider ml-2">
+                            {value ? 'Change Photo' : 'Upload Photo'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {value ? (
+                        <TouchableOpacity
+                            onPress={() => removeDocumentImage(key)}
+                            className="bg-red-50 border border-red-200 px-4 py-3 rounded-xl items-center justify-center"
+                        >
+                            <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
             </View>
         </View>
     );
@@ -94,7 +153,7 @@ export default function DocumentsScreen() {
                 <View className="bg-blue-50 p-6 rounded-[24px] mb-8 border border-blue-100 flex-row items-center">
                     <Ionicons name="information-circle" size={24} color="#3B82F6" />
                     <Text className="text-blue-600 text-[11px] font-bold ml-3 flex-1 leading-4">
-                        Please provide links or identification numbers for your vehicle and personal documents for verification.
+                        Upload clear photos of your driving license, insurance, and RC. Tap Save Documents after selecting all images.
                     </Text>
                 </View>
 

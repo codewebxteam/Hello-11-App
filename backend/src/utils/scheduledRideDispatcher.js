@@ -14,8 +14,8 @@ const dispatchBooking = async (booking) => {
     serverLog(`SCHEDULER: Dispatching scheduled booking ${booking._id} to nearby drivers`);
 
     try {
-        // Find available online drivers near pickup point
-        const nearbyDrivers = await Driver.find({
+        // Base query: available + online + nearby pickup
+        const driverQuery = {
             available: true,
             online: true,
             location: {
@@ -24,10 +24,20 @@ const dispatchBooking = async (booking) => {
                         type: "Point",
                         coordinates: [booking.pickupLongitude, booking.pickupLatitude]
                     },
-                    $maxDistance: 50000 // 50 km radius
+                    // Keep wider radius for scheduled rides to improve match chances
+                    $maxDistance: 50000
                 }
             }
-        });
+        };
+
+        // For outstation scheduled rides, send only to relevant drivers.
+        // Normal scheduled rides continue to go to all nearby available drivers.
+        if (booking.rideType === "outstation") {
+            driverQuery.vehicleType = booking.vehicleType;
+            driverQuery.serviceType = { $in: ["rental", "both"] };
+        }
+
+        const nearbyDrivers = await Driver.find(driverQuery);
 
         serverLog(`SCHEDULER: Found ${nearbyDrivers.length} nearby drivers for booking ${booking._id}`);
 

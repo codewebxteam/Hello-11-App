@@ -349,7 +349,7 @@ export default function DriverDashboard() {
           </View>
         )}
 
-        <View className="absolute top-24 self-center bg-white/90 px-6 py-2 rounded-full border border-white shadow-sm">
+        <View className="absolute top-32 self-center bg-white/90 px-6 py-2 rounded-full border border-white shadow-sm">
           <Text className="text-slate-800 font-bold text-xs tracking-[3px] uppercase">
             {isSearching ? 'Searching Area...' : isOnline ? 'Ready for trips' : 'Map Offline'}
           </Text>
@@ -368,13 +368,6 @@ export default function DriverDashboard() {
               <Ionicons name="person" size={24} color="#1E293B" />
             )}
           </TouchableOpacity>
-
-          {stats.name && (
-            <View className="ml-3 bg-white/80 px-4 py-2 rounded-2xl border border-white shadow-sm flex-1">
-              <Text className="text-slate-400 text-[8px] font-black uppercase tracking-wider">Welcome</Text>
-              <Text className="text-slate-900 font-black text-sm">{stats.name}</Text>
-            </View>
-          )}
 
           <View className="bg-white rounded-[24px] p-2 pl-5 pr-2 flex-row items-center shadow-xl border border-slate-50">
             <View className="mr-4">

@@ -235,6 +235,18 @@ export const getDriverProfile = async (req, res) => {
       driver: req.driverId,
       status: "cancelled"
     });
+    const totalEarningsAgg = await Booking.aggregate([
+      { $match: { driver: driver._id, status: "completed" } },
+      {
+        $project: {
+          effectiveTotal: {
+            $add: ["$fare", { $ifNull: ["$returnTripFare", 0] }, { $ifNull: ["$penaltyApplied", 0] }, { $ifNull: ["$tollFee", 0] }]
+          }
+        }
+      },
+      { $group: { _id: null, total: { $sum: "$effectiveTotal" } } }
+    ]);
+    const totalEarnings = totalEarningsAgg[0]?.total || 0;
 
     // Calculate real rating
     const reviews = await Review.find({ driver: req.driverId });
@@ -263,7 +275,7 @@ export const getDriverProfile = async (req, res) => {
         stats: {
           totalBookings: completedBookings + cancelledBookings,
           completedBookings: completedBookings,
-          totalEarnings: driver.totalEarnings || 0,
+          totalEarnings,
           cancelledBookings
         }
       }
@@ -336,7 +348,7 @@ export const updateDriverProfile = async (req, res) => {
 // ================= UPDATE VEHICLE DETAILS =================
 export const updateVehicleDetails = async (req, res) => {
   try {
-    const { vehicleNumber, vehicleModel, vehicleColor, vehicleType, serviceType } = req.body;
+    const { vehicleNumber, vehicleModel, vehicleColor, vehicleType, serviceType, pushToken } = req.body;
 
     const updateData = {};
     if (vehicleNumber) updateData.vehicleNumber = vehicleNumber;
@@ -388,9 +400,13 @@ export const updateDocuments = async (req, res) => {
     const { license, insurance, registration } = req.body;
     const updateData = {};
 
-    if (license) updateData['documents.license'] = license;
-    if (insurance) updateData['documents.insurance'] = insurance;
-    if (registration) updateData['documents.registration'] = registration;
+    if (license !== undefined) updateData['documents.license'] = license;
+    if (insurance !== undefined) updateData['documents.insurance'] = insurance;
+    if (registration !== undefined) updateData['documents.registration'] = registration;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No document data provided" });
+    }
 
     const driver = await Driver.findByIdAndUpdate(
       req.driverId,
@@ -413,6 +429,57 @@ export const updateDocuments = async (req, res) => {
       message: "Failed to update documents",
       error: error.message
     });
+  }
+};
+
+// ================= UPDATE BOOKING TOLL =================
+export const updateTollFee = async (req, res) => {
+  try {
+    const { tollFee } = req.body;
+    const parsedToll = Number(tollFee);
+
+    if (!Number.isFinite(parsedToll) || parsedToll < 0) {
+      return res.status(400).json({ message: "Valid toll fee is required" });
+    }
+
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (!booking.driver || booking.driver.toString() !== req.driverId.toString()) {
+      return res.status(403).json({ message: "Not authorized to update toll for this booking" });
+    }
+
+    if (["completed", "cancelled"].includes(booking.status)) {
+      return res.status(400).json({ message: "Cannot update toll for completed/cancelled booking" });
+    }
+
+    booking.tollFee = parsedToll;
+    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + parsedToll;
+    await booking.save();
+
+    try {
+      const io = getIO();
+      const rooms = [booking.user.toString(), booking.driver.toString()];
+      rooms.forEach((room) => {
+        io.to(room).emit("tollFeeUpdated", {
+          bookingId: booking._id.toString(),
+          tollFee: booking.tollFee,
+          totalFare: booking.totalFare
+        });
+      });
+    } catch (socketError) {
+      serverLog(`tollFeeUpdated socket error: ${socketError.message}`);
+    }
+
+    res.json({
+      message: "Toll fee updated successfully",
+      tollFee: booking.tollFee,
+      totalFare: booking.totalFare
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update toll fee", error: error.message });
   }
 };
 
@@ -502,7 +569,7 @@ export const updateDriverLocation = async (req, res) => {
 
               await createNotification({
                 userId: activeBooking.user,
-                title: "Driver is Nearby! 📍",
+                title: "Driver is Nearby",
                 body: "Your driver is less than 100m away. Please get ready for your ride.",
                 type: "ride_nearby",
                 bookingId: activeBooking._id
@@ -708,6 +775,7 @@ export const getCurrentBooking = async (req, res) => {
         hasReturnTrip: booking.hasReturnTrip,
         returnTripFare: booking.returnTripFare,
         penaltyApplied: booking.penaltyApplied || 0,
+        tollFee: booking.tollFee || 0,
         waitingStartedAt: booking.waitingStartedAt,
         waitingLimit: booking.waitingLimit,
         firstLegPaid: booking.firstLegPaid || false,
@@ -794,7 +862,7 @@ export const acceptBooking = async (req, res) => {
     // Create persistent notification for user
     await createNotification({
       userId: populatedBooking.user._id,
-      title: "Ride Accepted! 🚗",
+      title: "Ride Accepted",
       body: `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
       type: "ride_accepted",
       bookingId: populatedBooking._id
@@ -804,7 +872,7 @@ export const acceptBooking = async (req, res) => {
     if (populatedBooking.user && populatedBooking.user.pushToken) {
       sendPushNotification(
         populatedBooking.user.pushToken,
-        "Ride Accepted! 🚗",
+        "Ride Accepted",
         `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
         { bookingId: populatedBooking._id.toString(), type: 'ride_accepted' }
       );
@@ -915,13 +983,13 @@ export const updateBookingStatus = async (req, res) => {
     }
 
     if (status === "completed") {
-      // Preserve base fare, incoming fare is treated as totalFare
+      // Preserve base fare and always compute the final trip total
       if (!booking.fare || booking.fare === 0) {
         booking.fare = fare || 0;
       }
-      booking.totalFare = fare || (booking.fare + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0));
+      booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
       booking.distance = distance || booking.distance || 0;
-      booking.paymentStatus = "pending";
+      booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
 
       // Make driver available again
       await Driver.findByIdAndUpdate(req.driverId, { available: true });
@@ -955,7 +1023,7 @@ export const updateBookingStatus = async (req, res) => {
         // Create persistent notification
         await createNotification({
           userId: booking.user,
-          title: "Driver Arrived! 🚗",
+          title: "Driver Arrived",
           body: "Your driver has arrived at the pickup location. Please proceed to the vehicle.",
           type: "ride_arrived",
           bookingId: booking._id
@@ -966,7 +1034,7 @@ export const updateBookingStatus = async (req, res) => {
         if (foundUser && foundUser.pushToken) {
           sendPushNotification(
             foundUser.pushToken,
-            "Driver Arrived! 🚗",
+            "Driver Arrived",
             "Your driver has arrived at the pickup location. Please proceed to the vehicle.",
             { bookingId: booking._id.toString(), type: 'ride_arrived' }
           );
@@ -976,8 +1044,8 @@ export const updateBookingStatus = async (req, res) => {
       if (status === "completed") {
         await createNotification({
           userId: booking.user,
-          title: "Ride Completed! ✅",
-          body: `Your ride is completed. Final fare: ₹${booking.fare}. Hope you had a great trip!`,
+          title: "Ride Completed",
+          body: `Your ride is completed. Final fare: ₹${booking.totalFare}. Hope you had a great trip!`,
           type: "ride_completed",
           bookingId: booking._id
         });
@@ -1033,6 +1101,8 @@ export const getDriverHistory = async (req, res) => {
         rideType: booking.rideType,
         status: booking.status,
         fare: booking.fare,
+        tollFee: booking.tollFee || 0,
+        totalFare: (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0),
         distance: booking.distance,
         paymentStatus: booking.paymentStatus,
         user: booking.user,
@@ -1077,11 +1147,13 @@ export const getDriverEarnings = async (req, res) => {
 
     const completedBookings = await Booking.find({
       driver: req.driverId,
-      status: "completed",
-      createdAt: { $gte: startDate }
+      status: "completed"
     });
 
-    const totalEarnings = completedBookings.reduce((sum, booking) => sum + (booking.fare || 0), 0);
+    const bookingTotal = (booking) =>
+      Number((booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0));
+
+    const totalEarnings = completedBookings.reduce((sum, booking) => sum + bookingTotal(booking), 0);
     const totalTrips = completedBookings.length;
     const averageFare = totalTrips > 0 ? totalEarnings / totalTrips : 0;
 
@@ -1090,9 +1162,9 @@ export const getDriverEarnings = async (req, res) => {
     today.setHours(0, 0, 0, 0);
     const todayEarnings = completedBookings
       .filter(booking => new Date(booking.createdAt) >= today)
-      .reduce((sum, booking) => sum + (booking.fare || 0), 0);
+      .reduce((sum, booking) => sum + bookingTotal(booking), 0);
 
-    // Fetch payouts/activities for history
+    // Fetch payouts/activities for selected period
     const payouts = await Payout.find({
       driver: req.driverId,
       createdAt: { $gte: startDate }
@@ -1103,8 +1175,8 @@ export const getDriverEarnings = async (req, res) => {
 
     res.json({
       earnings: {
-        totalEarnings: driver.totalEarnings || 0,
-        totalTrips: driver.totalTrips || 0,
+        totalEarnings,
+        totalTrips,
         averageFare: Math.round(averageFare * 100) / 100,
         todayEarnings,
         onlineHours,
@@ -1222,7 +1294,7 @@ export const verifyRideOtp = async (req, res) => {
       // Create persistent notification
       await createNotification({
         userId: booking.user,
-        title: "Ride Started! 🛣️",
+        title: "Ride Started",
         body: "Your ride has started. Have a safe journey!",
         type: "ride_started",
         bookingId: booking._id
@@ -1234,7 +1306,7 @@ export const verifyRideOtp = async (req, res) => {
         // 1. Ride Started Notification
         sendPushNotification(
           user.pushToken,
-          "Ride Started! 🚕",
+          "Ride Started",
           "Your ride has officially started. Have a safe journey!",
           { bookingId: booking._id.toString(), type: 'ride_started' }
         );
@@ -1242,7 +1314,7 @@ export const verifyRideOtp = async (req, res) => {
         // 2. Return Trip Offer Notification
         sendPushNotification(
           user.pushToken,
-          "Limited Offer: 50% OFF Return Trip! 📉",
+          "Limited Offer: 50% OFF Return Trip",
           "Book your return trip now and save 50%. Offer valid for this ride only!",
           { bookingId: booking._id.toString(), type: 'suggest_return' }
         );
@@ -1258,7 +1330,7 @@ export const verifyRideOtp = async (req, res) => {
       // 4. Persistent notification for the offer
       await createNotification({
         userId: booking.user,
-        title: "Limited Offer: 50% OFF Return Trip! 📉",
+        title: "Limited Offer: 50% OFF Return Trip",
         body: "Book your return trip now and save 50%. Offer valid for this ride only!",
         type: "suggest_return", // Changed from ride_accepted to suggest_return for better tracking
         bookingId: booking._id
@@ -1298,13 +1370,13 @@ export const completeRide = async (req, res) => {
     }
 
     booking.status = "completed";
-    // Preserve base fare, use incoming fare as totalFare
+    // Preserve base fare and always compute the final trip total
     if (!booking.fare || booking.fare === 0) {
       booking.fare = fare || 0;
     }
-    booking.totalFare = fare || (booking.fare + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0));
+    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
     booking.distance = distance || booking.distance || 0;
-    booking.paymentStatus = "pending";
+    booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
     booking.rideCompletedAt = new Date();
     await booking.save();
 
@@ -1330,8 +1402,8 @@ export const completeRide = async (req, res) => {
       // Create persistent notification
       await createNotification({
         userId: booking.user,
-        title: "Ride Completed! ✅",
-        body: `Your ride is completed. Final fare: ₹${booking.fare}. Hope you had a great trip!`,
+        title: "Ride Completed",
+        body: `Your ride is completed. Final fare: ₹${booking.totalFare}. Hope you had a great trip!`,
         type: "ride_completed",
         bookingId: booking._id
       });
@@ -1344,7 +1416,7 @@ export const completeRide = async (req, res) => {
       available: true,
       $inc: {
         totalTrips: 1,
-        totalEarnings: booking.fare || 0
+        totalEarnings: booking.totalFare || 0
       }
     });
 
@@ -1403,7 +1475,7 @@ export const cancelBooking = async (req, res) => {
       // Create persistent notification
       await createNotification({
         userId: booking.user,
-        title: "Ride Cancelled ❌",
+        title: "Ride Cancelled",
         body: `The driver has cancelled the ride. Reason: ${booking.cancellationReason}`,
         type: "ride_cancelled",
         bookingId: booking._id
@@ -1462,7 +1534,10 @@ export const getDriverDashboard = async (req, res) => {
       status: "completed",
       createdAt: { $gte: today }
     });
-    const todayEarnings = todayBookings.reduce((sum, b) => sum + (b.fare || 0), 0);
+    const todayEarnings = todayBookings.reduce(
+      (sum, b) => sum + Number((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)),
+      0
+    );
 
     // Total completed trips
     const totalTrips = await Booking.countDocuments({
@@ -1501,6 +1576,19 @@ export const getDriverDashboard = async (req, res) => {
       currentBooking = null;
     }
 
+    const totalEarningsAgg = await Booking.aggregate([
+      { $match: { driver: driver._id, status: "completed" } },
+      {
+        $project: {
+          effectiveTotal: {
+            $add: ["$fare", { $ifNull: ["$returnTripFare", 0] }, { $ifNull: ["$penaltyApplied", 0] }, { $ifNull: ["$tollFee", 0] }]
+          }
+        }
+      },
+      { $group: { _id: null, total: { $sum: "$effectiveTotal" } } }
+    ]);
+    const totalEarnings = totalEarningsAgg[0]?.total || 0;
+
     res.json({
       dashboard: {
         driver: {
@@ -1517,7 +1605,7 @@ export const getDriverDashboard = async (req, res) => {
           todayTrips,
           todayEarnings,
           totalTrips,
-          totalEarnings: driver.totalEarnings || 0,
+          totalEarnings,
           pendingBookings,
           rating: Math.round(avgRatingDash * 10) / 10
         },
@@ -1749,3 +1837,4 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
+

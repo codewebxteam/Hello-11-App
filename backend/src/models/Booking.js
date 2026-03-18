@@ -125,6 +125,10 @@ const bookingSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    tollFee: {
+      type: Number,
+      default: 0
+    },
     lastPenaltyAppliedAt: {
       type: Date,
       default: null

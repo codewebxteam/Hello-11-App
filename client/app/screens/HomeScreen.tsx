@@ -15,6 +15,7 @@ import {
   Alert,
   ActivityIndicator
 } from "react-native";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";
@@ -68,7 +69,7 @@ const HomeScreen = () => {
           setIsSearching(false);
           
           sendLocalNotification(
-            "Ride Accepted! 🚕",
+            "Ride Accepted",
             `${data.booking.driver.name} is on the way in a ${data.booking.driver.vehicleModel}`
           );
           
@@ -81,7 +82,7 @@ const HomeScreen = () => {
 
         socket.on("bookingCancelledByDriver", (data: any) => {
           console.log("Booking cancelled by driver:", data);
-          sendLocalNotification("Ride Cancelled ❌", "The driver has cancelled your ride request.");
+          sendLocalNotification("Ride Cancelled", "The driver has cancelled your ride request.");
           clearBookingState();
         });
 
@@ -100,7 +101,13 @@ const HomeScreen = () => {
           }
           // Show toast for critical ride notifications
           if (data.notification.type.startsWith('ride_')) {
-            showToast(data.notification.title, data.notification.body);
+            const toastType =
+              data.notification.type === 'ride_cancelled'
+                ? 'error'
+                : data.notification.type === 'ride_completed' || data.notification.type === 'ride_accepted'
+                  ? 'success'
+                  : 'info';
+            showToast(data.notification.title, data.notification.body, toastType as any);
             sendLocalNotification(data.notification.title, data.notification.body);
           }
         });
@@ -160,6 +167,22 @@ const HomeScreen = () => {
   const [activeTab, setActiveTab] = useState("Home");
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
+  // Map state
+  const [mapRegion, setMapRegion] = useState<any>(null);
+  const [routeCoords, setRouteCoords] = useState<any[]>([]);
+  const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [dropCoords, setDropCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [activeInput, setActiveInput] = useState<'source' | 'destination' | null>(null);
+  const [sourceCoords, setSourceCoords] = useState<{ lat: string; lon: string } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ lat: string; lon: string } | null>(null);
+
+
   // Function to fetch current location and reverse geocode
   const fetchCurrentLocation = async () => {
     try {
@@ -174,6 +197,13 @@ const HomeScreen = () => {
       let loc = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = loc.coords;
       setSourceCoords({ lat: latitude.toString(), lon: longitude.toString() });
+      setPickupCoords({ latitude, longitude });
+      setMapRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
 
       const res = await locationAPI.reverseGeocode(latitude, longitude);
       if (res.data?.success && res.data.data?.display_name) {
@@ -187,15 +217,57 @@ const HomeScreen = () => {
     }
   };
 
+  // Update map whenever source/dest coords change
+  useEffect(() => {
+    if (sourceCoords) {
+      const sLat = parseFloat(sourceCoords.lat);
+      const sLon = parseFloat(sourceCoords.lon);
+      setPickupCoords({ latitude: sLat, longitude: sLon });
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const scrollViewRef = useRef<ScrollView>(null);
+      if (destCoords) {
+        const dLat = parseFloat(destCoords.lat);
+        const dLon = parseFloat(destCoords.lon);
+        setDropCoords({ latitude: dLat, longitude: dLon });
+        // Fit map to show both points
+        const midLat = (sLat + dLat) / 2;
+        const midLon = (sLon + dLon) / 2;
+        setMapRegion({
+          latitude: midLat,
+          longitude: midLon,
+          latitudeDelta: Math.abs(sLat - dLat) * 2.2 + 0.02,
+          longitudeDelta: Math.abs(sLon - dLon) * 2.2 + 0.02,
+        });
+        // Fetch driving route
+        locationAPI.getDirections(sLat, sLon, dLat, dLon)
+          .then((res) => {
+            if (res.data?.data?.geometry?.coordinates) {
+              const coords = res.data.data.geometry.coordinates
+                .filter((c: any) => Array.isArray(c) && c.length >= 2)
+                .map((c: any) => ({ latitude: Number(c[1]), longitude: Number(c[0]) }));
+              if (coords.length > 0) setRouteCoords(coords);
+            }
+          })
+          .catch(() => {});
+      } else {
+        // Only source selected — show pickup pin, clear route/drop
+        setRouteCoords([]);
+        setDropCoords(null);
+        setMapRegion((prev: any) => prev ?? {
+          latitude: sLat,
+          longitude: sLon,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        });
+      }
+    } else {
+      setRouteCoords([]);
+      setPickupCoords(null);
+      setDropCoords(null);
+    }
+  }, [sourceCoords, destCoords]);
 
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [activeInput, setActiveInput] = useState<'source' | 'destination' | null>(null);
-  const [sourceCoords, setSourceCoords] = useState<{ lat: string; lon: string } | null>(null);
-  const [destCoords, setDestCoords] = useState<{ lat: string; lon: string } | null>(null);
+
+
 
   const clearBookingState = () => {
     setIsSearching(false);
@@ -376,6 +448,29 @@ const HomeScreen = () => {
                     </View>
                   </View>
 
+                  {suggestions.length > 0 && activeInput === 'destination' && (
+                    <View className="bg-slate-50 rounded-2xl p-2 mb-2 border border-slate-100 shadow-sm z-20">
+                      {suggestions.map((item, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          className="flex-row items-center p-3 border-b border-slate-200/50 last:border-0"
+                          onPress={() => {
+                            setDestination(item.display_name);
+                            setDestCoords({ lat: item.lat, lon: item.lon });
+                            setSuggestions([]);
+                            setActiveInput(null);
+                            Keyboard.dismiss();
+                          }}
+                        >
+                          <Ionicons name="pin-outline" size={16} color="#64748B" />
+                          <Text className="text-slate-700 text-sm font-medium ml-3 flex-1" numberOfLines={1}>
+                            {item.display_name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
                   <View className="flex-row items-center mb-2.5">
                     <View className="w-8 items-center pt-1"><Ionicons name="location" size={20} color="#F97316" /></View>
                     <View className="flex-1 ml-3 border-b border-slate-100 pb-2">
@@ -416,20 +511,15 @@ const HomeScreen = () => {
                     </TouchableOpacity>
                   )}
 
-                  {suggestions.length > 0 && activeInput && (
+                  {suggestions.length > 0 && activeInput === 'source' && (
                     <View className="bg-slate-50 rounded-2xl p-2 mt-2 border border-slate-100 shadow-sm">
                       {suggestions.map((item, idx) => (
                         <TouchableOpacity
                           key={idx}
                           className="flex-row items-center p-3 border-b border-slate-200/50 last:border-0"
                           onPress={() => {
-                            if (activeInput === 'source') {
-                              setSource(item.display_name);
-                              setSourceCoords({ lat: item.lat, lon: item.lon });
-                            } else {
-                              setDestination(item.display_name);
-                              setDestCoords({ lat: item.lat, lon: item.lon });
-                            }
+                            setSource(item.display_name);
+                            setSourceCoords({ lat: item.lat, lon: item.lon });
                             setSuggestions([]);
                             setActiveInput(null);
                             Keyboard.dismiss();

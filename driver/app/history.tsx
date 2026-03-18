@@ -19,6 +19,7 @@ interface RideItem {
     id: string;
     date: string;
     amount: string;
+    tollFee: number;
     pickup: string;
     drop: string;
     status: 'Completed' | 'Cancelled';
@@ -43,6 +44,7 @@ export default function RideHistoryScreen() {
                     id: item.id || item._id,
                     date: new Date(item.createdAt).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
                     amount: `₹${item.totalFare || item.fare}`,
+                    tollFee: Number(item.tollFee || 0),
                     pickup: item.pickupLocation,
                     drop: item.dropLocation,
                     status: item.status === 'completed' ? 'Completed' : 'Cancelled',
@@ -95,6 +97,13 @@ export default function RideHistoryScreen() {
                     <Text className="text-slate-900 font-bold ml-3 text-sm flex-1" numberOfLines={2}>{item.drop}</Text>
                 </View>
             </View>
+
+            {item.tollFee > 0 && (
+                <View className="flex-row justify-between items-center mb-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    <Text className="text-amber-700 text-xs font-black uppercase tracking-wider">Toll Charges</Text>
+                    <Text className="text-amber-700 text-sm font-black">+₹{item.tollFee}</Text>
+                </View>
+            )}
 
             {/* Footer */}
             <View className="flex-row justify-between items-center pt-4 border-t border-slate-50">

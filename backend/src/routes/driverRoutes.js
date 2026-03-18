@@ -25,6 +25,7 @@ import {
   logoutDriver,
   toggleOnlineStatus,
   updateDocuments,
+  updateTollFee,
   requestPayout,
   updateProfileImage,
   forgotPassword,
@@ -99,6 +100,9 @@ router.post("/bookings/:id/reject", authenticateDriver, rejectBooking);
 
 // PUT /api/drivers/bookings/:id/status - Update booking status
 router.put("/bookings/:id/status", authenticateDriver, updateBookingStatus);
+
+// PUT /api/drivers/bookings/:id/toll - Update toll fee for active booking
+router.put("/bookings/:id/toll", authenticateDriver, updateTollFee);
 
 // POST /api/drivers/bookings/:id/cancel - Cancel booking (driver)
 router.post("/bookings/:id/cancel", authenticateDriver, cancelBooking);

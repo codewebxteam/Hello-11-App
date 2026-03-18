@@ -60,6 +60,7 @@ export default function RideDetailsScreen() {
     const isOutstation = booking.rideType === 'outstation';
     const hasReturn = !!booking.hasReturnTrip;
     const hasPenalty = (booking.penaltyApplied || 0) > 0;
+    const hasToll = (booking.tollFee || 0) > 0;
 
     const statusBg = booking.status === 'completed' ? 'bg-green-50' : booking.status === 'cancelled' ? 'bg-red-50' : 'bg-blue-50';
     const statusText = booking.status === 'completed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-500' : 'text-blue-600';
@@ -245,6 +246,14 @@ export default function RideDetailsScreen() {
                             <Ionicons name="warning-outline" size={20} color="#ef4444" />
                             <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Penalty</Text>
                             <Text className="text-red-600 font-bold text-xs">₹{booking.penaltyApplied}</Text>
+                        </View>
+                    )}
+
+                    {hasToll && (
+                        <View className="bg-amber-50 rounded-[24px] p-5 shadow-sm border border-amber-100 w-[48%] mb-4">
+                            <Ionicons name="git-network-outline" size={20} color="#d97706" />
+                            <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Toll</Text>
+                            <Text className="text-amber-700 font-bold text-xs">₹{booking.tollFee}</Text>
                         </View>
                     )}
 

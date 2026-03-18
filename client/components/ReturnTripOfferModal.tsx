@@ -8,12 +8,12 @@ const { width } = Dimensions.get('window');
 interface ReturnTripOfferModalProps {
     isVisible: boolean;
     isAccepting?: boolean;
-    waitingLimitMins: number;
+    waitingLimitSeconds: number;
     onClose: () => void;
     onAccept: () => void;
 }
 
-const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins, onClose, onAccept }: ReturnTripOfferModalProps) => {
+const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitSeconds, onClose, onAccept }: ReturnTripOfferModalProps) => {
     const clickLockRef = useRef(false);
 
     if (!isVisible) return null;
@@ -84,7 +84,7 @@ const ReturnTripOfferModal = ({ isVisible, isAccepting = false, waitingLimitMins
                             <View className="flex-row items-center mb-2">
                                 <Ionicons name="time-outline" size={16} color="#64748B" />
                                 <Text className="text-slate-500 text-xs font-bold ml-2">
-                                    Free waiting up to {waitingLimitMins} mins
+                                    Free waiting up to {waitingLimitSeconds < 60 ? `${waitingLimitSeconds} sec` : `${Math.round(waitingLimitSeconds / 60)} mins`}
                                 </Text>
                             </View>
                             <View className="flex-row items-center">

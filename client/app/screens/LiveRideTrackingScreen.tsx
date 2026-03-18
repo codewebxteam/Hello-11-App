@@ -234,6 +234,7 @@ const LiveRideTrackingScreen = () => {
                 setCurrentStatus('waiting');
                 currentStatusRef.current = 'waiting';
                 setWaitingSecondsElapsed(0);
+                setShowPaymentPrompt(false);
                 fetchInitialData();
             }
         };
@@ -244,6 +245,16 @@ const LiveRideTrackingScreen = () => {
                 setBooking((prev: any) => ({
                     ...prev,
                     penaltyApplied: data.penaltyApplied,
+                }));
+            }
+        };
+
+        const onTollUpdated = (data: any) => {
+            if (String(data.bookingId) === String(bookingId)) {
+                setBooking((prev: any) => ({
+                    ...prev,
+                    tollFee: data.tollFee,
+                    totalFare: data.totalFare
                 }));
             }
         };
@@ -303,12 +314,12 @@ const LiveRideTrackingScreen = () => {
                 fetchInitialData();
 
                 if (data.status === 'arrived' && oldStatus !== 'arrived') {
-                    showToast("🚗 Driver Arrived!", "Your driver has arrived at the pickup location.");
-                    sendLocalNotification("Driver Arrived! 🚗", "Your driver is at the pickup location.");
+                    showToast("Driver Arrived", "Your driver has arrived at the pickup location.", "success");
+                    sendLocalNotification("Driver Arrived", "Your driver is at the pickup location.");
                 }
 
                 if (data.status === 'started' && oldStatus !== 'started') {
-                    sendLocalNotification("Ride Started! 🛣️", "Have a safe journey!");
+                    sendLocalNotification("Ride Started", "Have a safe journey!");
                 }
 
                 // Reliability Check: If ride started but we haven't accepted return trip yet, 
@@ -320,6 +331,7 @@ const LiveRideTrackingScreen = () => {
                 }
 
                 if (data.status === 'completed') {
+                    setShowPaymentPrompt(false);
                     router.replace({
                         pathname: "/screens/RideCompletionScreen",
                         params: {
@@ -342,8 +354,8 @@ const LiveRideTrackingScreen = () => {
                     setBooking((prev: any) => ({ ...prev, waitingLimit: data.waitingLimit }));
                 }
                 setShowReturnOffer(true);
-                showToast("Special Offer! 📉", "Get 50% OFF on your return trip. Accept now to save!");
-                sendLocalNotification("Special Offer! 📉", "Get 50% OFF on your return trip. Tap to accept!");
+                showToast("Special Offer", "Get 50% OFF on your return trip. Accept now to save!", "info");
+                sendLocalNotification("Special Offer", "Get 50% OFF on your return trip. Tap to accept!");
             }
         };
 
@@ -353,7 +365,7 @@ const LiveRideTrackingScreen = () => {
                 if (currentStatusRef.current !== 'arrived') {
                     setCurrentStatus('arrived');
                     currentStatusRef.current = 'arrived';
-                    showToast("🚗 Driver Arrived!", "Your driver has arrived at the pickup location.");
+                    showToast("Driver Arrived", "Your driver has arrived at the pickup location.", "success");
                     fetchInitialData();
                 }
             }
@@ -362,40 +374,73 @@ const LiveRideTrackingScreen = () => {
         const onPaymentRequested = (data: any) => {
             if (String(data.bookingId) === String(bookingId)) {
                 console.log('[Socket] Payment Requested:', data.amount);
-                setPaymentDetails(data);
+                const baseFare = Number(data?.breakdown?.baseFare || 0);
+                const returnFare = Number(data?.breakdown?.returnFare || 0);
+                const penalty = Number(data?.breakdown?.penalty || 0);
+                const toll = Number(data?.breakdown?.toll || 0);
+                const parsedAmount = Number(data?.amount);
+                const safeAmount = Number.isFinite(parsedAmount)
+                    ? parsedAmount
+                    : (data?.isPartial
+                        ? baseFare
+                        : (data?.breakdown?.firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll)));
+
+                setPaymentDetails({
+                    ...data,
+                    amount: safeAmount,
+                    breakdown: {
+                        baseFare,
+                        returnFare,
+                        penalty,
+                        toll,
+                        firstLegPaid: !!data?.breakdown?.firstLegPaid
+                    }
+                });
                 setShowPaymentPrompt(true);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             }
         };
 
+        const onPaymentResolved = (data: any) => {
+            if (String(data.bookingId) === String(bookingId)) {
+                console.log('[Socket] Payment Resolved');
+                setShowPaymentPrompt(false);
+            }
+        };
+
         socket.on("waitingStarted", onWaitingStarted);
         socket.on("penaltyApplied", onPenaltyApplied);
+        socket.on("tollFeeUpdated", onTollUpdated);
         socket.on("driverLocationUpdate", onLocationUpdate);
         socket.on("rideStatusUpdate", onStatusUpdate);
         socket.on("suggestReturnTrip", onSuggestReturn);
         socket.on("driverArrived", onDriverArrived);
         socket.on("paymentRequested", onPaymentRequested);
+        socket.on("paymentResolved", onPaymentResolved);
 
         return () => {
             console.log(`[Socket] Cleaning up tracking listeners for booking: ${bookingId}`);
             socket.off("waitingStarted", onWaitingStarted);
             socket.off("penaltyApplied", onPenaltyApplied);
+            socket.off("tollFeeUpdated", onTollUpdated);
             socket.off("driverLocationUpdate", onLocationUpdate);
             socket.off("rideStatusUpdate", onStatusUpdate);
             socket.off("suggestReturnTrip", onSuggestReturn);
             socket.off("driverArrived", onDriverArrived);
             socket.off("paymentRequested", onPaymentRequested);
+            socket.off("paymentResolved", onPaymentResolved);
         };
     }, [socketReady, bookingId, fetchInitialData]);
 
     // Timer for waiting
     useEffect(() => {
         if (currentStatus === 'waiting') {
+            const effectiveWaitingLimit = booking?.waitingLimit || 3600;
             const timer = setInterval(() => {
                 setWaitingSecondsElapsed(prev => {
                     const next = prev + 1;
                     // Force refresh when we cross the limit + 1 second, or every minute
-                    if (next === (booking?.waitingLimit || 3600) + 1 || (next > (booking?.waitingLimit || 3600) && next % 60 === 0)) {
+                    if (next === effectiveWaitingLimit + 1 || (next > effectiveWaitingLimit && next % 60 === 0)) {
                         fetchInitialData();
                     }
                     return next;
@@ -440,9 +485,8 @@ const LiveRideTrackingScreen = () => {
                         {routeCoords.length > 0 && <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor="#3b82f6" />}
                         {booking && (
                             <>
-                                {/* Pickup / Return-Start Marker (Show only when driver is arriving or waiting at pickup) */}
-                                {Number(booking.pickupLatitude) !== 0 && Number(booking.pickupLongitude) !== 0 && 
-                                 ['accepted', 'arrived', 'waiting', 'pending'].includes(currentStatus) && (
+                                {/* Pickup / Return-Start Marker */}
+                                {Number(booking.pickupLatitude) !== 0 && Number(booking.pickupLongitude) !== 0 && (
                                     <Marker 
                                         coordinate={{
                                             latitude: Number(currentStatus === 'return_ride_started' ? booking.dropLatitude : booking.pickupLatitude) || 0,
@@ -451,21 +495,20 @@ const LiveRideTrackingScreen = () => {
                                         zIndex={1}
                                     >
                                         <View className="items-center">
-                                            <View className="bg-[#FFD700] px-2 py-0.5 rounded mb-1 shadow-md">
-                                                <Text className="text-black text-[9px] font-black uppercase tracking-widest">
+                                            <View className="bg-blue-500 px-2 py-0.5 rounded mb-1 shadow-md">
+                                                <Text className="text-white text-[9px] font-black uppercase tracking-widest">
                                                     {currentStatus === 'return_ride_started' ? 'START' : 'PICKUP'}
                                                 </Text>
                                             </View>
-                                            <View className="bg-blue-600 w-10 h-10 rounded-full border-2 border-white shadow-lg items-center justify-center">
-                                                <Ionicons name="location" size={20} color="white" />
+                                            <View className="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg">
+                                                <Ionicons name="location" size={16} color="white" />
                                             </View>
                                         </View>
                                     </Marker>
                                 )}
 
-                                {/* Drop / Return-End Marker (Show only when ride is in progress) */}
-                                {Number(booking.dropLatitude) !== 0 && Number(booking.dropLongitude) !== 0 && 
-                                 ['started'].includes(currentStatus) && (
+                                {/* Drop / Return-End Marker */}
+                                {Number(booking.dropLatitude) !== 0 && Number(booking.dropLongitude) !== 0 && (
                                     <Marker 
                                         coordinate={{
                                             latitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLatitude : booking.dropLatitude) || 0,
@@ -479,8 +522,8 @@ const LiveRideTrackingScreen = () => {
                                                     {currentStatus === 'return_ride_started' ? 'HOME' : 'DROP'}
                                                 </Text>
                                             </View>
-                                            <View className="bg-green-600 w-10 h-10 rounded-full border-2 border-white shadow-lg items-center justify-center">
-                                                <Ionicons name="flag" size={20} color="white" />
+                                            <View className="bg-red-600 p-2 rounded-full border-2 border-white shadow-lg">
+                                                <Ionicons name="flag" size={18} color="white" />
                                             </View>
                                         </View>
                                     </Marker>
@@ -649,40 +692,123 @@ const LiveRideTrackingScreen = () => {
                         </View>
                     )}
 
-                    <View className="bg-white p-5 rounded-3xl mb-6">
-                        <Text className="text-slate-400 text-[9px] uppercase font-black tracking-[2px] mb-4">Fare Details</Text>
+                    {/* ── LIVE BILLING CARD ── */}
+                    <View className="bg-white p-5 rounded-3xl mb-6 border border-slate-200 shadow-sm">
 
-                        <View className="flex-row justify-between mb-2">
-                            <Text className="text-slate-600 text-sm font-medium">Base Fare</Text>
-                            <Text className="text-slate-900 text-sm font-bold">₹{Number(booking?.fare || 0)}</Text>
+                        {/* Header row: title + current-leg badge */}
+                        <View className="flex-row items-center justify-between mb-4">
+                            <Text className="text-slate-500 text-[9px] uppercase font-black tracking-[2px]">Current Billing</Text>
+                            <View className={`px-2.5 py-1 rounded-full ${currentStatus === 'return_ride_started' ? 'bg-yellow-400' : 'bg-blue-500'}`}>
+                                <Text className={`text-[8px] font-black uppercase tracking-widest ${currentStatus === 'return_ride_started' ? 'text-slate-900' : 'text-white'}`}>
+                                    {currentStatus === 'return_ride_started' ? '↩ Leg 2 – Return' : booking?.hasReturnTrip ? 'Leg 1 – Outbound' : 'Single Trip'}
+                                </Text>
+                            </View>
                         </View>
 
+                        {/* Leg 1 – Base Fare row */}
+                        <View className="flex-row justify-between items-center mb-3">
+                            <View className="flex-row items-center flex-1">
+                                <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${booking?.firstLegPaid ? 'bg-green-500' : 'bg-blue-500/20'}`}>
+                                    <Ionicons
+                                        name={booking?.firstLegPaid ? 'checkmark' : 'navigate'}
+                                        size={12}
+                                        color={booking?.firstLegPaid ? 'white' : '#60a5fa'}
+                                    />
+                                </View>
+                                <View>
+                                    <Text className="text-slate-900 text-sm font-bold">
+                                        {booking?.hasReturnTrip ? 'Leg 1 Fare' : 'Ride Fare'}
+                                    </Text>
+                                    {booking?.firstLegPaid && (
+                                        <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
+                                    )}
+                                </View>
+                            </View>
+                            <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-600' : 'text-slate-900'}`}>
+                                ₹{Number(booking?.fare || 0)}
+                            </Text>
+                        </View>
+
+                        {/* Leg 2 – Return Fare row (only if return trip booked) */}
                         {booking?.hasReturnTrip && (
-                            <View className="flex-row justify-between mb-2">
-                                <View className="flex-row items-center">
-                                    <Text className="text-yellow-600 text-sm font-medium">Return Trip </Text>
-                                    <View className="bg-yellow-100 px-1.5 py-0.5 rounded-md ml-1">
-                                        <Text className="text-yellow-700 text-[8px] font-black uppercase">Save 50%</Text>
+                            <View className="flex-row justify-between items-center mb-3">
+                                <View className="flex-row items-center flex-1">
+                                    <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${currentStatus === 'return_ride_started' ? 'bg-yellow-400' : 'bg-slate-700'}`}>
+                                        <Ionicons
+                                            name="repeat"
+                                            size={12}
+                                            color={currentStatus === 'return_ride_started' ? '#0f172a' : '#64748b'}
+                                        />
+                                    </View>
+                                    <View>
+                                        <Text className={`text-sm font-bold ${currentStatus === 'return_ride_started' ? 'text-yellow-700' : 'text-slate-700'}`}>
+                                            Leg 2 Fare
+                                        </Text>
+                                        <View className="flex-row items-center">
+                                            <View className="bg-yellow-400/20 px-1 py-0.5 rounded mr-1">
+                                                <Text className="text-yellow-700 text-[7px] font-black uppercase">50% OFF</Text>
+                                            </View>
+                                            {currentStatus === 'return_ride_started' && (
+                                                <Text className="text-yellow-700 text-[9px] font-bold uppercase tracking-wider">Active</Text>
+                                            )}
+                                        </View>
                                     </View>
                                 </View>
-                                <Text className="text-yellow-600 text-sm font-bold">+₹{booking?.returnTripFare || 0}</Text>
+                                <Text className={`text-sm font-bold ${currentStatus === 'return_ride_started' ? 'text-yellow-700' : 'text-slate-700'}`}>
+                                    +₹{booking?.returnTripFare || 0}
+                                </Text>
                             </View>
                         )}
 
-                        {isPenaltyActive && (
-                            <View className="flex-row justify-between mb-2">
-                                <Text className="text-red-500 text-sm font-medium">Waiting Charges</Text>
-                                <Text className="text-red-500 text-sm font-bold">+₹{booking?.penaltyApplied || 0}</Text>
+                        {/* Waiting Charges row (only when penalty active) */}
+                        {(Number(booking?.penaltyApplied) > 0) && (
+                            <View className="flex-row justify-between items-center mb-3">
+                                <View className="flex-row items-center flex-1">
+                                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-2">
+                                        <Ionicons name="time" size={12} color="#ef4444" />
+                                    </View>
+                                    <Text className="text-red-400 text-sm font-bold">Waiting Charges</Text>
+                                </View>
+                                <Text className="text-red-400 text-sm font-bold">+₹{booking?.penaltyApplied || 0}</Text>
                             </View>
                         )}
 
-                        <View className="border-t border-slate-100 mt-4 pt-4 flex-row justify-between items-center">
+                        {(Number(booking?.tollFee) > 0) && (
+                            <View className="flex-row justify-between items-center mb-3">
+                                <View className="flex-row items-center flex-1">
+                                    <View className="w-6 h-6 rounded-full bg-amber-500/20 items-center justify-center mr-2">
+                                        <Ionicons name="cash-outline" size={12} color="#f59e0b" />
+                                    </View>
+                                    <Text className="text-amber-500 text-sm font-bold">Toll Charges</Text>
+                                </View>
+                                <Text className="text-amber-500 text-sm font-bold">+₹{booking?.tollFee || 0}</Text>
+                            </View>
+                        )}
+
+                        {/* Divider + Total */}
+                        <View className="border-t border-slate-200 mt-3 pt-4 flex-row justify-between items-center">
                             <View>
-                                <Text className="text-slate-900 text-sm font-bold">Total Amount</Text>
-                                <Text className="text-slate-400 text-[10px] uppercase tracking-wider">{booking?.paymentMethod || 'Cash Payment'}</Text>
+                                <Text className="text-slate-900 text-sm font-bold">
+                                    Estimated Total
+                                </Text>
+                                <Text className="text-slate-500 text-[9px] uppercase tracking-wider">
+                                    {booking?.paymentMethod || 'Cash'} • {booking?.paymentChoice === 'total_at_end' ? 'Pay at End' : booking?.firstLegPaid ? 'Leg 1 settled' : 'Leg-by-leg'}
+                                </Text>
                             </View>
-                            <Text className="text-black text-2xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}</Text>
+                            <View className="items-end">
+                                <Text className="text-slate-900 text-2xl font-black italic">
+                                    ₹{Math.round(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0) + Number(booking?.tollFee || 0))}
+                                </Text>
+                                {booking?.firstLegPaid && (
+                                    <Text className="text-green-600 text-xs font-bold mt-1">
+                                        Balance: ₹{(Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0) + Number(booking?.tollFee || 0))}
+                                    </Text>
+                                )}
+                            </View>
                         </View>
+                        <Text className="text-slate-400 text-[9px] text-center mt-3 font-bold uppercase tracking-widest">
+                            Prices are final — no surge
+                        </Text>
                     </View>
                 </ScrollView>
             </View>
@@ -691,7 +817,7 @@ const LiveRideTrackingScreen = () => {
                 <ReturnTripOfferModal
                     isVisible={showReturnOffer}
                     isAccepting={isAcceptingReturn}
-                    waitingLimitMins={Math.round((Number(booking?.waitingLimit) || 3600) / 60)}
+                    waitingLimitSeconds={waitingLimit}
                     onClose={() => setShowReturnOffer(false)}
                     onAccept={handleAcceptReturn}
                 />
@@ -707,3 +833,4 @@ const LiveRideTrackingScreen = () => {
 };
 
 export default LiveRideTrackingScreen;
+

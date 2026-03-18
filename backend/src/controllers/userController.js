@@ -86,9 +86,14 @@ export const updateProfile = async (req, res) => {
 export const getHistory = async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.userId }).sort({ createdAt: -1 });
+    const normalizedBookings = bookings.map((booking) => {
+      const obj = booking.toObject();
+      obj.totalFare = (obj.fare || 0) + (obj.returnTripFare || 0) + (obj.penaltyApplied || 0) + (obj.tollFee || 0);
+      return obj;
+    });
 
     res.json({
-      bookings: bookings || []
+      bookings: normalizedBookings || []
     });
   } catch (error) {
     res.status(500).json({

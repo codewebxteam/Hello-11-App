@@ -54,6 +54,7 @@ export const API_ENDPOINTS = {
   ACCEPT_BOOKING: (id: string) => `/api/drivers/bookings/${id}/accept`,
   REJECT_BOOKING: (id: string) => `/api/drivers/bookings/${id}/reject`,
   UPDATE_BOOKING_STATUS: (id: string) => `/api/drivers/bookings/${id}/status`,
+  UPDATE_TOLL_FEE: (id: string) => `/api/drivers/bookings/${id}/toll`,
   CANCEL_BOOKING: (id: string) => `/api/drivers/bookings/${id}/cancel`,
   VERIFY_OTP: (id: string) => `/api/drivers/bookings/${id}/verify-otp`,
   COMPLETE_RIDE: (id: string) => `/api/drivers/bookings/${id}/complete`,
@@ -180,6 +181,8 @@ export const driverAPI = {
     api.post(API_ENDPOINTS.REJECT_BOOKING(bookingId)),
   updateBookingStatus: (bookingId: string, status: string) =>
     api.put(API_ENDPOINTS.UPDATE_BOOKING_STATUS(bookingId), { status }),
+  updateTollFee: (bookingId: string, tollFee: number) =>
+    api.put(API_ENDPOINTS.UPDATE_TOLL_FEE(bookingId), { tollFee }),
   cancelBooking: (bookingId: string, reason: string) =>
     api.post(API_ENDPOINTS.CANCEL_BOOKING(bookingId), { reason }),
   verifyOtp: (bookingId: string, otp: string) =>
