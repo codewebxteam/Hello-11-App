@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Car, IndianRupee } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type DriverItem = {
   _id: string;
@@ -19,9 +20,11 @@ type DriverItem = {
 };
 
 const RidersList: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -58,6 +61,17 @@ const RidersList: React.FC = () => {
     });
   }, [search, searchParams, drivers]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, searchParams]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDrivers.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedDrivers = useMemo(
+    () => filteredDrivers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredDrivers, safePage]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -93,7 +107,7 @@ const RidersList: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        {filteredDrivers.map((driver) => {
+        {paginatedDrivers.map((driver) => {
           const status = driver.online ? (driver.available ? "Active" : "Busy") : "Offline";
           return (
             <div
@@ -158,6 +172,14 @@ const RidersList: React.FC = () => {
             No drivers found.
           </div>
         )}
+
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          totalItems={filteredDrivers.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

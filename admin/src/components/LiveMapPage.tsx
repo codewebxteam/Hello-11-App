@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { MapPin, Navigation } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type BookingItem = {
   _id: string;
@@ -19,8 +20,10 @@ type BookingItem = {
 const ACTIVE_STATUSES = ["accepted", "driver_assigned", "arrived", "started", "waiting", "return_ride_started"];
 
 const LiveMapPage: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -60,6 +63,17 @@ const LiveMapPage: React.FC = () => {
     [bookings, searchParams]
   );
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchParams]);
+
+  const totalPages = Math.max(1, Math.ceil(liveBookings.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedLiveBookings = useMemo(
+    () => liveBookings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [liveBookings, safePage]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -77,7 +91,7 @@ const LiveMapPage: React.FC = () => {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>}
 
       <div className="space-y-4">
-        {liveBookings.map((b) => {
+        {paginatedLiveBookings.map((b) => {
           const lat = Number(b.pickupLatitude || 0);
           const lon = Number(b.pickupLongitude || 0);
           const hasCoords = lat !== 0 && lon !== 0 && !Number.isNaN(lat) && !Number.isNaN(lon);
@@ -106,6 +120,14 @@ const LiveMapPage: React.FC = () => {
         {!loading && liveBookings.length === 0 && (
           <div className="bg-white p-8 rounded-xl border border-gray-100 text-sm text-gray-500">No active rides right now.</div>
         )}
+
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          totalItems={liveBookings.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

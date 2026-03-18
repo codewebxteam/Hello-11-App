@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Car, CreditCard, Navigation, Users, Map, XCircle } from "lucide-react";
 import { adminAPI } from "../services/api";
+import Pagination from "./Pagination";
 
 type DashboardStats = {
   totalUsers: number;
@@ -46,8 +47,10 @@ const getBookingAmount = (b: BookingItem) =>
   Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
 
 const DashboardHome: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [recentBookings, setRecentBookings] = useState<BookingItem[]>([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
@@ -59,7 +62,7 @@ const DashboardHome: React.FC = () => {
         adminAPI.getBookings(),
       ]);
       setStats(statsRes.data?.stats || EMPTY_STATS);
-      setRecentBookings((bookingsRes.data?.bookings || []).slice(0, 6));
+      setRecentBookings(bookingsRes.data?.bookings || []);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load realtime dashboard data.";
@@ -74,6 +77,13 @@ const DashboardHome: React.FC = () => {
     const interval = setInterval(loadDashboard, 15000);
     return () => clearInterval(interval);
   }, [loadDashboard]);
+
+  const totalPages = Math.max(1, Math.ceil(recentBookings.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedRecentBookings = useMemo(
+    () => recentBookings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [recentBookings, safePage]
+  );
 
   const cards = useMemo(
     () => [
@@ -134,7 +144,7 @@ const DashboardHome: React.FC = () => {
           {recentBookings.length === 0 && !loading && (
             <p className="text-sm text-gray-500">No booking data found.</p>
           )}
-          {recentBookings.map((booking) => (
+          {paginatedRecentBookings.map((booking) => (
             <div key={booking._id} className="flex items-center justify-between text-sm">
               <div>
                 <p className="font-bold text-gray-900">{booking.user?.name || "Unknown User"}</p>
@@ -148,6 +158,13 @@ const DashboardHome: React.FC = () => {
               </div>
             </div>
           ))}
+          <Pagination
+            page={safePage}
+            totalPages={totalPages}
+            totalItems={recentBookings.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ListRestart, Truck, User } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type BookingItem = {
   _id: string;
@@ -22,9 +23,12 @@ type DriverItem = {
 };
 
 const DispatchPage: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [driverPage, setDriverPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -79,6 +83,25 @@ const DispatchPage: React.FC = () => {
     [drivers, searchParams]
   );
 
+  useEffect(() => {
+    setPendingPage(1);
+    setDriverPage(1);
+  }, [searchParams]);
+
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingBookings.length / PAGE_SIZE));
+  const safePendingPage = Math.min(pendingPage, pendingTotalPages);
+  const paginatedPending = useMemo(
+    () => pendingBookings.slice((safePendingPage - 1) * PAGE_SIZE, safePendingPage * PAGE_SIZE),
+    [pendingBookings, safePendingPage]
+  );
+
+  const driverTotalPages = Math.max(1, Math.ceil(availableDrivers.length / PAGE_SIZE));
+  const safeDriverPage = Math.min(driverPage, driverTotalPages);
+  const paginatedDrivers = useMemo(
+    () => availableDrivers.slice((safeDriverPage - 1) * PAGE_SIZE, safeDriverPage * PAGE_SIZE),
+    [availableDrivers, safeDriverPage]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -112,7 +135,7 @@ const DispatchPage: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
           <h3 className="font-bold text-gray-900 flex items-center gap-2"><ListRestart size={16} /> Pending Bookings</h3>
           <div className="mt-4 space-y-3">
-            {pendingBookings.map((b) => (
+            {paginatedPending.map((b) => (
               <div key={b._id} className="p-3 rounded-lg bg-gray-50 border border-gray-100">
                 <p className="font-semibold text-sm text-gray-900">{b.user?.name || "User"} • {b.rideType || "normal"}</p>
                 <p className="text-xs text-gray-600">{b.pickupLocation || "-"} to {b.dropLocation || "-"}</p>
@@ -120,13 +143,20 @@ const DispatchPage: React.FC = () => {
               </div>
             ))}
             {!loading && pendingBookings.length === 0 && <p className="text-sm text-gray-500">No pending bookings.</p>}
+            <Pagination
+              page={safePendingPage}
+              totalPages={pendingTotalPages}
+              totalItems={pendingBookings.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPendingPage}
+            />
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
           <h3 className="font-bold text-gray-900 flex items-center gap-2"><Truck size={16} /> Available Drivers</h3>
           <div className="mt-4 space-y-3">
-            {availableDrivers.map((d) => (
+            {paginatedDrivers.map((d) => (
               <div key={d._id} className="p-3 rounded-lg bg-gray-50 border border-gray-100">
                 <p className="font-semibold text-sm text-gray-900 flex items-center gap-2">
                   <User size={14} /> {d.name || "Driver"}
@@ -135,6 +165,13 @@ const DispatchPage: React.FC = () => {
               </div>
             ))}
             {!loading && availableDrivers.length === 0 && <p className="text-sm text-gray-500">No drivers available.</p>}
+            <Pagination
+              page={safeDriverPage}
+              totalPages={driverTotalPages}
+              totalItems={availableDrivers.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setDriverPage}
+            />
           </div>
         </div>
       </div>

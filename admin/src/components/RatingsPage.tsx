@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Star } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type DriverItem = {
   _id: string;
@@ -12,8 +13,10 @@ type DriverItem = {
 };
 
 const RatingsPage: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -50,6 +53,17 @@ const RatingsPage: React.FC = () => {
     [drivers, searchParams]
   );
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchParams]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedDrivers = useMemo(
+    () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sorted, safePage]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -72,7 +86,7 @@ const RatingsPage: React.FC = () => {
           <span>Total Earnings</span>
           <span>Tier</span>
         </div>
-        {sorted.map((d) => {
+        {paginatedDrivers.map((d) => {
           const rating = Number(d.rating || 0);
           const tier = rating >= 4.8 ? "Top" : rating >= 4 ? "Good" : "Needs Review";
           return (
@@ -87,6 +101,13 @@ const RatingsPage: React.FC = () => {
         })}
         {!loading && sorted.length === 0 && <div className="px-6 py-8 text-sm text-gray-500">No ratings data available.</div>}
       </div>
+      <Pagination
+        page={safePage}
+        totalPages={totalPages}
+        totalItems={sorted.length}
+        pageSize={PAGE_SIZE}
+        onPageChange={setPage}
+      />
     </div>
   );
 };

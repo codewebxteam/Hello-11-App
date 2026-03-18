@@ -58,7 +58,7 @@ export const getAllUsers = async (req, res) => {
     const users = await User.find().select("-password").sort({ createdAt: -1 }).lean();
 
     const userStats = await Booking.aggregate([
-      { $match: { user: { $ne: null } } },
+      { $match: { user: { $ne: null }, status: { $ne: "cancelled" } } },
       {
         $project: {
           user: 1,
@@ -69,6 +69,9 @@ export const getAllUsers = async (req, res) => {
               { $ifNull: ["$penaltyApplied", 0] },
               { $ifNull: ["$tollFee", 0] }
             ]
+          },
+          totalFare: {
+            $ifNull: ["$totalFare", 0]
           }
         }
       },
@@ -76,7 +79,15 @@ export const getAllUsers = async (req, res) => {
         $group: {
           _id: "$user",
           totalRides: { $sum: 1 },
-          totalSpent: { $sum: "$effectiveTotal" }
+          totalSpent: {
+            $sum: {
+              $cond: [
+                { $gt: ["$totalFare", 0] },
+                "$totalFare",
+                "$effectiveTotal"
+              ]
+            }
+          }
         }
       }
     ]);

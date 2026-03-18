@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Ticket } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type BookingItem = {
   _id: string;
@@ -15,8 +16,10 @@ type BookingItem = {
 };
 
 const CouponsPage: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -53,6 +56,17 @@ const CouponsPage: React.FC = () => {
     [bookings, searchParams]
   );
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchParams]);
+
+  const totalPages = Math.max(1, Math.ceil(discounted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedDiscounted = useMemo(
+    () => discounted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [discounted, safePage]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -70,7 +84,7 @@ const CouponsPage: React.FC = () => {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>}
 
       <div className="space-y-4">
-        {discounted.map((b) => (
+        {paginatedDiscounted.map((b) => (
           <div key={b._id} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900 flex items-center gap-2">
@@ -93,6 +107,14 @@ const CouponsPage: React.FC = () => {
             No discount/coupon usage found in database.
           </div>
         )}
+
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          totalItems={discounted.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

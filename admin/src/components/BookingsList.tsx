@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, CheckCircle, Clock, User, Car } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type BookingItem = {
   _id: string;
@@ -46,10 +47,12 @@ const getAmount = (b: BookingItem) =>
   Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
 
 const BookingsList: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -92,6 +95,17 @@ const BookingsList: React.FC = () => {
       return terms.every((t) => haystack.includes(t));
     });
   }, [bookings, search, searchParams, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, searchParams, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedBookings = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage]
+  );
 
   return (
     <div className="space-y-6">
@@ -144,7 +158,7 @@ const BookingsList: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        {filtered.map((booking) => {
+        {paginatedBookings.map((booking) => {
           const statusClass = STATUS_COLORS[booking.status] || "bg-gray-100 text-gray-700";
           const paymentStatus = booking.paymentStatus || "pending";
           const payClass = PAY_COLORS[paymentStatus] || "bg-gray-100 text-gray-700 border-gray-200";
@@ -218,6 +232,14 @@ const BookingsList: React.FC = () => {
             No bookings found.
           </div>
         )}
+
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, User, Car, IndianRupee } from "lucide-react";
 import { adminAPI } from "../services/api";
 import { useSearchParams } from "react-router-dom";
+import Pagination from "./Pagination";
 
 type UserItem = {
   _id: string;
@@ -14,9 +15,11 @@ type UserItem = {
 };
 
 const UsersList: React.FC = () => {
+  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -53,6 +56,17 @@ const UsersList: React.FC = () => {
     });
   }, [search, searchParams, users]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, searchParams]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedUsers = useMemo(
+    () => filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredUsers, safePage]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -88,7 +102,7 @@ const UsersList: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        {filteredUsers.map((user) => (
+        {paginatedUsers.map((user) => (
           <div
             key={user._id}
             className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4"
@@ -130,7 +144,7 @@ const UsersList: React.FC = () => {
                   <IndianRupee size={16} />
                   <span>{Number(user.totalSpent || 0).toLocaleString()}</span>
                 </div>
-                <p className="text-xs text-gray-500">Total Spent</p>
+                <p className="text-xs text-gray-500">Ride Spent Amount</p>
               </div>
             </div>
           </div>
@@ -141,6 +155,14 @@ const UsersList: React.FC = () => {
             No users found.
           </div>
         )}
+
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          totalItems={filteredUsers.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );
