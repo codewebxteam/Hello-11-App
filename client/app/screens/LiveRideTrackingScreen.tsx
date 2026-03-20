@@ -31,6 +31,7 @@ const LiveRideTrackingScreen = () => {
     const [paymentDetails, setPaymentDetails] = useState<any>(null);
     const [isAcceptingReturn, setIsAcceptingReturn] = useState(false);
     const isAcceptingReturnRef = useRef(false);
+    const [optimisticReturnBooked, setOptimisticReturnBooked] = useState(false);
     const [booking, setBooking] = useState<any>(null);
     const [driverLocation, setDriverLocation] = useState<any>(null);
     const [routeCoords, setRouteCoords] = useState<any[]>([]);
@@ -189,6 +190,10 @@ const LiveRideTrackingScreen = () => {
         }
 
         try {
+            // Optimistic UI: mark return as booked immediately
+            setOptimisticReturnBooked(true);
+            setBooking((prev: any) => prev ? { ...prev, hasReturnTrip: true } : prev);
+
             if (bookingId) {
                 isAcceptingReturnRef.current = true;
                 setIsAcceptingReturn(true);
@@ -208,16 +213,15 @@ const LiveRideTrackingScreen = () => {
         } catch (error) {
             console.error("Failed to accept return offer:", error);
             showToast("Error", "Could not accept offer. Please try again.", "error");
+            // Revert optimistic update
+            setOptimisticReturnBooked(false);
+            await fetchInitialData();
             setIsAcceptingReturn(false);
             isAcceptingReturnRef.current = false;
         } finally {
-            // We only release the lock if it failed. 
-            // If it succeeded, the modal is closed and we don't want to re-enable it.
-            // But for safety in case of unexpected flows:
-            if (!bookingRef.current?.hasReturnTrip) {
-                setIsAcceptingReturn(false);
-                isAcceptingReturnRef.current = false;
-            }
+            // Clear accepting lock — UI visibility is controlled by booking.hasReturnTrip or optimistic flag
+            setIsAcceptingReturn(false);
+            isAcceptingReturnRef.current = false;
         }
     };
 
@@ -828,6 +832,18 @@ const LiveRideTrackingScreen = () => {
                 onClose={() => setShowPaymentPrompt(false)}
                 details={paymentDetails}
             />
+
+            {/* Persistent Book Return Trip Button - visible until ride completes or return already booked */}
+            {booking && !booking.hasReturnTrip && !optimisticReturnBooked && currentStatus === 'started' && (
+                <TouchableOpacity
+                    onPress={() => setShowReturnOffer(true)}
+                    disabled={isAcceptingReturn || optimisticReturnBooked}
+                    className="absolute right-6 bottom-24 bg-slate-900 px-4 py-3 rounded-3xl items-center justify-center flex-row shadow-lg"
+                >
+                    <Ionicons name="repeat" size={18} color="#FFD700" />
+                    <Text className="text-[#FFD700] font-black ml-2">Book Return</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 };

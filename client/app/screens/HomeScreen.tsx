@@ -331,6 +331,15 @@ const HomeScreen = () => {
     return () => backHandler.remove();
   }, [activeTab]);
 
+  // If activeTab becomes 'Activity' (e.g., from deep-link or previous state),
+  // redirect to the unified History screen to keep UX consistent.
+  useEffect(() => {
+    if (activeTab === 'Activity') {
+      router.push({ pathname: '/screens/HistoryScreen' });
+      setActiveTab('Home');
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
@@ -349,15 +358,17 @@ const HomeScreen = () => {
       className="items-center justify-center pt-2 w-1/4"
       onPress={() => {
         if (name === "Schedule") {
-          // Redirect to Plan Your Trip (BookingScreen) in schedule mode
-          router.push({
-            pathname: "/screens/BookingScreen",
-            params: { mode: 'schedule' }
-          });
+          router.push({ pathname: "/screens/BookingScreen", params: { mode: 'schedule' } });
+          return;
         }
-        else {
-          setActiveTab(name);
+
+        // Open unified History screen when History/Activity tab is tapped
+        if (name === "Activity" || name === "History") {
+          router.push({ pathname: "/screens/HistoryScreen" });
+          return;
         }
+
+        setActiveTab(name);
       }}
     >
       <Ionicons

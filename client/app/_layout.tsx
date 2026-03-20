@@ -34,6 +34,7 @@ function RootLayoutNav() {
           <Stack.Screen name="screens/RideCompletionScreen" />
           <Stack.Screen name="screens/RideDetailsScreen" />
           <Stack.Screen name="screens/ScheduledRidesScreen" />
+          <Stack.Screen name="screens/HistoryScreen" />
           <Stack.Screen name="screens/ThankYouScreen" />
           <Stack.Screen name="screens/WaitingTimerScreen" />
         </Stack>

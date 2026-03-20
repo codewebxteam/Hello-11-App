@@ -68,6 +68,18 @@ const ProfileScreen = () => {
         }
     };
 
+    const confirmLogout = () => {
+        Alert.alert(
+            'Log out',
+            'Are you sure you want to log out of your account?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Log Out', style: 'destructive', onPress: () => router.replace('/') }
+            ],
+            { cancelable: true }
+        );
+    };
+
     // ✅ Gender Selector Component for Edit Mode
     const GenderSelector = () => {
         const options = ['Male', 'Female', 'Other'];
@@ -219,7 +231,7 @@ const ProfileScreen = () => {
                         </View>
 
                         <TouchableOpacity
-                            onPress={() => router.replace("/")}
+                            onPress={confirmLogout}
                             activeOpacity={0.8}
                             className="mt-8 flex-row items-center justify-center bg-white py-5 rounded-[28px] shadow-md border border-red-100 active:bg-red-50"
                         >
@@ -231,6 +243,28 @@ const ProfileScreen = () => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+                    {/* Bottom Tab Bar */}
+                    <View
+                        className="absolute bottom-0 w-full bg-white flex-row justify-around items-center border-t border-slate-100 shadow-2xl elevation-[25] z-50"
+                        style={{ paddingBottom: Math.max(insets.bottom, 20), paddingTop: 10 }}
+                    >
+                        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HomeScreen')}>
+                            <Ionicons name="home" size={24} color="#94A3B8" />
+                            <Text className="text-[11px] font-bold mt-1 text-slate-400">Home</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HistoryScreen')}>
+                            <Ionicons name="list" size={24} color="#94A3B8" />
+                            <Text className="text-[11px] font-bold mt-1 text-slate-400">History</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
+                            <Ionicons name="calendar" size={24} color="#94A3B8" />
+                            <Text className="text-[11px] font-bold mt-1 text-slate-400">Schedule</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => { /* already here */ }}>
+                            <Ionicons name="person" size={24} color="#1E293B" />
+                            <Text className="text-[11px] font-bold mt-1 text-slate-800">Profile</Text>
+                        </TouchableOpacity>
+                    </View>
         </View>
     );
 };

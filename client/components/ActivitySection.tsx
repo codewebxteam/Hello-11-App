@@ -134,18 +134,6 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ onBookRide }) => {
 
     return (
         <View className="flex-1 bg-slate-50">
-            {/* Header */}
-            <View className="bg-white pt-16 pb-6 px-6 rounded-b-[40px] shadow-sm z-10">
-                <View className="flex-row justify-between items-center">
-                    <Text className="text-3xl font-black text-slate-900">Your Activity</Text>
-                    <TouchableOpacity onPress={fetchHistory} className="bg-slate-50 p-2.5 rounded-full">
-                        <Ionicons name="refresh" size={20} color="#1E293B" />
-                    </TouchableOpacity>
-                </View>
-                <Text className="text-slate-400 font-bold text-xs mt-1 uppercase tracking-widest">
-                    Past Rides & History
-                </Text>
-            </View>
 
             {/* Content */}
             <View className="flex-1 px-6 pt-2">

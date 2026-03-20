@@ -4,6 +4,7 @@ import {
   Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, Keyboard
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +18,7 @@ const VEHICLES = [
 ];
 
 const BookingScreen = () => {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -510,6 +512,29 @@ const BookingScreen = () => {
         dropLocation={drop || "Select Destination"}
         rideMode="Normal Ride"
       />
+
+      {/* Bottom Tab Bar (visible on this screen to match Home) */}
+      <View
+        className="absolute bottom-0 w-full bg-white flex-row justify-around items-center border-t border-slate-100 shadow-2xl elevation-[25] z-50"
+        style={{ paddingBottom: Math.max(insets.bottom, 20), paddingTop: 10 }}
+      >
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HomeScreen')}>
+          <Ionicons name="home" size={24} color="#94A3B8" />
+          <Text className="text-[11px] font-bold mt-1 text-slate-400">Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HistoryScreen')}>
+          <Ionicons name="list" size={24} color="#94A3B8" />
+          <Text className="text-[11px] font-bold mt-1 text-slate-400">History</Text>
+        </TouchableOpacity>
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
+          <Ionicons name="calendar" size={24} color="#1E293B" />
+          <Text className="text-[11px] font-bold mt-1 text-slate-800">Schedule</Text>
+        </TouchableOpacity>
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/ProfileScreen')}>
+          <Ionicons name="person" size={24} color="#94A3B8" />
+          <Text className="text-[11px] font-bold mt-1 text-slate-400">Profile</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };

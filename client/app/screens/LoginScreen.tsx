@@ -10,6 +10,7 @@ import {
   TextInput,
   Dimensions,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
@@ -72,7 +73,7 @@ const LoginScreen = () => {
         <View className="absolute inset-0 z-50 justify-center items-center bg-white/60">
           <View className="bg-slate-900 p-8 rounded-3xl shadow-2xl items-center">
             <ActivityIndicator size="large" color="#FFD700" />
-            <Text className="text-white font-bold mt-4 tracking-widest text-xs uppercase">Securing Session...</Text>
+            <Text className="text-white font-bold mt-4 tracking-widest text-xs uppercase">Logging in</Text>
           </View>
         </View>
       )}
@@ -99,10 +100,12 @@ const LoginScreen = () => {
                   width: isTablet ? 110 : 85,
                   height: isTablet ? 110 : 85,
                   borderRadius: isTablet ? 35 : 28,
-                  transform: [{ rotate: '-10deg' }]
                 }}
               >
-                <Ionicons name="car-sport" size={isTablet ? 55 : 42} color="#1E293B" />
+                <Image
+                  source={require('../../assets/images/imgss.jpeg')}
+                  style={{ width: isTablet ? 64 : 50, height: isTablet ? 64 : 50, resizeMode: 'contain' }}
+                />
               </View>
 
               <Text className="text-4xl font-black text-slate-900 mt-6 tracking-tighter italic">
@@ -120,7 +123,7 @@ const LoginScreen = () => {
               {/* Mobile Identity Input */}
               <View>
                 <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
-                  Mobile Identity
+                  Mobile Number
                 </Text>
                 <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'phone' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
                   <View className="border-r border-slate-100 pr-3 mr-3">
@@ -144,13 +147,9 @@ const LoginScreen = () => {
               <View>
                 <View className="flex-row justify-between items-center mb-2 px-1">
                   <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px]">
-                    Access Key
+                    Password
                   </Text>
-                  {password.length > 0 && (
-                    <Text className={`text-[10px] font-black ${password.length < 6 ? 'text-orange-400' : 'text-green-500'}`}>
-                      {password.length < 6 ? 'WEAK' : 'SECURE'}
-                    </Text>
-                  )}
+                    {/* Removed password strength label */}
                 </View>
 
                 <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'pass' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
@@ -170,7 +169,7 @@ const LoginScreen = () => {
                     onChangeText={setPassword}
                     onFocus={() => setFocusedInput('pass')}
                     onBlur={() => setFocusedInput(null)}
-                    editable={!isLoading} // ✅ Disable during loading
+                    editable={!isLoading} //Disable during loading
                   />
 
                   <TouchableOpacity
@@ -187,7 +186,7 @@ const LoginScreen = () => {
                 onPress={() => router.push("/screens/ForgotPasswordScreen")}
                 disabled={isLoading}
               >
-                <Text className="text-slate-400 font-bold text-xs underline">Forgot Key?</Text>
+                <Text className="text-slate-400 font-bold text-xs underline">Forget Password?</Text>
               </TouchableOpacity>
             </View>
 
