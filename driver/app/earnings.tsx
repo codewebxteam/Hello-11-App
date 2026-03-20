@@ -6,14 +6,10 @@ import {
     ScrollView,
     Platform,
     StatusBar as RNStatusBar,
-    FlatList
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
-import { Alert } from 'react-native';
 import { driverAPI } from '../utils/api';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
@@ -22,8 +18,6 @@ export default function EarningsScreen() {
     const router = useRouter();
     const [earnings, setEarnings] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
-
-    const [requesting, setRequesting] = React.useState(false);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -43,40 +37,6 @@ export default function EarningsScreen() {
         }, [])
     );
 
-    const handleRequestPayout = async () => {
-        if (!earnings?.totalEarnings || earnings.totalEarnings <= 0) {
-            return Alert.alert("Insufficient Balance", "You don't have enough earnings to request a payout.");
-        }
-
-        Alert.alert(
-            "Request Payout",
-            `Are you sure you want to request a payout of ₹${earnings.totalEarnings}?`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Confirm",
-                    onPress: async () => {
-                        setRequesting(true);
-                        try {
-                            const res = await driverAPI.requestPayout(earnings.totalEarnings);
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            Alert.alert("Success", "Your payout request has been submitted successfully!");
-                            // Refresh data
-                            const response = await driverAPI.getEarnings();
-                            if (response.data && response.data.earnings) {
-                                setEarnings(response.data.earnings);
-                            }
-                        } catch (err: any) {
-                            Alert.alert("Error", err.response?.data?.message || "Failed to submit payout request");
-                        } finally {
-                            setRequesting(false);
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
     return (
         <View className="flex-1 bg-slate-50">
             <StatusBar style="dark" />
@@ -92,7 +52,6 @@ export default function EarningsScreen() {
             </View>
 
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 24 }}>
-                {/* Total Balance Card */}
                 <View className="bg-slate-900 rounded-[32px] p-8 mb-8 shadow-xl shadow-slate-900/30 overflow-hidden relative">
                     <View className="absolute -top-10 -right-10 w-40 h-40 bg-[#FFD700] rounded-full opacity-10" />
                     <Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-2">Total Earnings</Text>
@@ -113,7 +72,6 @@ export default function EarningsScreen() {
                     </View>
                 </View>
 
-                {/* Grid Stats */}
                 <View className="flex-row mb-8">
                     <View className="flex-1 bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm items-center mr-2">
                         <View className="w-10 h-10 bg-blue-50 rounded-full items-center justify-center mb-3">
@@ -205,13 +163,13 @@ export default function EarningsScreen() {
                                     />
                                 </View>
                                 <View className="ml-4">
-                                    <Text className="text-slate-900 font-bold text-sm">Payout Request ({item.status})</Text>
+                                    <Text className="text-slate-900 font-bold text-sm">Activity ({item.status})</Text>
                                     <Text className="text-slate-400 text-[10px] uppercase font-bold mt-0.5">
                                         {new Date(item.date).toLocaleDateString()} • {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </Text>
                                 </View>
                             </View>
-                            <Text className={`${item.status === 'rejected' ? 'text-red-500' : 'text-slate-900'} font-black`}>-₹{item.amount}</Text>
+                            <Text className={`${item.status === 'rejected' ? 'text-red-500' : 'text-slate-900'} font-black`}>₹{item.amount}</Text>
                         </View>
                     ))
                 ) : (
@@ -221,15 +179,9 @@ export default function EarningsScreen() {
                     </View>
                 )}
 
-                <TouchableOpacity
-                    onPress={handleRequestPayout}
-                    disabled={requesting || loading}
-                    className={`${requesting || loading ? 'bg-slate-400' : 'bg-slate-900'} py-5 rounded-[24px] items-center mt-4 active:scale-95`}
-                >
-                    <Text className="text-[#FFD700] font-black text-base uppercase tracking-[2px]">
-                        {requesting ? 'Requesting...' : 'Request Payout'}
-                    </Text>
-                </TouchableOpacity>
+                {loading ? (
+                    <Text className="text-slate-400 text-center font-bold mt-4">Refreshing earnings...</Text>
+                ) : null}
             </ScrollView>
         </View>
     );

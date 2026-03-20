@@ -173,8 +173,17 @@ export const driverAPI = {
   // Bookings
   getAvailableBookings: () => api.get(API_ENDPOINTS.AVAILABLE_BOOKINGS),
   getCurrentBooking: () => api.get(API_ENDPOINTS.CURRENT_BOOKING),
-  getBookingsHistory: () => api.get(API_ENDPOINTS.BOOKINGS_HISTORY),
-  getBookingById: (id: string) => api.get(API_ENDPOINTS.GET_BOOKING_BY_ID(id)),
+  getBookingsHistory: (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    rideType?: string;
+    paymentStatus?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  }) => api.get(API_ENDPOINTS.BOOKINGS_HISTORY, { params }),
+  getBookingById: (id: string) => api.get(API_ENDPOINTS.GET_BOOKING_BY_ID(id), { params: { compact: 1 } }),
   acceptBooking: (bookingId: string) =>
     api.post(API_ENDPOINTS.ACCEPT_BOOKING(bookingId)),
   rejectBooking: (bookingId: string) =>

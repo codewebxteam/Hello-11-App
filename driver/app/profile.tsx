@@ -6,7 +6,8 @@ import {
     Image,
     ScrollView,
     Platform,
-    StatusBar as RNStatusBar
+    StatusBar as RNStatusBar,
+    Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
@@ -50,6 +51,45 @@ export default function ProfileScreen() {
         } catch (err) {
             console.error("Logout error:", err);
         }
+    };
+
+    const confirmLogout = () => {
+        Alert.alert(
+            "Logout",
+            "Are you sure you want to logout?",
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Logout", style: "destructive", onPress: handleLogout }
+            ]
+        );
+    };
+
+    const confirmServiceTypeChange = (nextServiceType: 'cab' | 'rental' | 'both') => {
+        if (!driver || driver.serviceType === nextServiceType) return;
+
+        Alert.alert(
+            "Change Service Specialty",
+            `Do you want to change your service specialty to ${nextServiceType.toUpperCase()}?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Confirm",
+                    onPress: async () => {
+                        try {
+                            const res = await driverAPI.updateVehicle({ serviceType: nextServiceType });
+                            if (res.data) {
+                                const current = await getDriverData();
+                                await setDriverData({ ...current, serviceType: nextServiceType });
+                                setDriver({ ...driver, serviceType: nextServiceType });
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            }
+                        } catch (e) {
+                            console.log("Update service type error:", e);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     return (
@@ -180,19 +220,7 @@ export default function ProfileScreen() {
                     <View className="bg-white p-2 rounded-[24px] border border-slate-100 shadow-sm flex-row">
                         {/* Cab Option */}
                         <TouchableOpacity
-                            onPress={async () => {
-                                try {
-                                    const res = await driverAPI.updateVehicle({ serviceType: 'cab' });
-                                    if (res.data) {
-                                        const current = await getDriverData();
-                                        await setDriverData({ ...current, serviceType: 'cab' });
-                                        setDriver({ ...driver, serviceType: 'cab' });
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                    }
-                                } catch (e) {
-                                    console.log("Update service type error:", e);
-                                }
-                            }}
+                            onPress={() => confirmServiceTypeChange('cab')}
                             style={{
                                 flex: 1,
                                 paddingVertical: 12,
@@ -219,19 +247,7 @@ export default function ProfileScreen() {
 
                         {/* Rental Option */}
                         <TouchableOpacity
-                            onPress={async () => {
-                                try {
-                                    const res = await driverAPI.updateVehicle({ serviceType: 'rental' });
-                                    if (res.data) {
-                                        const current = await getDriverData();
-                                        await setDriverData({ ...current, serviceType: 'rental' });
-                                        setDriver({ ...driver, serviceType: 'rental' });
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                    }
-                                } catch (e) {
-                                    console.log("Update service type error:", e);
-                                }
-                            }}
+                            onPress={() => confirmServiceTypeChange('rental')}
                             style={{
                                 flex: 1,
                                 paddingVertical: 12,
@@ -258,19 +274,7 @@ export default function ProfileScreen() {
 
                         {/* Both Option */}
                         <TouchableOpacity
-                            onPress={async () => {
-                                try {
-                                    const res = await driverAPI.updateVehicle({ serviceType: 'both' });
-                                    if (res.data) {
-                                        const current = await getDriverData();
-                                        await setDriverData({ ...current, serviceType: 'both' });
-                                        setDriver({ ...driver, serviceType: 'both' });
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                    }
-                                } catch (e) {
-                                    console.log("Update service type error:", e);
-                                }
-                            }}
+                            onPress={() => confirmServiceTypeChange('both')}
                             style={{
                                 flex: 1,
                                 paddingVertical: 12,
@@ -345,7 +349,7 @@ export default function ProfileScreen() {
                 <View className="px-6 mt-10">
                     <TouchableOpacity
                         className="bg-red-50 py-5 rounded-[24px] border border-red-100 flex-row items-center justify-center mb-8"
-                        onPress={handleLogout}
+                        onPress={confirmLogout}
                     >
                         <Ionicons name="log-out" size={20} color="#EF4444" style={{ marginRight: 8 }} />
                         <Text className="text-red-500 font-black text-base uppercase tracking-wider">Logout</Text>

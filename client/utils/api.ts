@@ -101,7 +101,7 @@ export const bookingAPI = {
 
   getScheduledHistory: () => api.get('/api/bookings/scheduled/history'),
 
-  getBookingById: (id: string) => api.get(API_ENDPOINTS.GET_BOOKING_BY_ID(id)),
+  getBookingById: (id: string) => api.get(API_ENDPOINTS.GET_BOOKING_BY_ID(id), { params: { compact: 1 } }),
 
   getBookingStatus: (id: string) => api.get(API_ENDPOINTS.BOOKING_STATUS(id)),
 

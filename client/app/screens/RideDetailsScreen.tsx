@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -17,9 +17,18 @@ const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight :
 
 export default function RideDetailsScreen() {
     const router = useRouter();
-    const { bookingId } = useLocalSearchParams();
-    const [booking, setBooking] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const { bookingId, prefill } = useLocalSearchParams();
+    const initialPrefill = useMemo(() => {
+        if (!prefill || typeof prefill !== 'string') return null;
+        try {
+            return JSON.parse(prefill);
+        } catch {
+            return null;
+        }
+    }, [prefill]);
+
+    const [booking, setBooking] = useState<any>(initialPrefill);
+    const [loading, setLoading] = useState(!initialPrefill);
 
     useEffect(() => {
         if (bookingId) fetchBookingDetails();
@@ -27,7 +36,6 @@ export default function RideDetailsScreen() {
 
     const fetchBookingDetails = async () => {
         try {
-            setLoading(true);
             const response = await bookingAPI.getBookingById(bookingId as string);
             if (response.data?.booking) setBooking(response.data.booking);
         } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, FlatList,
-    ActivityIndicator, Alert, RefreshControl
+    Alert, RefreshControl, Animated, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
@@ -37,8 +37,8 @@ const getCountdown = (d: string) => {
 
 // ─── Ride Card ────────────────────────────────────────────────────────────────
 const RideCard = ({
-    item, isUpcoming, onCancel
-}: { item: any; isUpcoming: boolean; onCancel: (id: string) => void }) => {
+    item, isUpcoming, onCancel, onViewDetails
+}: { item: any; isUpcoming: boolean; onCancel: (id: string) => void; onViewDetails: (item: any) => void }) => {
     const id = item._id || item.id;
     const st = STATUS_CONFIG[item.status] || { label: item.status, color: '#64748b', bg: '#f1f5f9' };
     const countdown = isUpcoming ? getCountdown(item.scheduledDate) : null;
@@ -108,6 +108,13 @@ const RideCard = ({
                     <Text style={{ color: '#1e293b', fontWeight: '900', fontSize: 14 }}>₹{item.fare || '--'}</Text>
                 </View>
             </View>
+
+            <View style={{ marginTop: 12, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                <TouchableOpacity onPress={() => onViewDetails(item)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#94A3B8', fontSize: 12, fontWeight: '800', marginRight: 4 }}>View Details</Text>
+                    <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
+                </TouchableOpacity>
+            </View>
         </View>
     );
 };
@@ -120,6 +127,18 @@ const ScheduledRidesScreen = () => {
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const shimmer = React.useRef(new Animated.Value(0.35)).current;
+
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
+                Animated.timing(shimmer, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+            ])
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [shimmer]);
 
     const fetchAll = useCallback(async () => {
         try {
@@ -156,6 +175,42 @@ const ScheduledRidesScreen = () => {
     };
 
     const currentData = tab === 'upcoming' ? upcoming : history;
+
+    const openDetails = (item: any) => {
+        const bookingId = item._id || item.id;
+        if (!bookingId) return;
+        router.push({
+            pathname: "/screens/RideDetailsScreen",
+            params: {
+                bookingId: String(bookingId),
+                prefill: JSON.stringify(item),
+            }
+        });
+    };
+
+    const renderShimmerCard = (key: string) => (
+        <Animated.View
+            key={key}
+            style={{ opacity: shimmer, backgroundColor: '#fff', marginBottom: 16, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#f1f5f9' }}
+        >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                <View>
+                    <View style={{ height: 12, width: 140, backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
+                    <View style={{ height: 18, width: 96, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+                </View>
+                <View style={{ height: 20, width: 20, backgroundColor: '#e2e8f0', borderRadius: 10 }} />
+            </View>
+            <View style={{ height: 42, borderRadius: 12, backgroundColor: '#e2e8f0', marginBottom: 14 }} />
+            <View style={{ height: 10, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
+            <View style={{ height: 10, width: '85%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 16 }} />
+            <View style={{ height: 10, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
+            <View style={{ height: 10, width: '78%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 16 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={{ height: 14, width: 90, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+                <View style={{ height: 14, width: 70, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+            </View>
+        </Animated.View>
+    );
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['top']}>
@@ -194,15 +249,17 @@ const ScheduledRidesScreen = () => {
             </View>
 
             {loading ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <ActivityIndicator color="#FFD700" size="large" />
-                </View>
+                <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+                    {renderShimmerCard('shim-1')}
+                    {renderShimmerCard('shim-2')}
+                    {renderShimmerCard('shim-3')}
+                </ScrollView>
             ) : (
                 <FlatList
                     data={currentData}
                     keyExtractor={item => item._id || item.id}
                     renderItem={({ item }) => (
-                        <RideCard item={item} isUpcoming={tab === 'upcoming'} onCancel={handleCancel} />
+                        <RideCard item={item} isUpcoming={tab === 'upcoming'} onCancel={handleCancel} onViewDetails={openDetails} />
                     )}
                     contentContainerStyle={{ padding: 20, paddingBottom: 40, flexGrow: 1 }}
                     showsVerticalScrollIndicator={false}

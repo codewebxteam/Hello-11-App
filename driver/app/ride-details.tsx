@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -20,9 +20,27 @@ const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight :
 
 export default function RideDetailsScreen() {
     const router = useRouter();
-    const { bookingId } = useLocalSearchParams();
-    const [booking, setBooking] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const { bookingId, prefill } = useLocalSearchParams();
+
+    const initialPrefill = useMemo(() => {
+        if (!prefill || typeof prefill !== "string") return null;
+        try {
+            return JSON.parse(prefill);
+        } catch {
+            return null;
+        }
+    }, [prefill]);
+
+    const [booking, setBooking] = useState<any>(initialPrefill);
+    const [loading, setLoading] = useState(!initialPrefill);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const nightFareAmount = Number(booking?.nightFareAmount ?? booking?.nightFare ?? booking?.nightCharge ?? 0);
+    const hasNightFare = Boolean(
+        booking?.isNightFare ||
+        booking?.nightFareApplied ||
+        nightFareAmount > 0
+    );
 
     useEffect(() => {
         if (bookingId) {
@@ -32,7 +50,11 @@ export default function RideDetailsScreen() {
 
     const fetchBookingDetails = async () => {
         try {
-            setLoading(true);
+            if (booking) {
+                setRefreshing(true);
+            } else {
+                setLoading(true);
+            }
             const response = await driverAPI.getBookingById(bookingId as string);
             if (response.data && response.data.booking) {
                 setBooking(response.data.booking);
@@ -41,6 +63,7 @@ export default function RideDetailsScreen() {
             console.error("Error fetching booking details:", error);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
@@ -111,6 +134,12 @@ export default function RideDetailsScreen() {
                                 <Text className="text-amber-700 text-[9px] font-black ml-1 uppercase">Return Trip</Text>
                             </View>
                         )}
+                        <View className={`${hasNightFare ? 'bg-indigo-100' : 'bg-slate-100'} px-3 py-1 rounded-full flex-row items-center mr-2 mb-2`}>
+                            <Ionicons name="moon" size={11} color={hasNightFare ? "#4338ca" : "#64748b"} />
+                            <Text className={`${hasNightFare ? 'text-indigo-700' : 'text-slate-500'} text-[9px] font-black ml-1 uppercase`}>
+                                Night Fare: {hasNightFare ? "Yes" : "No"}
+                            </Text>
+                        </View>
                     </View>
                 </View>
 
@@ -207,6 +236,14 @@ export default function RideDetailsScreen() {
                         <Ionicons name="car-outline" size={20} color="#94A3B8" />
                         <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Ride Type</Text>
                         <Text className="text-slate-800 font-bold text-xs uppercase">{booking.rideType}</Text>
+                    </View>
+
+                    <View className={`rounded-[24px] p-5 shadow-sm border w-[48%] mb-4 ${hasNightFare ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-slate-100'}`}>
+                        <Ionicons name="moon" size={20} color={hasNightFare ? "#4338ca" : "#94A3B8"} />
+                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Night Fare</Text>
+                        <Text className={`font-bold text-xs ${hasNightFare ? 'text-indigo-700' : 'text-slate-500'}`}>
+                            {hasNightFare ? `Yes${nightFareAmount > 0 ? ` • ₹${nightFareAmount}` : ''}` : 'No'}
+                        </Text>
                     </View>
 
                     {/* Base Fare */}
