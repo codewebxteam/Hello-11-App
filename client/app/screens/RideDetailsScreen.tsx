@@ -6,7 +6,8 @@ import {
     ScrollView,
     ActivityIndicator,
     Platform,
-    StatusBar as RNStatusBar
+    StatusBar as RNStatusBar,
+    Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -14,6 +15,27 @@ import { StatusBar } from 'expo-status-bar';
 import { bookingAPI } from '../../utils/api';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
+const { width } = Dimensions.get('window');
+
+// Responsive sizing constants
+const GRID_GAP = width > 380 ? 12 : 10;
+const PADDING_H = width > 380 ? 24 : 16;
+const CARD_WIDTH = (width - (PADDING_H * 2) - GRID_GAP) / 2;
+
+const RESPONSIVE_CONFIG = {
+    paddingHorizontal: PADDING_H,
+    paddingVertical: width > 380 ? 12 : 8,
+    headerFontSize: width > 380 ? 18 : 16,
+    titleFontSize: width > 380 ? 32 : 28,
+    cardPadding: width > 380 ? 20 : 16,
+    cardRadius: width > 380 ? 30 : 24,
+    iconSize: width > 380 ? 20 : 16,
+    badgeSize: width > 380 ? 14 : 12,
+    textSize: width > 380 ? 14 : 13,
+    labelSize: width > 380 ? 10 : 9,
+    gridWidth: CARD_WIDTH,
+    gridGap: GRID_GAP,
+}
 
 export default function RideDetailsScreen() {
     const router = useRouter();
@@ -69,6 +91,8 @@ export default function RideDetailsScreen() {
     const hasReturn = !!booking.hasReturnTrip;
     const hasPenalty = (booking.penaltyApplied || 0) > 0;
     const hasToll = (booking.tollFee || 0) > 0;
+    const hasNightFare = !!booking.isNightFare || (booking.nightSurcharge && Number(booking.nightSurcharge) > 0);
+    const nightFareAmount = Number(booking.nightSurcharge || booking.nightFareAmount || 0);
 
     const statusBg = booking.status === 'completed' ? 'bg-green-50' : booking.status === 'cancelled' ? 'bg-red-50' : 'bg-blue-50';
     const statusText = booking.status === 'completed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-500' : 'text-blue-600';
@@ -77,48 +101,104 @@ export default function RideDetailsScreen() {
         <View className="flex-1 bg-slate-50">
             <StatusBar style="dark" />
             <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm z-10">
-                <View className="px-6 py-4 flex-row items-center">
+                <View className="px-6 py-4 flex-row items-center" style={{ paddingHorizontal: RESPONSIVE_CONFIG.paddingHorizontal }}>
                     <TouchableOpacity
                         onPress={() => router.back()}
                         className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100 mr-4"
                     >
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
+                        <Ionicons name="arrow-back" size={RESPONSIVE_CONFIG.iconSize + 4} color="#1E293B" />
                     </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Trip Details</Text>
+                    <Text 
+                        className="text-slate-900 font-black tracking-wider uppercase"
+                        style={{ fontSize: RESPONSIVE_CONFIG.headerFontSize }}
+                    >
+                        Trip Details
+                    </Text>
                 </View>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                contentContainerStyle={{ 
+                    paddingHorizontal: RESPONSIVE_CONFIG.paddingHorizontal, 
+                    paddingVertical: RESPONSIVE_CONFIG.paddingVertical,
+                    paddingBottom: 48 
+                }} 
+                showsVerticalScrollIndicator={false}
+            >
 
                 {/* ─── Status + Fare Card ─── */}
-                <View className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100 mb-5 items-center">
-                    <View className={`px-4 py-1.5 rounded-full mb-3 ${statusBg}`}>
-                        <Text className={`text-xs font-black uppercase tracking-widest ${statusText}`}>
+                <View 
+                    className="bg-white shadow-sm border border-slate-100 mb-5 items-center"
+                    style={{ 
+                        borderRadius: RESPONSIVE_CONFIG.cardRadius, 
+                        padding: RESPONSIVE_CONFIG.cardPadding,
+                        marginBottom: width > 380 ? 20 : 16
+                    }}
+                >
+                    <View className={`rounded-full mb-3 ${statusBg}`} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+                        <Text 
+                            className={`font-black uppercase tracking-widest ${statusText}`}
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
                             {booking.status}
                         </Text>
                     </View>
 
-                    <Text className="text-slate-900 text-4xl font-black mb-1">₹{booking.totalFare || booking.fare}</Text>
-                    <Text className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-4">Total Fare</Text>
+                    <Text 
+                        className="text-slate-900 font-black mb-1"
+                        style={{ fontSize: RESPONSIVE_CONFIG.titleFontSize }}
+                    >
+                        ₹{booking.totalFare || booking.fare}
+                    </Text>
+                    <Text 
+                        className="text-slate-400 font-bold uppercase tracking-widest mb-4"
+                        style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                    >
+                        Total Fare
+                    </Text>
 
                     {/* Badges */}
                     <View className="flex-row flex-wrap justify-center">
                         {isOutstation && (
-                            <View className="bg-purple-100 px-3 py-1 rounded-full flex-row items-center mr-2 mb-2">
-                                <Ionicons name="car" size={11} color="#7c3aed" />
-                                <Text className="text-purple-700 text-[9px] font-black ml-1 uppercase">Outstation</Text>
+                            <View 
+                                className="bg-purple-100 rounded-full flex-row items-center mr-2 mb-2"
+                                style={{ paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, marginBottom: 8 }}
+                            >
+                                <Ionicons name="car" size={RESPONSIVE_CONFIG.badgeSize - 2} color="#7c3aed" />
+                                <Text 
+                                    className="text-purple-700 font-black ml-1 uppercase"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize - 1 }}
+                                >
+                                    Outstation
+                                </Text>
                             </View>
                         )}
                         {isScheduled && (
-                            <View className="bg-sky-100 px-3 py-1 rounded-full flex-row items-center mr-2 mb-2">
-                                <Ionicons name="calendar" size={11} color="#0284c7" />
-                                <Text className="text-sky-700 text-[9px] font-black ml-1 uppercase">Scheduled</Text>
+                            <View 
+                                className="bg-sky-100 rounded-full flex-row items-center mr-2 mb-2"
+                                style={{ paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, marginBottom: 8 }}
+                            >
+                                <Ionicons name="calendar" size={RESPONSIVE_CONFIG.badgeSize - 2} color="#0284c7" />
+                                <Text 
+                                    className="text-sky-700 font-black ml-1 uppercase"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize - 1 }}
+                                >
+                                    Scheduled
+                                </Text>
                             </View>
                         )}
                         {hasReturn && (
-                            <View className="bg-amber-100 px-3 py-1 rounded-full flex-row items-center mr-2 mb-2">
-                                <Ionicons name="return-down-back" size={11} color="#b45309" />
-                                <Text className="text-amber-700 text-[9px] font-black ml-1 uppercase">Return Trip</Text>
+                            <View 
+                                className="bg-amber-100 rounded-full flex-row items-center mr-2 mb-2"
+                                style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                            >
+                                <Ionicons name="return-down-back" size={RESPONSIVE_CONFIG.badgeSize - 2} color="#b45309" />
+                                <Text 
+                                    className="text-amber-700 font-black ml-1 uppercase"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize - 1 }}
+                                >
+                                    Return Trip
+                                </Text>
                             </View>
                         )}
                     </View>
@@ -126,13 +206,31 @@ export default function RideDetailsScreen() {
 
                 {/* ─── Scheduled Date Banner ─── */}
                 {isScheduled && booking.scheduledDate && (
-                    <View className="bg-sky-900 rounded-[22px] p-4 mb-5 flex-row items-center">
-                        <View className="bg-[#FFD700] p-2 rounded-xl mr-3">
-                            <Ionicons name="calendar" size={18} color="black" />
+                    <View 
+                        className="bg-sky-900 flex-row items-center mb-5"
+                        style={{ 
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius, 
+                            padding: RESPONSIVE_CONFIG.cardPadding,
+                            marginBottom: width > 380 ? 20 : 16
+                        }}
+                    >
+                        <View 
+                            className="bg-[#FFD700] rounded-lg mr-3"
+                            style={{ padding: 8 }}
+                        >
+                            <Ionicons name="calendar" size={RESPONSIVE_CONFIG.iconSize} color="black" />
                         </View>
                         <View>
-                            <Text className="text-sky-300 text-[9px] font-black uppercase">Scheduled For</Text>
-                            <Text className="text-white font-black text-sm">
+                            <Text 
+                                className="text-sky-300 font-black uppercase"
+                                style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                            >
+                                Scheduled For
+                            </Text>
+                            <Text 
+                                className="text-white font-black"
+                                style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                            >
                                 {new Date(booking.scheduledDate).toLocaleString('en-IN', {
                                     weekday: 'short', day: '2-digit', month: 'short',
                                     hour: '2-digit', minute: '2-digit', hour12: true
@@ -144,132 +242,408 @@ export default function RideDetailsScreen() {
 
                 {/* ─── Return Trip Banner ─── */}
                 {hasReturn && (
-                    <View className="bg-amber-900 rounded-[22px] p-4 mb-5 flex-row items-center justify-between">
-                        <View className="flex-row items-center flex-1 mr-3">
-                            <View className="bg-[#FFD700] p-2 rounded-xl mr-3">
-                                <Ionicons name="return-down-back" size={18} color="black" />
+                    <View 
+                        className="bg-amber-900 flex-row items-center justify-between mb-5"
+                        style={{ 
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius, 
+                            padding: RESPONSIVE_CONFIG.cardPadding,
+                            marginBottom: width > 380 ? 20 : 16
+                        }}
+                    >
+                        <View className="flex-row items-center flex-1" style={{ marginRight: RESPONSIVE_CONFIG.gridGap }}>
+                            <View 
+                                className="bg-[#FFD700] rounded-lg mr-3"
+                                style={{ padding: 8 }}
+                            >
+                                <Ionicons name="return-down-back" size={RESPONSIVE_CONFIG.iconSize} color="black" />
                             </View>
                             <View className="flex-1">
-                                <Text className="text-amber-300 text-[9px] font-black uppercase">Return Trip Route</Text>
-                                <Text className="text-white font-black text-sm" numberOfLines={2}>
+                                <Text 
+                                    className="text-amber-300 font-black uppercase"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                                >
+                                    Return Trip Route
+                                </Text>
+                                <Text 
+                                    className="text-white font-black"
+                                    numberOfLines={2}
+                                    style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                                >
                                     {booking.dropLocation} → {booking.pickupLocation}
                                 </Text>
                             </View>
                         </View>
                         <View className="items-end">
-                            <Text className="text-amber-300 text-[9px] font-black uppercase">Fare</Text>
-                            <Text className="text-[#FFD700] font-black text-xl">₹{booking.returnTripFare || 0}</Text>
+                            <Text 
+                                className="text-amber-300 font-black uppercase"
+                                style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                            >
+                                Fare
+                            </Text>
+                            <Text 
+                                className="text-[#FFD700] font-black"
+                                style={{ fontSize: RESPONSIVE_CONFIG.titleFontSize - 10 }}
+                            >
+                                ₹{booking.returnTripFare || 0}
+                            </Text>
                             {(booking.discount || 0) > 0 && (
-                                <Text className="text-green-400 text-[9px] font-black">-{booking.discount}% OFF</Text>
+                                <Text 
+                                    className="text-green-400 font-black"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                                >
+                                    -{booking.discount}% OFF
+                                </Text>
                             )}
                         </View>
                     </View>
                 )}
 
                 {/* ─── Route Section ─── */}
-                <View className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100 mb-5">
-                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-6">Route Details</Text>
+                <View 
+                    className="bg-white shadow-sm border border-slate-100 mb-5"
+                    style={{ 
+                        borderRadius: RESPONSIVE_CONFIG.cardRadius, 
+                        padding: RESPONSIVE_CONFIG.cardPadding,
+                        marginBottom: width > 380 ? 20 : 16
+                    }}
+                >
+                    <Text 
+                        className="text-slate-400 font-black uppercase tracking-widest mb-6"
+                        style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                    >
+                        Route Details
+                    </Text>
                     <View className="pl-1 relative">
-                        <View className="absolute left-[9px] top-4 bottom-4 w-[2px] bg-slate-100 border-l border-dashed border-slate-300" />
-                        <View className="flex-row items-start mb-8">
-                            <View className="w-5 h-5 rounded-full bg-blue-50 border-[3px] border-blue-100 items-center justify-center z-10">
-                                <View className="w-2 h-2 rounded-full bg-blue-500" />
+                        <View 
+                            className="absolute top-4 bottom-4 bg-slate-100 border-l border-dashed border-slate-300"
+                            style={{ left: width > 380 ? 10 : 8, width: 1 }}
+                        />
+                        <View className="flex-row items-start" style={{ marginBottom: width > 380 ? 32 : 24 }}>
+                            <View 
+                                className="rounded-full bg-blue-50 border-blue-100 items-center justify-center z-10"
+                                style={{ 
+                                    width: width > 380 ? 20 : 18, 
+                                    height: width > 380 ? 20 : 18, 
+                                    borderWidth: 3 
+                                }}
+                            >
+                                <View 
+                                    className="rounded-full bg-blue-500"
+                                    style={{ 
+                                        width: width > 380 ? 8 : 6, 
+                                        height: width > 380 ? 8 : 6 
+                                    }}
+                                />
                             </View>
                             <View className="ml-4 flex-1">
-                                <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1">Pickup</Text>
-                                <Text className="text-slate-800 font-bold text-sm leading-5">{booking.pickupLocation}</Text>
+                                <Text 
+                                    className="text-slate-400 font-bold uppercase mb-1"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                                >
+                                    Pickup
+                                </Text>
+                                <Text 
+                                    className="text-slate-800 font-bold leading-5"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                                >
+                                    {booking.pickupLocation}
+                                </Text>
                             </View>
                         </View>
                         <View className="flex-row items-start">
-                            <View className="w-5 h-5 rounded-full bg-slate-900 border-[3px] border-slate-800 items-center justify-center z-10">
-                                <View className="w-1.5 h-1.5 bg-white rounded-full" />
+                            <View 
+                                className="rounded-full bg-slate-900 border-slate-800 items-center justify-center z-10"
+                                style={{ 
+                                    width: width > 380 ? 20 : 18, 
+                                    height: width > 380 ? 20 : 18, 
+                                    borderWidth: 3 
+                                }}
+                            >
+                                <View 
+                                    className="bg-white rounded-full"
+                                    style={{ 
+                                        width: width > 380 ? 6 : 5, 
+                                        height: width > 380 ? 6 : 5 
+                                    }}
+                                />
                             </View>
                             <View className="ml-4 flex-1">
-                                <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1">Drop-off</Text>
-                                <Text className="text-slate-800 font-bold text-sm leading-5">{booking.dropLocation}</Text>
+                                <Text 
+                                    className="text-slate-400 font-bold uppercase mb-1"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                                >
+                                    Drop-off
+                                </Text>
+                                <Text 
+                                    className="text-slate-800 font-bold leading-5"
+                                    style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                                >
+                                    {booking.dropLocation}
+                                </Text>
                             </View>
                         </View>
                     </View>
                 </View>
 
                 {/* ─── Stats Grid ─── */}
-                <View className="flex-row flex-wrap justify-between mb-5">
+                <View className="flex-row flex-wrap" style={{ gap: RESPONSIVE_CONFIG.gridGap, marginBottom: width > 380 ? 20 : 16 }}>
 
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="calendar-outline" size={20} color="#94A3B8" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Date</Text>
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100"
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="calendar-outline" size={RESPONSIVE_CONFIG.iconSize} color="#94A3B8" />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Date
+                        </Text>
                         <Text className="text-slate-800 font-bold text-xs">
                             {new Date(booking.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </Text>
                     </View>
 
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="time-outline" size={20} color="#94A3B8" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Time</Text>
-                        <Text className="text-slate-800 font-bold text-xs">
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100"
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="time-outline" size={RESPONSIVE_CONFIG.iconSize} color="#94A3B8" />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Time
+                        </Text>
+                        <Text 
+                            className="text-slate-800 font-bold"
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
                             {new Date(booking.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </Text>
                     </View>
 
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="navigate-outline" size={20} color="#94A3B8" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Distance</Text>
-                        <Text className="text-slate-800 font-bold text-xs">{booking.distance} KM</Text>
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100"
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="navigate-outline" size={RESPONSIVE_CONFIG.iconSize} color="#94A3B8" />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Distance
+                        </Text>
+                        <Text 
+                            className="text-slate-800 font-bold"
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
+                            {booking.distance} KM
+                        </Text>
                     </View>
 
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="car-outline" size={20} color="#94A3B8" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Ride Type</Text>
-                        <Text className="text-slate-800 font-bold text-xs uppercase">{booking.rideType}</Text>
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100"
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="car-outline" size={RESPONSIVE_CONFIG.iconSize} color="#94A3B8" />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Ride Type
+                        </Text>
+                        <Text 
+                            className="text-slate-800 font-bold uppercase"
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
+                            {booking.rideType}
+                        </Text>
                     </View>
 
                     {/* Base Fare */}
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="cash-outline" size={20} color="#10b981" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Base Fare</Text>
-                        <Text className="text-green-600 font-bold text-xs">₹{booking.fare || 0}</Text>
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100"
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="cash-outline" size={RESPONSIVE_CONFIG.iconSize} color="#10b981" />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Base Fare (Leg 1)
+                        </Text>
+                        <Text 
+                            className="text-green-600 font-bold"
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
+                            ₹{Math.max(0, Number(booking.fare || 0) - Number(nightFareAmount || 0))}
+                        </Text>
+                    </View>
+
+                    {/* Night Fare */}
+                    <View 
+                        className={`shadow-sm border ${hasNightFare ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-slate-100'}`}
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="moon" size={RESPONSIVE_CONFIG.iconSize} color={hasNightFare ? "#4338ca" : "#94A3B8"} />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Night Fare
+                        </Text>
+                        <Text 
+                            className={`font-bold ${hasNightFare ? 'text-indigo-700' : 'text-slate-500'}`}
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
+                            {hasNightFare ? `Yes${nightFareAmount > 0 ? ` • ₹${nightFareAmount}` : ''}` : 'No'}
+                        </Text>
                     </View>
 
                     {/* Booking Type */}
-                    <View className={`rounded-[24px] p-5 shadow-sm border w-[48%] mb-4 ${isScheduled ? 'bg-sky-50 border-sky-100' : 'bg-white border-slate-100'}`}>
-                        <Ionicons name={isScheduled ? 'calendar' : 'flash'} size={20} color={isScheduled ? '#0284c7' : '#f59e0b'} />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Booking</Text>
-                        <Text className={`font-bold text-xs ${isScheduled ? 'text-sky-700' : 'text-slate-800'}`}>
+                    <View 
+                        className={`shadow-sm border ${isScheduled ? 'bg-sky-50 border-sky-100' : 'bg-white border-slate-100'}`}
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name={isScheduled ? 'calendar' : 'flash'} size={RESPONSIVE_CONFIG.iconSize} color={isScheduled ? '#0284c7' : '#f59e0b'} />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Booking
+                        </Text>
+                        <Text 
+                            className={`font-bold ${isScheduled ? 'text-sky-700' : 'text-slate-800'}`}
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
                             {isScheduled ? '🗓️ Scheduled' : '⚡ Ride Now'}
                         </Text>
                     </View>
 
                     {/* Return Trip */}
-                    <View className={`rounded-[24px] p-5 shadow-sm border w-[48%] mb-4 ${hasReturn ? 'bg-amber-50 border-amber-100' : 'bg-white border-slate-100'}`}>
-                        <Ionicons name="return-down-back" size={20} color={hasReturn ? '#b45309' : '#94A3B8'} />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Return Trip</Text>
-                        <Text className={`font-bold text-xs ${hasReturn ? 'text-amber-700' : 'text-slate-400'}`}>
+                    <View 
+                        className={`shadow-sm border ${hasReturn ? 'bg-amber-50 border-amber-100' : 'bg-white border-slate-100'}`}
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="return-down-back" size={RESPONSIVE_CONFIG.iconSize} color={hasReturn ? '#b45309' : '#94A3B8'} />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Return Trip
+                        </Text>
+                        <Text 
+                            className={`font-bold ${hasReturn ? 'text-amber-700' : 'text-slate-400'}`}
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
                             {hasReturn ? `✅ Yes  ₹${booking.returnTripFare || 0}` : '❌ No'}
                         </Text>
                     </View>
 
                     {/* Penalty */}
                     {hasPenalty && (
-                        <View className="bg-red-50 rounded-[24px] p-5 shadow-sm border border-red-100 w-[48%] mb-4">
-                            <Ionicons name="warning-outline" size={20} color="#ef4444" />
-                            <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Penalty</Text>
-                            <Text className="text-red-600 font-bold text-xs">₹{booking.penaltyApplied}</Text>
+                        <View 
+                            className="bg-red-50 shadow-sm border border-red-100"
+                            style={{ 
+                                width: RESPONSIVE_CONFIG.gridWidth,
+                                borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                                padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                            }}
+                        >
+                            <Ionicons name="warning-outline" size={RESPONSIVE_CONFIG.iconSize} color="#ef4444" />
+                            <Text 
+                                className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                                style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                            >
+                                Penalty
+                            </Text>
+                            <Text 
+                                className="text-red-600 font-bold"
+                                style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                            >
+                                ₹{booking.penaltyApplied}
+                            </Text>
                         </View>
                     )}
 
                     {hasToll && (
-                        <View className="bg-amber-50 rounded-[24px] p-5 shadow-sm border border-amber-100 w-[48%] mb-4">
-                            <Ionicons name="git-network-outline" size={20} color="#d97706" />
-                            <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Toll</Text>
-                            <Text className="text-amber-700 font-bold text-xs">₹{booking.tollFee}</Text>
+                        <View 
+                            className="bg-amber-50 shadow-sm border border-amber-100"
+                            style={{ 
+                                width: RESPONSIVE_CONFIG.gridWidth,
+                                borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                                padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                            }}
+                        >
+                            <Ionicons name="git-network-outline" size={RESPONSIVE_CONFIG.iconSize} color="#d97706" />
+                            <Text 
+                                className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                                style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                            >
+                                Toll
+                            </Text>
+                            <Text 
+                                className="text-amber-700 font-bold"
+                                style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                            >
+                                ₹{booking.tollFee}
+                            </Text>
                         </View>
                     )}
 
                     {/* Payment */}
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="wallet-outline" size={20} color="#94A3B8" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Payment</Text>
-                        <Text className="text-slate-800 font-bold text-xs uppercase">
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100"
+                        style={{ 
+                            width: RESPONSIVE_CONFIG.gridWidth,
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius - 6, 
+                            padding: RESPONSIVE_CONFIG.cardPadding - 4,
+                        }}
+                    >
+                        <Ionicons name="wallet-outline" size={RESPONSIVE_CONFIG.iconSize} color="#94A3B8" />
+                        <Text 
+                            className="text-slate-400 font-bold uppercase mb-1 mt-2"
+                            style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                        >
+                            Payment
+                        </Text>
+                        <Text 
+                            className="text-slate-800 font-bold uppercase"
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
                             {booking.paymentStatus} · {booking.paymentMethod || 'Cash'}
                         </Text>
                     </View>
@@ -277,22 +651,56 @@ export default function RideDetailsScreen() {
 
                 {/* ─── Rating ─── */}
                 {booking.status === 'completed' && (
-                    <View className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100 mb-6">
-                        <View className="flex-row justify-between items-center mb-4">
-                            <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Your Rating</Text>
+                    <View 
+                        className="bg-white shadow-sm border border-slate-100 mb-6"
+                        style={{ 
+                            borderRadius: RESPONSIVE_CONFIG.cardRadius, 
+                            padding: RESPONSIVE_CONFIG.cardPadding,
+                            marginBottom: width > 380 ? 24 : 16
+                        }}
+                    >
+                        <View 
+                            className="flex-row justify-between items-center mb-4"
+                            style={{ marginBottom: width > 380 ? 16 : 12 }}
+                        >
+                            <Text 
+                                className="text-slate-400 font-black uppercase tracking-widest"
+                                style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                            >
+                                Your Rating
+                            </Text>
                             {booking.rating > 0 ? (
-                                <View className="flex-row items-center bg-[#FFFBEB] px-3 py-1 rounded-full border border-[#FEF3C7]">
-                                    <Ionicons name="star" size={14} color="#F59E0B" />
-                                    <Text className="text-[#B45309] text-xs font-black ml-1">{booking.rating}.0</Text>
+                                <View 
+                                    className="flex-row items-center bg-[#FFFBEB] rounded-full border border-[#FEF3C7]"
+                                    style={{ paddingHorizontal: 12, paddingVertical: 6 }}
+                                >
+                                    <Ionicons name="star" size={RESPONSIVE_CONFIG.badgeSize} color="#F59E0B" />
+                                    <Text 
+                                        className="text-[#B45309] font-black ml-1"
+                                        style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                                    >
+                                        {booking.rating}.0
+                                    </Text>
                                 </View>
                             ) : (
-                                <View className="bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
-                                    <Text className="text-slate-500 text-[10px] font-black uppercase">Not Rated Yet</Text>
+                                <View 
+                                    className="bg-slate-50 rounded-full border border-slate-100"
+                                    style={{ paddingHorizontal: 12, paddingVertical: 6 }}
+                                >
+                                    <Text 
+                                        className="text-slate-500 font-black uppercase"
+                                        style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
+                                    >
+                                        Not Rated Yet
+                                    </Text>
                                 </View>
                             )}
                         </View>
                         {booking.rating > 0 && (
-                            <Text className="text-slate-600 italic text-sm leading-6">
+                            <Text 
+                                className="text-slate-600 italic leading-6"
+                                style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                            >
                                 {booking.feedback ? `"${booking.feedback}"` : 'No feedback provided.'}
                             </Text>
                         )}
@@ -306,10 +714,19 @@ export default function RideDetailsScreen() {
                             pathname: "/screens/LiveRideTrackingScreen",
                             params: { bookingId: booking._id }
                         })}
-                        className="bg-[#FFD700] rounded-2xl py-4 items-center justify-center shadow-lg shadow-orange-100 flex-row"
+                        className="bg-[#FFD700] rounded-xl items-center justify-center shadow-lg shadow-orange-100 flex-row"
+                        style={{ 
+                            paddingVertical: width > 380 ? 16 : 14,
+                            marginBottom: width > 380 ? 24 : 16
+                        }}
                     >
-                        <Ionicons name="map" size={20} color="black" />
-                        <Text className="font-black text-black ml-2 uppercase tracking-widest">Track Live Ride</Text>
+                        <Ionicons name="map" size={RESPONSIVE_CONFIG.iconSize + 2} color="black" />
+                        <Text 
+                            className="font-black text-black ml-2 uppercase tracking-widest"
+                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                        >
+                            Track Live Ride
+                        </Text>
                     </TouchableOpacity>
                 )}
 

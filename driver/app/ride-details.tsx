@@ -35,7 +35,7 @@ export default function RideDetailsScreen() {
     const [loading, setLoading] = useState(!initialPrefill);
     const [refreshing, setRefreshing] = useState(false);
 
-    const nightFareAmount = Number(booking?.nightFareAmount ?? booking?.nightFare ?? booking?.nightCharge ?? 0);
+    const nightFareAmount = Number(booking?.nightSurcharge ?? booking?.nightFareAmount ?? booking?.nightFare ?? booking?.nightCharge ?? 0);
     const hasNightFare = Boolean(
         booking?.isNightFare ||
         booking?.nightFareApplied ||
@@ -238,19 +238,19 @@ export default function RideDetailsScreen() {
                         <Text className="text-slate-800 font-bold text-xs uppercase">{booking.rideType}</Text>
                     </View>
 
+                    {/* Base Fare */}
+                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
+                        <Ionicons name="cash-outline" size={20} color="#10b981" />
+                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Base Fare (Leg 1)</Text>
+                        <Text className="text-green-600 font-bold text-xs">₹{Math.max(0, Number(booking.fare || 0) - Number(nightFareAmount || 0))}</Text>
+                    </View>
+
                     <View className={`rounded-[24px] p-5 shadow-sm border w-[48%] mb-4 ${hasNightFare ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-slate-100'}`}>
                         <Ionicons name="moon" size={20} color={hasNightFare ? "#4338ca" : "#94A3B8"} />
                         <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Night Fare</Text>
                         <Text className={`font-bold text-xs ${hasNightFare ? 'text-indigo-700' : 'text-slate-500'}`}>
                             {hasNightFare ? `Yes${nightFareAmount > 0 ? ` • ₹${nightFareAmount}` : ''}` : 'No'}
                         </Text>
-                    </View>
-
-                    {/* Base Fare */}
-                    <View className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 w-[48%] mb-4">
-                        <Ionicons name="cash-outline" size={20} color="#10b981" />
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Base Fare</Text>
-                        <Text className="text-green-600 font-bold text-xs">₹{booking.fare || 0}</Text>
                     </View>
 
                     {/* Booking Type */}

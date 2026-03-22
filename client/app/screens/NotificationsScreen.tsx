@@ -9,6 +9,7 @@ import {
     Alert,
     Platform
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,27 +25,49 @@ interface NotificationItem {
     read: boolean;
 }
 
+const NOTIFICATIONS_CACHE_KEY = 'notifications_cache';
+
 const NotificationsScreen = () => {
     const router = useRouter();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchNotifications = useCallback(async (showLoading = true) => {
+    const fetchNotifications = useCallback(async (showLoading = false) => {
         if (showLoading) setLoading(true);
         try {
             const res = await notificationAPI.getNotifications();
-            setNotifications(res.data.notifications);
+            if (res?.data?.notifications) {
+                setNotifications(res.data.notifications);
+                await AsyncStorage.setItem(NOTIFICATIONS_CACHE_KEY, JSON.stringify(res.data.notifications));
+            }
         } catch (err) {
             console.error("Fetch notifications error:", err);
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
             setRefreshing(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchNotifications();
+        const loadCachedNotifications = async () => {
+            try {
+                const cached = await AsyncStorage.getItem(NOTIFICATIONS_CACHE_KEY);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length) {
+                        setNotifications(parsed);
+                        setLoading(false);
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to load cached notifications:", err);
+            }
+
+            await fetchNotifications(false);
+        };
+
+        loadCachedNotifications();
     }, [fetchNotifications]);
 
     const onRefresh = () => {
@@ -155,11 +178,7 @@ const NotificationsScreen = () => {
                 )}
             </View>
 
-            {loading ? (
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="large" color="#FFD700" />
-                </View>
-            ) : notifications.length === 0 ? (
+            {notifications.length === 0 ? (
                 <View className="flex-1 items-center justify-center px-10">
                     <View className="w-20 h-20 bg-slate-50 rounded-full items-center justify-center mb-6">
                         <Ionicons name="notifications-off-outline" size={40} color="#CBD5E1" />

@@ -25,8 +25,10 @@ export async function registerForPushNotificationsAsync() {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
+        vibrationPattern: [0, 1000, 500, 1000, 500],
+        lightColor: '#FFD700',
+        enableVibrate: true,
+        bypassDnd: true, // Allow bypassing do-not-disturb for incoming rides
       });
     }
 
@@ -78,7 +80,7 @@ export async function sendLocalNotification(title: string, body: string, data: a
         body,
         data,
         sound: true,
-        priority: 'high',
+        priority: 'max',
       },
       trigger: null, // send immediately
     });

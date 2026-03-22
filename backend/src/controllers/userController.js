@@ -1,3 +1,4 @@
+import { clearUserCache } from "../middleware/cacheMiddleware.js";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import Booking from "../models/Booking.js";
@@ -5,13 +6,17 @@ import Booking from "../models/Booking.js";
 // ================= GET USER PROFILE =================
 export const getProfile = async (req, res) => {
   try {
+    const startTime = Date.now();
     const user = await User.findById(req.userId).select("-password");
 
     if (!user) {
+      console.log(`[Profile] Fetched in ${Date.now() - startTime}ms (User not found)`);
       return res.status(404).json({
         message: "User not found"
       });
     }
+
+    console.log(`[Profile] Fetched in ${Date.now() - startTime}ms for user ${req.userId}`);
 
     res.json({
       user: {
@@ -64,6 +69,7 @@ export const updateProfile = async (req, res) => {
       });
     }
 
+    if (req.userId) await clearUserCache(req.userId, 'user');
     res.json({
       message: "Profile updated successfully",
       user: {
@@ -85,7 +91,44 @@ export const updateProfile = async (req, res) => {
 // ================= GET USER HISTORY =================
 export const getHistory = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.userId }).sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const { bookingType, rideType } = req.query;
+    console.log('[History Request] Query Raw:', req.query);
+    const query = { user: req.userId };
+
+    if (bookingType === 'now') {
+      query.bookingType = 'now';
+      query.status = { $ne: 'scheduled' };
+    } else if (bookingType === 'schedule') {
+      query.bookingType = 'schedule';
+      query.status = 'scheduled';
+    } else if (bookingType && bookingType !== 'all') {
+      query.bookingType = bookingType;
+    }
+
+    if (rideType && rideType !== 'all') {
+      query.rideType = rideType;
+    }
+
+    console.log('[History Mongo Query]:', JSON.stringify(query));
+
+    console.log('[History] Filter params:', { bookingType, rideType });
+    console.log('[History] Mongo Query:', query);
+
+    // Parallelize data fetching and count for speed
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(query)
+    ]);
+
+    console.log(`[History] Found ${bookings.length} rides for query`);
+
     const normalizedBookings = bookings.map((booking) => {
       const obj = booking.toObject();
       obj.totalFare = (obj.fare || 0) + (obj.returnTripFare || 0) + (obj.penaltyApplied || 0) + (obj.tollFee || 0);
@@ -93,7 +136,13 @@ export const getHistory = async (req, res) => {
     });
 
     res.json({
-      bookings: normalizedBookings || []
+      bookings: normalizedBookings || [],
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -106,6 +155,7 @@ export const getHistory = async (req, res) => {
 // ================= CHANGE PASSWORD =================
 export const changePassword = async (req, res) => {
   try {
+    await clearUserCache(req.userId, 'user');
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
@@ -142,9 +192,11 @@ export const changePassword = async (req, res) => {
     });
   }
 };
+
 // ================= SUBMIT REVIEW =================
 export const submitReview = async (req, res) => {
   try {
+    await clearUserCache(req.userId, 'user');
     const { bookingId, rating, feedback } = req.body;
 
     if (!bookingId || !rating) {

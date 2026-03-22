@@ -258,8 +258,11 @@ const OutstationBookingScreen = () => {
         bookingType: bookingType,
         scheduledDate: bookingType === 'schedule' ? scheduledDate.toISOString() : undefined,
         fare: fares[carType].fare,
-        baseFare: fares[carType].fare,
+        baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
+        nightSurcharge: fares[carType].nightSurcharge || 0,
+        returnTripFare: 0,
         totalFare: fares[carType].total,
+        hasReturnTrip: false,
         distance: distanceKm,
         vehicleType: carType,
       };
@@ -338,7 +341,18 @@ const OutstationBookingScreen = () => {
           </View>
 
           <View className="bg-slate-900/80 border border-slate-700 px-5 py-4 rounded-2xl mb-6 items-center">
-            <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Estimated Fare</Text>
+            <View className="flex-row justify-between w-full mb-1">
+              <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Base Fare</Text>
+              <Text className="text-white text-sm font-black">₹{fares[carType].fare - (fares[carType].nightSurcharge || 0)}</Text>
+            </View>
+            {fares[carType].nightSurcharge > 0 && (
+              <View className="flex-row justify-between w-full mb-2">
+                <Text className="text-indigo-400 text-[9px] font-black uppercase tracking-wider">Night Surcharge</Text>
+                <Text className="text-indigo-400 text-sm font-black">+₹{fares[carType].nightSurcharge}</Text>
+              </View>
+            )}
+            <View className="h-[1px] bg-slate-700 w-full mb-2" />
+            <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Estimated Total</Text>
             <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare}</Text>
             <View className="flex-row items-center mt-1">
               <Ionicons name="speedometer-outline" size={11} color="#94A3B8" />
@@ -633,26 +647,35 @@ const OutstationBookingScreen = () => {
 
           {/* Fare Summary */}
           {fares[carType].fare > 0 && (
-            <View className="bg-slate-800 p-3 rounded-xl mb-4">
-              <View className="flex-row justify-between items-center">
+            <View className="bg-slate-800 p-4 rounded-xl mb-4">
+              <View className="flex-row justify-between items-center mb-3">
                 <View>
-                  <Text className="text-slate-400 text-[9px] font-black uppercase">Final Estimate</Text>
-                  <Text className="text-[#FFD700] font-black text-xl">₹{fares[carType].fare}</Text>
+                  <Text className="text-slate-400 text-[9px] font-black uppercase mb-1">Base Fare</Text>
+                  <Text className="text-white font-black text-lg">₹{fares[carType].fare - (fares[carType].nightSurcharge || 0)}</Text>
                 </View>
                 <View className="items-end">
-                  <Text className="text-slate-400 text-[9px] font-black uppercase">Allowed Time</Text>
+                  <Text className="text-slate-400 text-[9px] font-black uppercase mb-1">Allowed Time</Text>
                   <View className="flex-row items-center">
                     <Ionicons name="time" size={12} color="white" style={{ marginRight: 4 }} />
-                    <Text className="text-white font-bold text-sm">{formatTime(fares[carType].time)} · {distanceKm.toFixed(0)}km</Text>
+                    <Text className="text-white font-bold text-sm">{formatTime(fares[carType].time)}</Text>
                   </View>
                 </View>
               </View>
-              {fares[carType].isNight && (
-                <View className="flex-row items-center mt-2 bg-slate-700 px-3 py-1.5 rounded-lg">
-                  <Ionicons name="moon" size={12} color="#fbbf24" style={{ marginRight: 6 }} />
-                  <Text className="text-[10px] font-black text-amber-400">Night Surcharge (+20%) = ₹{fares[carType].nightSurcharge} included</Text>
+
+              {fares[carType].nightSurcharge > 0 && (
+                <View className="flex-row justify-between items-center mb-3 pt-3 border-t border-slate-700">
+                  <View className="flex-row items-center">
+                    <Ionicons name="moon" size={12} color="#fbbf24" style={{ marginRight: 6 }} />
+                    <Text className="text-amber-400 text-[10px] font-black uppercase">Night Surcharge (+20%)</Text>
+                  </View>
+                  <Text className="text-amber-400 font-black text-sm">+₹{fares[carType].nightSurcharge}</Text>
                 </View>
               )}
+
+              <View className="flex-row justify-between items-center pt-3 border-t border-slate-700">
+                <Text className="text-[#FFD700] text-[10px] font-black uppercase tracking-widest">Total Estimate</Text>
+                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare}</Text>
+              </View>
             </View>
           )}
 

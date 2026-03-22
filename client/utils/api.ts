@@ -1,6 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL, API_ENDPOINTS } from "../constants/apiConfig";
-import { getToken } from "./storage";
+import { getToken, removeToken, clearStorage } from "./storage";
 
 // Create axios instance with base URL
 const api = axios.create({
@@ -10,6 +10,13 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+// Store for logout callback (will be set by AuthContext)
+let logoutCallback: (() => void) | null = null;
+
+export const setLogoutCallback = (callback: () => void) => {
+  logoutCallback = callback;
+};
 
 // Request interceptor - attach token to every request
 api.interceptors.request.use(
@@ -28,19 +35,31 @@ api.interceptors.request.use(
 // Response interceptor - handle common errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response) {
       // Server responded with error status
       const { status, data } = error.response;
+      
       if (status === 401) {
-        // Token expired or invalid - could trigger logout
-        console.warn("Unauthorized - token may be expired");
+        console.warn(`Unauthorized (401) from ${error.config?.url}. Logging out.`);
+        
+        // Clear stored auth data
+        await clearStorage();
+        
+        // Call logout callback if set
+        if (logoutCallback) {
+          logoutCallback();
+        }
+      } else {
+        console.log(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url} | Status: ${status}`, data);
       }
+      
       return Promise.reject(data);
     } else if (error.request) {
       // Request made but no response
       return Promise.reject({ message: "Network error. Please check your connection." });
     }
+    
     return Promise.reject({ message: "Something went wrong." });
   }
 );
@@ -70,7 +89,19 @@ export const userAPI = {
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.put(API_ENDPOINTS.CHANGE_PASSWORD, data),
 
-  getHistory: () => api.get(API_ENDPOINTS.USER_HISTORY),
+  getHistory: (page = 1, limit = 10, filters?: { bookingType?: string; rideType?: string; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) => 
+    api.get(API_ENDPOINTS.USER_HISTORY, { 
+      params: { 
+        page, 
+        limit,
+        ...(filters?.bookingType && { bookingType: filters.bookingType }),
+        ...(filters?.rideType && { rideType: filters.rideType }),
+        ...(filters?.status && { status: filters.status }),
+        ...(filters?.paymentStatus && { paymentStatus: filters.paymentStatus }),
+        ...(filters?.startDate && { startDate: filters.startDate }),
+        ...(filters?.endDate && { endDate: filters.endDate }),
+      } 
+    }),
 
   rateDriver: (data: { bookingId: string; rating: number; feedback?: string }) =>
     api.post("/api/users/rate-driver", data),
@@ -99,7 +130,18 @@ export const bookingAPI = {
 
   getScheduledBookings: () => api.get('/api/bookings/scheduled'),
 
-  getScheduledHistory: () => api.get('/api/bookings/scheduled/history'),
+  getScheduledHistory: (page = 1, limit = 10, filters?: { rideType?: string; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) => 
+    api.get('/api/bookings/scheduled/history', { 
+      params: { 
+        page, 
+        limit,
+        ...(filters?.rideType && { rideType: filters.rideType }),
+        ...(filters?.status && { status: filters.status }),
+        ...(filters?.paymentStatus && { paymentStatus: filters.paymentStatus }),
+        ...(filters?.startDate && { startDate: filters.startDate }),
+        ...(filters?.endDate && { endDate: filters.endDate }),
+      } 
+    }),
 
   getBookingById: (id: string) => api.get(API_ENDPOINTS.GET_BOOKING_BY_ID(id), { params: { compact: 1 } }),
 
@@ -121,6 +163,8 @@ export const bookingAPI = {
 
   updatePaymentChoice: (id: string, paymentChoice: 'leg_by_leg' | 'total_at_end') =>
     api.put(`/api/bookings/${id}/update-payment-choice`, { paymentChoice }),
+
+  getActiveBooking: () => api.get('/api/bookings/active'),
 };
 
 // ================= DRIVER API =================
@@ -171,14 +215,6 @@ export const chatAPI = {
 
 // ================= FARE API =================
 export const fareAPI = {
-  /**
-   * Calculate trip fare using the step-based pricing model.
-   * @param distance    - trip distance in KM (≥ 1)
-   * @param carType     - "5seater" | "7seater"
-   * @param service     - "cab" (max 40 KM) | "rental" (unlimited)
-   * @param tripType    - "one-way" | "round-trip" (default: "one-way")
-   * @param bookingTime - ISO datetime string; if hour ≥ 18 or < 9 a 20% night surcharge is applied
-   */
   calculateTripFare: (data: {
     distance: number;
     carType: "5seater" | "7seater";

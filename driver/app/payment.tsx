@@ -23,8 +23,9 @@ export default function PaymentScreen() {
     const returnFare = params.returnFare ? Number(params.returnFare) : 0;
     const penalty = params.penalty ? Number(params.penalty) : 0;
     const toll = params.toll ? Number(params.toll) : 0;
+    const nightSurcharge = params.nightSurcharge ? Number(params.nightSurcharge) : 0;
 
-    // Total Amount: If final payment and first leg already paid, only collect return + penalty
+    // Total Amount: If final payment and first leg already paid, only collect return + penalty + toll
     const totalAmount = isPartialPayment 
         ? baseFare 
         : (firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll));
@@ -39,6 +40,7 @@ export default function PaymentScreen() {
                     returnFare,
                     penalty,
                     toll,
+                    nightSurcharge,
                     firstLegPaid
                 }
             }).catch(err => console.error("Failed to request payment via API:", err));
@@ -102,6 +104,7 @@ export default function PaymentScreen() {
                         returnFare: returnFare.toString(),
                         penalty: penalty.toString(),
                         toll: toll.toString(),
+                        nightSurcharge: nightSurcharge.toString(),
                         distance: finalTotalDistance,
                         time: params.time as string || "24",
                         pickup: params.pickup as string || "",
@@ -144,19 +147,32 @@ export default function PaymentScreen() {
                         {/* Breakdown for Final Payment */}
                         {!isPartialPayment && (
                             <View className="w-full bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
-                                <View className="flex-row justify-between mb-2">
-                                    <Text className="text-slate-400 text-xs text-left">Base Outbound</Text>
-                                    <View className="flex-row items-center">
+                                <View className="flex-row justify-between mb-3 items-center">
+                                    <View>
+                                        <Text className="text-slate-400 text-xs">
+                                            {returnFare > 0 || params.hasReturnTrip === 'true' ? 'Base Fare (Leg 1)' : 'Ride Fare'}
+                                        </Text>
                                         {firstLegPaid && (
-                                            <View className="bg-green-500/20 px-1.5 py-0.5 rounded-md mr-1.5 border border-green-500/30">
-                                                <Text className="text-green-400 text-[8px] font-black uppercase">Already Paid</Text>
-                                            </View>
+                                            <Text className="text-green-500 text-[8px] font-black uppercase tracking-wider">✓ Paid</Text>
                                         )}
-                                        <Text className={`text-xs font-bold ${firstLegPaid ? 'text-slate-500 line-through' : 'text-white'}`}>₹{baseFare}</Text>
                                     </View>
+                                    <Text className={`text-xs font-bold ${firstLegPaid ? 'text-green-500' : 'text-white'}`}>₹{baseFare - nightSurcharge}</Text>
                                 </View>
+
+                                {nightSurcharge > 0 && (
+                                    <View className="flex-row justify-between mb-3 items-center">
+                                        <View>
+                                            <Text className="text-indigo-400 text-xs">Night Surcharge</Text>
+                                            {firstLegPaid && (
+                                                <Text className="text-green-500 text-[8px] font-black uppercase tracking-wider">✓ Paid</Text>
+                                            )}
+                                        </View>
+                                        <Text className={`text-xs font-bold ${firstLegPaid ? 'text-green-500' : 'text-indigo-400'}`}>+₹{nightSurcharge}</Text>
+                                    </View>
+                                )}
+
                                 {returnFare > 0 && (
-                                    <View className="flex-row justify-between mb-2">
+                                    <View className="flex-row justify-between mb-3 items-center">
                                         <View className="flex-row items-center">
                                             <Text className="text-blue-400 text-xs">Return Trip </Text>
                                             <View className="bg-blue-500/20 px-1 py-0.5 rounded ml-1">
@@ -167,17 +183,40 @@ export default function PaymentScreen() {
                                     </View>
                                 )}
                                 {penalty > 0 && (
-                                    <View className="flex-row justify-between">
+                                    <View className="flex-row justify-between mb-3 items-center">
                                         <Text className="text-red-400 text-xs">Waiting Penalty</Text>
                                         <Text className="text-red-400 text-xs font-bold">+₹{penalty}</Text>
                                     </View>
                                 )}
                                 {toll > 0 && (
-                                    <View className="flex-row justify-between mt-2">
+                                    <View className="flex-row justify-between">
                                         <Text className="text-amber-400 text-xs">Toll Charges</Text>
                                         <Text className="text-amber-400 text-xs font-bold">+₹{toll}</Text>
                                     </View>
                                 )}
+
+                                <View className="h-[1px] bg-slate-700/50 w-full my-2" />
+                                
+                                {firstLegPaid && (
+                                    <>
+                                        <View className="flex-row justify-between mb-1 opacity-70">
+                                            <Text className="text-slate-400 text-[9px] uppercase font-bold">Total Trip Cost</Text>
+                                            <Text className="text-white text-[10px] font-bold">₹{baseFare + returnFare + penalty + toll}</Text>
+                                        </View>
+                                        <View className="flex-row justify-between mb-1 opacity-70">
+                                            <Text className="text-green-500 text-[9px] uppercase font-bold">Already Paid (Leg 1)</Text>
+                                            <Text className="text-green-500 text-[10px] font-bold">-₹{baseFare}</Text>
+                                        </View>
+                                        <View className="h-[1px] bg-slate-700 w-1/3 self-end my-1" />
+                                    </>
+                                )}
+
+                                <View className="flex-row justify-between items-center mt-1">
+                                    <Text className="text-[#FFD700] font-black text-xs uppercase tracking-widest">
+                                        {isPartialPayment ? 'Collect Now' : 'Money to Collect'}
+                                    </Text>
+                                    <Text className="text-[#FFD700] text-2xl font-black italic">₹{totalAmount}</Text>
+                                </View>
                             </View>
                         )}
 

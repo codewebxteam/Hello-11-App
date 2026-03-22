@@ -325,7 +325,7 @@ export default function ProfileScreen() {
                             <View className="w-10 h-10 bg-green-50 rounded-full items-center justify-center">
                                 <Ionicons name="card" size={20} color="#22C55E" />
                             </View>
-                            <Text className="text-slate-900 font-bold text-base ml-4">Earnings & Payouts</Text>
+                            <Text className="text-slate-900 font-bold text-base ml-4">Earnings</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
                     </TouchableOpacity>
@@ -342,6 +342,7 @@ export default function ProfileScreen() {
                         </View>
                         <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
                     </TouchableOpacity>
+
 
                 </View>
 

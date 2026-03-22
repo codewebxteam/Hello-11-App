@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, Image, StatusBar as RNStatusBar, Linking, Alert, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,13 +19,15 @@ const SHEET_MIN_HEIGHT = 120;
 export default function PickupScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { bookingId } = useLocalSearchParams();
+    const params = useLocalSearchParams();
+    const { bookingId } = params;
     const [booking, setBooking] = useState<any>(null);
     const [driverLoc, setDriverLoc] = useState<any>(null);
     const [routeCoords, setRouteCoords] = useState<any[]>([]);
     const [region, setRegion] = useState<any>(null);
     const [distance, setDistance] = useState<string>("---");
     const [eta, setEta] = useState<string>("---");
+    const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
 
     // Animation Shared Values
     const translateY = useSharedValue(0);
@@ -182,8 +184,14 @@ export default function PickupScreen() {
                             }));
                         }
                         driverAPI.updateLocation({ latitude, longitude }).catch(() => { });
+                        
+                        // Only fetch directions if we've moved significantly (>100m) or if it's the first time
+                        const shouldUpdateDirections = !lastUpdateCoords.current || 
+                            Math.abs(lastUpdateCoords.current.lat - latitude) > 0.001 || 
+                            Math.abs(lastUpdateCoords.current.lon - longitude) > 0.001;
 
-                        if (booking?.pickupLatitude && booking?.pickupLongitude) {
+                        if (shouldUpdateDirections && booking?.pickupLatitude && booking?.pickupLongitude) {
+                            lastUpdateCoords.current = { lat: latitude, lon: longitude };
                             locationAPI.getDirections(latitude, longitude, Number(booking.pickupLatitude), Number(booking.pickupLongitude))
                                 .then(res => {
                                     if (res.data?.data) {
@@ -247,11 +255,12 @@ export default function PickupScreen() {
                             />
                         )}
 
-                        {booking && Number(booking.pickupLatitude) !== 0 && Number(booking.pickupLongitude) !== 0 && (
+                        {Number(booking?.pickupLatitude || params.pLat) !== 0 && (
                             <Marker
+                                tracksViewChanges={false}
                                 coordinate={{
-                                    latitude: Number(booking.pickupLatitude || 0) || 0,
-                                    longitude: Number(booking.pickupLongitude || 0) || 0
+                                    latitude: Number(booking?.pickupLatitude || params.pLat) || 0,
+                                    longitude: Number(booking?.pickupLongitude || params.pLon) || 0
                                 }}
                             >
                                 <View className="bg-white p-2 rounded-full border-[3px] border-green-500 shadow-lg">

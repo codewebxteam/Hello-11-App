@@ -13,7 +13,8 @@ import {
   StatusBar as RNStatusBar,
   ToastAndroid,
   Image,
-  AppState
+  AppState,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer } from 'expo-audio';
+import { Audio } from 'expo-av';
 
 import { initSocket, disconnectSocket } from '../utils/socket';
 import { driverAPI } from '../utils/api';
@@ -37,10 +39,17 @@ export default function DriverDashboard() {
   const [isSearching, setIsSearching] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState(false);
   const [hasActiveRide, setHasActiveRide] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
   const [rideData, setRideData] = useState<any>(null);
   const [stats, setStats] = useState({ earnings: 0, trips: 0, name: '', rating: 0, profileImage: '' });
   const [location, setLocation] = useState<any>(null);
-  const [region, setRegion] = useState<any>(null);
+  const [region, setRegion] = useState<any>({
+    latitude: 28.6139, // Default to Delhi
+    longitude: 77.2090,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+  const [isTogglingAvailability, setIsTogglingAvailability] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -79,21 +88,57 @@ export default function DriverDashboard() {
         setIsOnline(driver.online || false);
         setIsSearching(driver.available || false);
 
-        // Check for active booking and redirect ONLY on initial load
+        // Check for active booking and redirect ONLY on initial load OR app foregrounding
         if (currentBooking && !hasNavigatedRef.current) {
           console.log("Found active booking on dashboard load:", currentBooking);
           setHasActiveRide(true);
           hasNavigatedRef.current = true; // Mark as navigated
 
-          if (currentBooking.status === "accepted" || currentBooking.status === "driver_assigned" || currentBooking.status === "arrived") {
+          const bookingId = currentBooking.id || currentBooking._id;
+
+          if (currentBooking.status === "accepted" || currentBooking.status === "driver_assigned") {
             router.push({
               pathname: "/pickup",
-              params: { bookingId: currentBooking.id }
+              params: { 
+                bookingId,
+                pLat: currentBooking.pickupLatitude,
+                pLon: currentBooking.pickupLongitude,
+                dLat: currentBooking.dropLatitude,
+                dLon: currentBooking.dropLongitude
+              }
+            });
+          } else if (currentBooking.status === "arrived") {
+            router.push({
+              pathname: "/start-ride",
+              params: { bookingId }
             });
           } else if (currentBooking.status === "started") {
             router.push({
               pathname: "/active-ride",
-              params: { bookingId: currentBooking.id }
+              params: { 
+                bookingId,
+                pLat: currentBooking.pickupLatitude,
+                pLon: currentBooking.pickupLongitude,
+                dLat: currentBooking.dropLatitude,
+                dLon: currentBooking.dropLongitude
+              }
+            });
+          } else if (currentBooking.status === "waiting") {
+            router.push({
+              pathname: "/waiting-for-return",
+              params: { bookingId }
+            });
+          } else if (currentBooking.status === "return_ride_started") {
+            router.push({
+              pathname: "/active-ride",
+              params: {
+                bookingId,
+                mode: 'return',
+                pLat: currentBooking.pickupLatitude,
+                pLon: currentBooking.pickupLongitude,
+                dLat: currentBooking.dropLatitude,
+                dLon: currentBooking.dropLongitude
+              }
             });
           }
         } else if (!currentBooking) {
@@ -122,33 +167,6 @@ export default function DriverDashboard() {
           socket.emit("join", driverId);
         }
 
-        socket.on("newRideRequest", (data: any) => {
-          console.log("New ride request received:", data);
-          setRideData(data);
-          
-          // Trigger local notification if in background (Expo Go workaround)
-          if (AppState.currentState !== 'active') {
-            sendLocalNotification(
-              "New Ride Request! 🚕",
-              `New ride from ${data.pickup} to ${data.drop}. Fare: ₹${data.fare}`
-            );
-          }
-          
-          playChime();
-          startRideRequest();
-        });
-
-        socket.on("rideRequestCancelled", (data: any) => {
-          console.log("Ride request cancelled by user:", data);
-          // If the cancelled ride is the one currently showing, close it
-          setRideData((currentRide: any) => {
-            if (currentRide && (currentRide._id === data.bookingId || currentRide.id === data.bookingId)) {
-              closeRequest();
-              return null;
-            }
-            return currentRide;
-          });
-        });
       };
       setupSocket();
     } else {
@@ -161,13 +179,44 @@ export default function DriverDashboard() {
 
   useEffect(() => {
     loadStats();
+
+    const configureAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          staysActiveInBackground: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (e) {
+        console.log("Audio config error:", e);
+      }
+    };
+    configureAudio();
+
+    // --- APPSTATE LISTENER FOR RE-SYNCING ---
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        console.log("App foregrounded, reloading stats...");
+        loadStats();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const startLocationTracking = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission to access location was denied');
+    let fgStatus = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus.status !== 'granted') {
+      Alert.alert('Permission Error', 'Foreground location permission is required.');
       return;
+    }
+
+    let bgStatus = await Location.requestBackgroundPermissionsAsync();
+    if (bgStatus.status !== 'granted') {
+      Alert.alert('Permission Error', 'Background location permission is required to keep you online in lock-screen.');
     }
 
     let loc;
@@ -177,13 +226,12 @@ export default function DriverDashboard() {
       });
     } catch (e) {
       console.log("Error getting current position:", e);
-      // Fallback or alert user
       Alert.alert("Location Error", "Could not get current location. Please ensure GPS is enabled.");
       return;
     }
     setLocation(loc);
 
-    if (!isNaN(loc.coords.latitude) && !isNaN(loc.coords.longitude)) {
+    if (loc?.coords && !isNaN(loc.coords.latitude) && !isNaN(loc.coords.longitude)) {
       setRegion({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -194,49 +242,44 @@ export default function DriverDashboard() {
 
     // Update location on backend
     try {
-      await driverAPI.updateLocation({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude
-      });
+      if (loc && loc.coords) {
+        await driverAPI.updateLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+      }
     } catch (err) {
       console.log("Initial location update error:", err);
     }
 
-    // Watch for location changes
-    Location.watchPositionAsync(
-      {
+    // Start a foreground service to keep JS running forever
+    try {
+      await Location.startLocationUpdatesAsync('BACKGROUND_LOCATION_TASK', {
         accuracy: Location.Accuracy.High,
         distanceInterval: 10,
         timeInterval: 10000,
-      },
-      async (newLoc) => {
-        const { latitude, longitude } = newLoc.coords;
-        setLocation(newLoc);
-
-        if (!isNaN(latitude) && !isNaN(longitude)) {
-          setRegion((prev: any) => ({
-            latitude: latitude,
-            longitude: longitude,
-            latitudeDelta: prev?.latitudeDelta || 0.01,
-            longitudeDelta: prev?.longitudeDelta || 0.01,
-          }));
-        }
-
-        try {
-          await driverAPI.updateLocation({
-            latitude,
-            longitude
-          });
-        } catch (err) {
-          console.log("Watch location update error:", err);
-        }
-      }
-    );
+        foregroundService: {
+          notificationTitle: "Driver is Online 🚕",
+          notificationBody: "Waiting for new ride requests...",
+          notificationColor: "#FFD700",
+        },
+      });
+      console.log("Foreground Service Started");
+    } catch (e) {
+      console.error("Foreground location error:", e);
+    }
   };
 
-  const stopLocationTracking = () => {
-    // Location watching is handled by expo within the component lifecycle mostly, 
-    // but in a production app we'd save and remove the subscription.
+  const stopLocationTracking = async () => {
+    try {
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync('BACKGROUND_LOCATION_TASK');
+      if (hasStarted) {
+        await Location.stopLocationUpdatesAsync('BACKGROUND_LOCATION_TASK');
+        console.log("Foreground Service Stopped");
+      }
+    } catch (e) {
+      console.error("Error stopping location updates:", e);
+    }
   };
 
   useEffect(() => {
@@ -256,44 +299,54 @@ export default function DriverDashboard() {
 
   async function playChime() {
     try {
-      // Only play chime if app is active to avoid focus issues
-      if (AppState.currentState !== 'active') {
-        console.log("App in background, relying on Push Notification.");
-        return;
-      }
-
+      // Always play chime to alert driver of incoming ride, even in background
       player.loop = true;
-      player.volume = 0.5;
+      player.volume = 1.0;
       player.play();
     } catch (e) { console.log("Audio logic error:", e); }
   }
 
   const handleRadarPress = async () => {
-    if (isSearching) return;
-
+    if (isTogglingAvailability) return;
+    
     try {
-      const res = await driverAPI.toggleAvailability();
-      if (res.data.available) {
-        setIsSearching(true);
+      setIsTogglingAvailability(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Optimistic update
+      const nextState = !isSearching;
+      setIsSearching(nextState);
+      
+      if (nextState) {
         Animated.loop(
           Animated.sequence([
-            Animated.timing(radarPulse, {
-              toValue: 1, duration: 2000, useNativeDriver: true, easing: Easing.out(Easing.ease),
-            }),
+            Animated.timing(radarPulse, { toValue: 1, duration: 2000, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
             Animated.timing(radarPulse, { toValue: 0, duration: 0, useNativeDriver: true })
           ])
         ).start();
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        radarPulse.setValue(0);
+        radarPulse.stopAnimation();
+      }
+
+      const res = await driverAPI.toggleAvailability();
+      // Sync with actual backend state
+      if (res.data.available !== nextState) {
+        setIsSearching(res.data.available);
       }
     } catch (err) {
       console.log("Toggle availability error:", err);
+      // Revert on error
+      setIsSearching(isSearching);
+    } finally {
+      setIsTogglingAvailability(false);
     }
   };
 
   const startRideRequest = () => {
     setIncomingRequest(true);
     timerLine.setValue(1);
-    Vibration.vibrate([0, 500, 500, 500], true);
+    Vibration.vibrate([0, 1000, 500, 1000, 500], true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     Animated.spring(requestSlide, { toValue: 0, tension: 45, friction: 8, useNativeDriver: true }).start();
@@ -314,7 +367,10 @@ export default function DriverDashboard() {
       player.pause();
     }
     timerLine.stopAnimation();
-    Animated.timing(requestSlide, { toValue: height, duration: 250, useNativeDriver: true }).start(() => setIncomingRequest(false));
+    Animated.timing(requestSlide, { toValue: height, duration: 250, useNativeDriver: true }).start(() => {
+      setIncomingRequest(false);
+      setIsAccepting(false); // Reset loading state when closed
+    });
   };
 
   return (
@@ -322,20 +378,13 @@ export default function DriverDashboard() {
       <StatusBar style="dark" />
 
       <View className="absolute inset-0 bg-slate-200">
-        {region ? (
-          <MapView
-            style={{ width, height }}
-            region={region}
-            showsUserLocation={true}
-            showsMyLocationButton={false}
-            provider={PROVIDER_GOOGLE}
-          >
-          </MapView>
-        ) : (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-slate-400 font-bold">Getting Location...</Text>
-          </View>
-        )}
+        <MapView
+          style={{ width, height }}
+          region={region}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          provider={PROVIDER_GOOGLE}
+        />
 
         {isSearching && (
           <View className="absolute inset-0 items-center justify-center pointer-events-none">
@@ -437,7 +486,7 @@ export default function DriverDashboard() {
             </TouchableOpacity>
           </View>
         ) : (
-          !incomingRequest && (
+          (
             <View className={`bg-white rounded-t-[40px] px-6 pt-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
               <View className="self-center w-12 h-1.5 bg-slate-100 rounded-full mb-6" />
               <View className="flex-row justify-between mb-8">
@@ -455,21 +504,28 @@ export default function DriverDashboard() {
 
               <TouchableOpacity
                 onPress={handleRadarPress}
-                disabled={isSearching}
+                activeOpacity={0.7}
+                disabled={isTogglingAvailability}
                 className={`rounded-[24px] p-5 flex-row items-center justify-between shadow-lg ${isSearching ? 'bg-slate-800' : 'bg-[#FFD700]'}`}
               >
                 <View className="flex-row items-center">
-                  <Ionicons name={isSearching ? "sync" : "pulse"} size={24} color={isSearching ? "white" : "black"} />
+                  {isTogglingAvailability ? (
+                    <ActivityIndicator color={isSearching ? "white" : "black"} />
+                  ) : (
+                    <Ionicons name={isSearching ? "sync" : "pulse"} size={24} color={isSearching ? "white" : "black"} />
+                  )}
                   <View className="ml-4">
                     <Text className={`font-black text-lg ${isSearching ? 'text-white' : 'text-slate-900'}`}>
                       {isSearching ? 'Waiting for Riders...' : 'Start Finding Rides'}
                     </Text>
                     <Text className={`${isSearching ? 'text-slate-400' : 'text-slate-800'} text-xs font-semibold`}>
-                      {isSearching ? 'High demand zone' : 'Tap to scan area'}
+                      {isSearching ? 'Searching active area' : 'Tap to scan area'}
                     </Text>
                   </View>
                 </View>
-                <View className="bg-slate-900 px-3 py-1.5 rounded-lg"><Text className="text-white text-[9px] font-bold">RADAR ON</Text></View>
+                <View className="bg-slate-900 px-3 py-1.5 rounded-lg">
+                  <Text className="text-white text-[9px] font-bold">RADAR ON</Text>
+                </View>
               </TouchableOpacity>
             </View>
           )
@@ -568,6 +624,7 @@ export default function DriverDashboard() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={async () => {
+                  if (isAccepting) return;
                   try {
                     const bookingId = rideData?.bookingId;
                     if (!bookingId) {
@@ -575,6 +632,7 @@ export default function DriverDashboard() {
                       return;
                     }
 
+                    setIsAccepting(true); // Show immediate feedback
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                     await driverAPI.acceptBooking(bookingId);
 
@@ -582,17 +640,27 @@ export default function DriverDashboard() {
                     setHasActiveRide(true);
                     router.push({
                       pathname: "/pickup",
-                      params: { bookingId: bookingId }
+                      params: { 
+                        bookingId: bookingId,
+                        pLat: rideData.pickupLatitude,
+                        pLon: rideData.pickupLongitude,
+                        dLat: rideData.dropLatitude,
+                        dLon: rideData.dropLongitude
+                      }
                     });
                   } catch (err: any) {
+                    setIsAccepting(false); // Reset feedback on error
                     console.error("Accept ride error:", err);
                     Alert.alert("Error", err.response?.data?.message || "Failed to accept ride. It might have been taken by another driver.");
-                    closeRequest();
                   }
                 }}
-                className="flex-[2] bg-[#FFD700] py-4 rounded-[20px] items-center shadow-lg shadow-yellow-500/20 active:bg-[#FCD34D]"
+                className={`flex-[2] py-4 rounded-[20px] items-center shadow-lg active:bg-[#FCD34D] ${isAccepting ? 'bg-yellow-600/50 shadow-none' : 'bg-[#FFD700] shadow-yellow-500/20'}`}
               >
-                <Text className="text-[#0F172A] font-black text-sm uppercase tracking-[3px]">Accept Ride</Text>
+                {isAccepting ? (
+                  <ActivityIndicator color="#0F172A" />
+                ) : (
+                  <Text className="text-[#0F172A] font-black text-sm uppercase tracking-[3px]">Accept Ride</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

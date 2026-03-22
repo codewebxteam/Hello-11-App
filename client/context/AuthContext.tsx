@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { authAPI, userAPI } from "../utils/api";
-import { saveToken, getToken, removeToken, saveUser, getUser, removeUser, clearStorage } from "../utils/storage";
+import { authAPI, userAPI, setLogoutCallback } from "../utils/api";
+import { saveToken, getToken, removeToken, saveUser, getUser, removeUser, clearStorage, isValidToken, isTokenExpired } from "../utils/storage";
 
 // Types
 interface User {
   id: string;
+  _id?: string;
   name: string;
   mobile: string;
   email?: string;
@@ -30,19 +31,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on app start
-  useEffect(() => {
-    loadStoredAuth();
+  // ================= LOGOUT =================
+  const logout = React.useCallback(async () => {
+    console.log("[Auth] logout called, clearing storage");
+    await clearStorage();
+    setToken(null);
+    setUser(null);
   }, []);
 
+  const isRefreshing = React.useRef(false);
+
+  // ================= REFRESH PROFILE =================
+  const refreshProfile = React.useCallback(async () => {
+    if (isRefreshing.current) {
+        console.log("[Auth] refreshProfile: already in progress, skipping");
+        return;
+    }
+    
+    isRefreshing.current = true;
+    try {
+      const response = await userAPI.getProfile();
+      const userData = response.data.user;
+      console.log("[Auth] refreshProfile: success", userData);
+      setUser(userData);
+      await saveUser(userData);
+    } catch (error: any) {
+      console.error("[Auth] refreshProfile: error", error);
+    } finally {
+      isRefreshing.current = false;
+    }
+  }, []);
+
+  // ================= LOAD STORED AUTH =================
   const loadStoredAuth = async () => {
     try {
       const storedToken = await getToken();
       const storedUser = await getUser();
 
-      if (storedToken && storedUser) {
+      console.log("[Auth] loadStoredAuth: storedToken", !!storedToken, "storedUser", !!storedUser);
+
+      if (storedToken) {
+        // Just set the token first to allow the app to show authenticated screens
         setToken(storedToken);
-        setUser(storedUser);
+        
+        const tokenValid = await isValidToken(storedToken);
+        console.log("[Auth] loadStoredAuth: tokenValid?", tokenValid);
+        if (!tokenValid) {
+          console.warn("Stored token has expired. Logging out.");
+          await logout();
+          return;
+        }
+
+        if (storedUser) {
+          setUser(storedUser);
+          // Refresh in background to get latest data
+          refreshProfile();
+        } else {
+          // If user data is missing but token is valid, fetch it
+          await refreshProfile();
+        }
       }
     } catch (error) {
       console.error("Error loading stored auth:", error);
@@ -51,80 +98,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // ================= EFFECTS =================
+  useEffect(() => {
+    loadStoredAuth();
+  }, []);
+
+  useEffect(() => {
+    setLogoutCallback(logout);
+  }, [logout]);
+
   // ================= LOGIN =================
-  const login = async (mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
+  const login = React.useCallback(async (mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
     try {
       const response = await authAPI.signin({ mobile, password });
       const { token: newToken, user: userData } = response.data;
 
-      // Save to storage
       await saveToken(newToken);
       await saveUser(userData);
-
-      // Update state
       setToken(newToken);
       setUser(userData);
 
       return { success: true, message: "Login successful" };
     } catch (error: any) {
-      const message = error?.message || "Login failed. Please try again.";
+      const message = error?.message || "Login failed.";
       return { success: false, message };
     }
-  };
+  }, []);
 
   // ================= REGISTER =================
-  const register = async (name: string, mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
+  const register = React.useCallback(async (name: string, mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
     try {
       const response = await authAPI.signup({ name, mobile, password });
       return { success: true, message: response.data.message || "Signup successful" };
     } catch (error: any) {
-      const message = error?.message || "Registration failed. Please try again.";
+      const message = error?.message || "Registration failed.";
       return { success: false, message };
     }
-  };
-
-  // ================= LOGOUT =================
-  const logout = async () => {
-    await clearStorage();
-    setToken(null);
-    setUser(null);
-  };
-
-  // ================= REFRESH PROFILE =================
-  const refreshProfile = async () => {
-    try {
-      const response = await userAPI.getProfile();
-      const userData = response.data.user;
-      setUser(userData);
-      await saveUser(userData);
-    } catch (error) {
-      console.error("Error refreshing profile:", error);
-    }
-  };
+  }, []);
 
   // ================= UPDATE USER LOCAL =================
-  const updateUserLocal = (data: Partial<User>) => {
-    if (user) {
-      const updated = { ...user, ...data };
-      setUser(updated);
+  const updateUserLocal = React.useCallback((data: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return null;
+      const updated = { ...prev, ...data };
       saveUser(updated);
-    }
-  };
+      return updated;
+    });
+  }, []);
+
+  const contextValue = React.useMemo(() => ({
+    user,
+    token,
+    isLoading,
+    isAuthenticated: !!token, // Only depend on token for authentication status
+    login,
+    register,
+    logout,
+    refreshProfile,
+    updateUserLocal,
+  }), [user, token, isLoading, login, register, logout, refreshProfile, updateUserLocal]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        isAuthenticated: !!token && !!user,
-        login,
-        register,
-        logout,
-        refreshProfile,
-        updateUserLocal,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

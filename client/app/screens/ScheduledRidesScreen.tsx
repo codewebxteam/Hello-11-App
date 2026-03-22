@@ -35,7 +35,32 @@ const getCountdown = (d: string) => {
     return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
 };
 
-// ─── Ride Card ────────────────────────────────────────────────────────────────
+// ─── Sub-Components (Defined outside for stability) ──────────────────────────
+
+const RenderShimmerCard = ({ cardKey, shimmerOpacity }: { cardKey: string; shimmerOpacity: Animated.Value | Animated.AnimatedInterpolation<number> }) => (
+    <Animated.View
+        key={cardKey}
+        style={{ opacity: shimmerOpacity, backgroundColor: '#fff', marginBottom: 16, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#f1f5f9' }}
+    >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+            <View>
+                <View style={{ height: 12, width: 140, backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
+                <View style={{ height: 18, width: 96, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+            </View>
+            <View style={{ height: 20, width: 20, backgroundColor: '#e2e8f0', borderRadius: 10 }} />
+        </View>
+        <View style={{ height: 42, borderRadius: 12, backgroundColor: '#e2e8f0', marginBottom: 14 }} />
+        <View style={{ height: 10, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
+        <View style={{ height: 10, width: '85%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 16 }} />
+        <View style={{ height: 10, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
+        <View style={{ height: 10, width: '78%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View style={{ height: 14, width: 90, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+            <View style={{ height: 14, width: 70, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+        </View>
+    </Animated.View>
+);
+
 const RideCard = ({
     item, isUpcoming, onCancel, onViewDetails
 }: { item: any; isUpcoming: boolean; onCancel: (id: string) => void; onViewDetails: (item: any) => void }) => {
@@ -120,6 +145,7 @@ const RideCard = ({
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+
 const ScheduledRidesScreen = () => {
     const router = useRouter();
     const [tab, setTab] = useState<Tab>('upcoming');
@@ -176,7 +202,7 @@ const ScheduledRidesScreen = () => {
 
     const currentData = tab === 'upcoming' ? upcoming : history;
 
-    const openDetails = (item: any) => {
+    const openDetails = useCallback((item: any) => {
         const bookingId = item._id || item.id;
         if (!bookingId) return;
         router.push({
@@ -186,31 +212,41 @@ const ScheduledRidesScreen = () => {
                 prefill: JSON.stringify(item),
             }
         });
-    };
+    }, [router]);
 
-    const renderShimmerCard = (key: string) => (
-        <Animated.View
-            key={key}
-            style={{ opacity: shimmer, backgroundColor: '#fff', marginBottom: 16, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#f1f5f9' }}
-        >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
-                <View>
-                    <View style={{ height: 12, width: 140, backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
-                    <View style={{ height: 18, width: 96, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
+    if (loading) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['top']}>
+                <Stack.Screen options={{ headerShown: false }} />
+                <StatusBar style="dark" />
+                <View style={{ backgroundColor: '#FFD700', paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                        <TouchableOpacity onPress={() => router.back()} style={{ backgroundColor: 'rgba(0,0,0,0.1)', padding: 8, borderRadius: 12, marginRight: 14 }}>
+                            <Ionicons name="arrow-back" size={22} color="black" />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={{ color: '#000', fontWeight: '900', fontSize: 20 }}>Scheduled Rides</Text>
+                            <Text style={{ color: 'rgba(0,0,0,0.5)', fontSize: 12, fontWeight: '700' }}>Upcoming & past outstation bookings</Text>
+                        </View>
+                    </View>
+                    {/* Tabs Shimmer Placeholder */}
+                    <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 16, padding: 4 }}>
+                         <View style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: '#fff' }}>
+                             <View style={{ height: 12, width: 80, backgroundColor: '#e2e8f0', borderRadius: 6 }} />
+                         </View>
+                         <View style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' }}>
+                             <View style={{ height: 12, width: 80, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 6 }} />
+                         </View>
+                    </View>
                 </View>
-                <View style={{ height: 20, width: 20, backgroundColor: '#e2e8f0', borderRadius: 10 }} />
-            </View>
-            <View style={{ height: 42, borderRadius: 12, backgroundColor: '#e2e8f0', marginBottom: 14 }} />
-            <View style={{ height: 10, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
-            <View style={{ height: 10, width: '85%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 16 }} />
-            <View style={{ height: 10, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 8 }} />
-            <View style={{ height: 10, width: '78%', backgroundColor: '#e2e8f0', borderRadius: 8, marginBottom: 16 }} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <View style={{ height: 14, width: 90, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
-                <View style={{ height: 14, width: 70, backgroundColor: '#e2e8f0', borderRadius: 8 }} />
-            </View>
-        </Animated.View>
-    );
+                <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+                    <RenderShimmerCard cardKey="shim-1" shimmerOpacity={shimmer} />
+                    <RenderShimmerCard cardKey="shim-2" shimmerOpacity={shimmer} />
+                    <RenderShimmerCard cardKey="shim-3" shimmerOpacity={shimmer} />
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['top']}>
@@ -248,51 +284,43 @@ const ScheduledRidesScreen = () => {
                 </View>
             </View>
 
-            {loading ? (
-                <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-                    {renderShimmerCard('shim-1')}
-                    {renderShimmerCard('shim-2')}
-                    {renderShimmerCard('shim-3')}
-                </ScrollView>
-            ) : (
-                <FlatList
-                    data={currentData}
-                    keyExtractor={item => item._id || item.id}
-                    renderItem={({ item }) => (
-                        <RideCard item={item} isUpcoming={tab === 'upcoming'} onCancel={handleCancel} onViewDetails={openDetails} />
-                    )}
-                    contentContainerStyle={{ padding: 20, paddingBottom: 40, flexGrow: 1 }}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 30 }}>
-                            <Ionicons name={tab === 'upcoming' ? 'calendar-outline' : 'time-outline'} size={60} color="#CBD5E1" />
-                            <Text style={{ color: '#475569', fontWeight: '900', fontSize: 20, marginTop: 16, textAlign: 'center' }}>
-                                {tab === 'upcoming' ? 'No Upcoming Rides' : 'No Past Rides'}
-                            </Text>
-                            <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: '700', marginTop: 8, textAlign: 'center' }}>
-                                {tab === 'upcoming'
-                                    ? 'Schedule an outstation ride from the Outstation screen.'
-                                    : 'Completed and cancelled scheduled rides will appear here.'}
-                            </Text>
-                            {tab === 'upcoming' && (
-                                <TouchableOpacity
-                                    onPress={() => router.push('/screens/OutstationBookingScreen')}
-                                    style={{ backgroundColor: '#0f172a', marginTop: 24, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 20 }}
-                                >
-                                    <Text style={{ color: '#FFD700', fontWeight: '900', letterSpacing: 1 }}>+ SCHEDULE RIDE</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    }
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={() => { setRefreshing(true); fetchAll(); }}
-                            tintColor="#FFD700"
-                        />
-                    }
-                />
-            )}
+            <FlatList
+                data={currentData}
+                keyExtractor={item => (item._id || item.id).toString()}
+                renderItem={({ item }) => (
+                    <RideCard item={item} isUpcoming={tab === 'upcoming'} onCancel={handleCancel} onViewDetails={openDetails} />
+                )}
+                contentContainerStyle={{ padding: 20, paddingBottom: 40, flexGrow: 1 }}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 30 }}>
+                        <Ionicons name={tab === 'upcoming' ? 'calendar-outline' : 'time-outline'} size={60} color="#CBD5E1" />
+                        <Text style={{ color: '#475569', fontWeight: '900', fontSize: 20, marginTop: 16, textAlign: 'center' }}>
+                            {tab === 'upcoming' ? 'No Upcoming Rides' : 'No Past Rides'}
+                        </Text>
+                        <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: '700', marginTop: 8, textAlign: 'center' }}>
+                            {tab === 'upcoming'
+                                ? 'Schedule an outstation ride from the Outstation screen.'
+                                : 'Completed and cancelled scheduled rides will appear here.'}
+                        </Text>
+                        {tab === 'upcoming' && (
+                            <TouchableOpacity
+                                onPress={() => router.push('/screens/OutstationBookingScreen')}
+                                style={{ backgroundColor: '#0f172a', marginTop: 24, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 20 }}
+                            >
+                                <Text style={{ color: '#FFD700', fontWeight: '900', letterSpacing: 1 }}>+ SCHEDULE RIDE</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                }
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => { setRefreshing(true); fetchAll(); }}
+                        tintColor="#FFD700"
+                    />
+                }
+            />
         </SafeAreaView>
     );
 };

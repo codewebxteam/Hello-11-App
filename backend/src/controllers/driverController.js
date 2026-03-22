@@ -8,7 +8,7 @@ import jwt from "jsonwebtoken";
 import Payout from "../models/Payout.js";
 import { serverLog } from "../utils/logger.js";
 import { getIO } from "../utils/socketLogic.js";
-import { calculateAndUpdatePenalty } from "./bookingController.js";
+
 import { sendPushNotification } from "../utils/notifications.js";
 
 // ================= GENERATE JWT TOKEN FOR DRIVER =================
@@ -787,6 +787,7 @@ export const getCurrentBooking = async (req, res) => {
         waitingLimit: booking.waitingLimit,
         firstLegPaid: booking.firstLegPaid || false,
         paymentChoice: booking.paymentChoice || "leg_by_leg",
+        nightSurcharge: booking.nightSurcharge || 0,
         createdAt: booking.createdAt
       }
     });
@@ -994,7 +995,7 @@ export const updateBookingStatus = async (req, res) => {
       if (!booking.fare || booking.fare === 0) {
         booking.fare = fare || 0;
       }
-      booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+      booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
       booking.distance = distance || booking.distance || 0;
       booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
 
@@ -1189,57 +1190,85 @@ export const getDriverHistory = async (req, res) => {
 export const getDriverEarnings = async (req, res) => {
   try {
     const { period = "week" } = req.query; // day, week, month, all
-
     let startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+
+    const now = new Date();
+    
     switch (period) {
       case "day":
-        startDate.setHours(0, 0, 0, 0);
+        // Already at today 00:00
         break;
       case "week":
-        startDate.setDate(startDate.getDate() - 7);
+        startDate.setDate(now.getDate() - 7);
         break;
       case "month":
-        startDate.setMonth(startDate.getMonth() - 1);
+        startDate.setMonth(now.getMonth() - 1);
         break;
       case "all":
         startDate = new Date(0);
         break;
+      default:
+        startDate.setDate(now.getDate() - 7);
     }
 
-    const completedBookings = await Booking.find({
+    // Filtered bookings for the selected period
+    const query = {
       driver: req.driverId,
       status: "completed"
-    });
+    };
+    if (period !== "all") {
+      query.createdAt = { $gte: startDate };
+    }
 
-    const bookingTotal = (booking) =>
-      Number((booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0));
+    const periodBookings = await Booking.find(query);
 
-    const totalEarnings = completedBookings.reduce((sum, booking) => sum + bookingTotal(booking), 0);
-    const totalTrips = completedBookings.length;
-    const averageFare = totalTrips > 0 ? totalEarnings / totalTrips : 0;
+    const bookingFare = (booking) => {
+      // Use totalFare if already calculated, otherwise sum components
+      if (booking.totalFare && booking.totalFare > 0) return booking.totalFare;
+      return (Number(booking.fare) || 0) + 
+             (Number(booking.nightSurcharge) || 0) + 
+             (Number(booking.returnTripFare) || 0) + 
+             (Number(booking.penaltyApplied) || 0) + 
+             (Number(booking.tollFee) || 0);
+    };
 
-    // Calculate today's earnings
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayEarnings = completedBookings
-      .filter(booking => new Date(booking.createdAt) >= today)
-      .reduce((sum, booking) => sum + bookingTotal(booking), 0);
+    const periodEarnings = periodBookings.reduce((sum, booking) => sum + bookingFare(booking), 0);
+    const periodTrips = periodBookings.length;
+    const periodAvgFare = periodTrips > 0 ? (periodEarnings / periodTrips).toFixed(0) : 0;
+    
+    // Get driver for lifetime balance and online time
+    const driver = await Driver.findById(req.driverId);
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
 
-    // Fetch payouts/activities for selected period
+    const lifetimeEarnings = driver.totalEarnings || 0;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    // Calculate today's earnings from periodBookings if possible (more efficient if period is week/month)
+    const todayEarnings = periodBookings
+      .filter(b => b.createdAt >= todayStart)
+      .reduce((sum, booking) => sum + bookingFare(booking), 0);
+
+
+    // Filter payouts
     const payouts = await Payout.find({
       driver: req.driverId,
       createdAt: { $gte: startDate }
     }).sort({ createdAt: -1 });
 
-    const driver = await Driver.findById(req.driverId);
     const onlineHours = Math.round(((driver.onlineTime || 0) / 60) * 10) / 10;
 
     res.json({
       earnings: {
-        totalEarnings,
-        totalTrips,
-        averageFare: Math.round(averageFare * 100) / 100,
+        totalEarnings: periodEarnings,
+        totalTrips: periodTrips,
+        averageFare: periodAvgFare,
         todayEarnings,
+        lifetimeBalance: lifetimeEarnings,
         onlineHours,
         period,
         activities: payouts.map(p => ({
@@ -1435,7 +1464,7 @@ export const completeRide = async (req, res) => {
     if (!booking.fare || booking.fare === 0) {
       booking.fare = fare || 0;
     }
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
     booking.distance = distance || booking.distance || 0;
     booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
     booking.rideCompletedAt = new Date();
@@ -1596,7 +1625,7 @@ export const getDriverDashboard = async (req, res) => {
       createdAt: { $gte: today }
     });
     const todayEarnings = todayBookings.reduce(
-      (sum, b) => sum + Number((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)),
+      (sum, b) => sum + Number((b.fare || 0) + (b.nightSurcharge || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)),
       0
     );
 
@@ -1622,7 +1651,7 @@ export const getDriverDashboard = async (req, res) => {
     if (!currentBooking) {
       currentBooking = await Booking.findOne({
         driver: req.driverId,
-        status: { $in: ["accepted", "driver_assigned", "arrived", "started"] }
+        status: { $in: ["accepted", "driver_assigned", "arrived", "started", "waiting", "return_ride_started"] }
       }).sort({ createdAt: -1 }).populate("user", "name mobile");
 
       // If found via fallback, sync it to driver.currentBooking
@@ -1642,7 +1671,7 @@ export const getDriverDashboard = async (req, res) => {
       {
         $project: {
           effectiveTotal: {
-            $add: ["$fare", { $ifNull: ["$returnTripFare", 0] }, { $ifNull: ["$penaltyApplied", 0] }, { $ifNull: ["$tollFee", 0] }]
+            $add: ["$fare", { $ifNull: ["$nightSurcharge", 0] }, { $ifNull: ["$returnTripFare", 0] }, { $ifNull: ["$penaltyApplied", 0] }, { $ifNull: ["$tollFee", 0] }]
           }
         }
       },
@@ -1898,4 +1927,46 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
+
+// ================= CALCULATE AND UPDATE PENALTY =================
+export const calculateAndUpdatePenalty = async (booking) => {
+  if (!booking || !booking.waitingStartedAt) return;
+
+  const now = new Date();
+  const waitingTimeSeconds = Math.floor((now - new Date(booking.waitingStartedAt)) / 1000);
+  const gracePeriodSeconds = booking.waitingLimit || 3600;
+
+  if (waitingTimeSeconds > gracePeriodSeconds) {
+    const excessSeconds = waitingTimeSeconds - gracePeriodSeconds;
+    const penaltyMinutes = Math.floor(excessSeconds / 60);
+    const penaltyRatePerMin = 2; // ₹2 per minute
+    const newPenalty = penaltyMinutes * penaltyRatePerMin;
+
+    if (newPenalty !== booking.penaltyApplied) {
+      booking.penaltyApplied = newPenalty;
+      // Recalculate total fare including penalty
+      booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+      await booking.save();
+
+      // Emit update via socket
+      try {
+        const io = getIO();
+        const rooms = [booking.user.toString(), booking.driver.toString()];
+        rooms.forEach((room) => {
+          io.to(room).emit("penaltyApplied", {
+            bookingId: booking._id.toString(),
+            penaltyApplied: booking.penaltyApplied,
+            totalFare: booking.totalFare
+          });
+        });
+        serverLog(`[Penalty] Applied ₹${newPenalty} to booking ${booking._id}`);
+      } catch (socketError) {
+        serverLog(`[Penalty] Socket error: ${socketError.message}`);
+      }
+      return true;
+    }
+  }
+  return false;
+};
+
 

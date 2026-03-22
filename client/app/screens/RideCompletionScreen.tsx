@@ -10,7 +10,7 @@ const { width } = Dimensions.get('window');
 
 const RideCompletionScreen = () => {
     const router = useRouter();
-    const [isVerified, setIsVerified] = useState(false);
+    const [isVerified, setIsVerified] = useState(true);
 
     const params = useLocalSearchParams();
 
@@ -20,14 +20,15 @@ const RideCompletionScreen = () => {
         totalFare: params.totalFare || params.fare || "0",
         penaltyApplied: 0,
         tollFee: 0,
+        nightSurcharge: 0,
         returnTripFare: 0,
         hasReturnTrip: false,
-        firstLegPaid: false,
+        firstLegPaid: params.firstLegPaid === 'true',
         pickup: params.pickup || "---",
         drop: params.drop || "---",
         distance: params.distance || "0"
     });
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const fetchBooking = async () => {
@@ -42,6 +43,7 @@ const RideCompletionScreen = () => {
                             totalFare: b.totalFare ? b.totalFare.toString() : (b.fare ? b.fare.toString() : "0"),
                             penaltyApplied: b.penaltyApplied || 0,
                             tollFee: b.tollFee || 0,
+                            nightSurcharge: b.nightSurcharge || 0,
                             returnTripFare: b.returnTripFare || 0,
                             hasReturnTrip: b.hasReturnTrip || false,
                             firstLegPaid: b.firstLegPaid || false,
@@ -55,7 +57,6 @@ const RideCompletionScreen = () => {
                 console.log("Error fetching booking details:", error);
             } finally {
                 setLoading(false);
-                setIsVerified(true);
             }
         };
 
@@ -98,40 +99,34 @@ const RideCompletionScreen = () => {
                         <View className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full opacity-10 -ml-10 -mb-10" />
 
                         <Text className="text-slate-400 font-bold tracking-widest uppercase text-xs mb-2">
-                            TOTAL PAYMENT
+                             TOTAL TRIP COST
                         </Text>
-                        {loading ? (
-                            <ActivityIndicator size="large" color="#FFD700" />
-                        ) : (
-                            <Text className="text-5xl font-black text-[#FFD700]">
-                                ₹{(Number(bookingDetails.fare) + Number(bookingDetails.returnTripFare) + Number(bookingDetails.penaltyApplied) + Number(bookingDetails.tollFee))}
-                            </Text>
-                        )}
-                        {bookingDetails.firstLegPaid && (
-                            <Text className="text-slate-500 text-[10px] font-bold mt-2 uppercase tracking-wider">
-                                (Leg 1 of ₹{bookingDetails.fare} already settled)
-                            </Text>
-                        )}
+                        <Text className="text-5xl font-black text-[#FFD700]">
+                            ₹{(Number(bookingDetails.fare) + Number(bookingDetails.returnTripFare) + Number(bookingDetails.penaltyApplied) + Number(bookingDetails.tollFee))}
+                        </Text>
                     </View>
 
                     {/* Fare Breakdown */}
-                    {!loading && (
-                        <View className="mx-6 bg-slate-50 p-5 rounded-3xl mb-6 border border-slate-100">
+                    <View className="mx-6 bg-slate-50 p-5 rounded-3xl mb-6 border border-slate-100">
                             <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">Fare Breakdown</Text>
                             
                             <View className="flex-row justify-between mb-3 items-center">
-                                <Text className="text-slate-600 font-bold">Base Fare (Outbound)</Text>
+                                <Text className="text-slate-600 font-bold">
+                                    {bookingDetails.hasReturnTrip || bookingDetails.returnTripFare > 0 ? 'Base Fare (Leg 1)' : 'Ride Fare'}
+                                </Text>
                                 <View className="flex-row items-center">
-                                    {bookingDetails.firstLegPaid && (
-                                        <View className="bg-green-100 px-2 py-0.5 rounded-md mr-2 border border-green-200">
-                                            <Text className="text-green-700 text-[8px] font-black uppercase">Already Paid</Text>
-                                        </View>
-                                    )}
-                                    <Text className={`font-bold ${bookingDetails.firstLegPaid ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                                        ₹{Number(bookingDetails.fare)}
+                                    <Text className="font-bold text-slate-900">
+                                        ₹{Math.max(0, Number(bookingDetails.fare) - Number(bookingDetails.nightSurcharge || 0))}
                                     </Text>
                                 </View>
                             </View>
+
+                            {Number(bookingDetails.nightSurcharge) > 0 && (
+                                <View className="flex-row justify-between mb-3 items-center">
+                                    <Text className="text-indigo-600 font-bold">Night Surcharge</Text>
+                                    <Text className="text-indigo-600 font-black">+₹{bookingDetails.nightSurcharge}</Text>
+                                </View>
+                            )}
 
                             {(Number(bookingDetails.returnTripFare) > 0 || bookingDetails.hasReturnTrip) && (
                                 <View className="flex-row justify-between mb-3 items-center">
@@ -143,14 +138,14 @@ const RideCompletionScreen = () => {
                                 </View>
                             )}
 
-                            {bookingDetails.penaltyApplied > 0 && (
+                            {Number(bookingDetails.penaltyApplied) > 0 && (
                                 <View className="flex-row justify-between items-center mb-3">
                                     <Text className="text-red-500 font-bold">Waiting Penalty</Text>
                                     <Text className="text-red-500 font-black">+₹{bookingDetails.penaltyApplied}</Text>
                                 </View>
                             )}
 
-                            {bookingDetails.tollFee > 0 && (
+                            {Number(bookingDetails.tollFee) > 0 && (
                                 <View className="flex-row justify-between items-center mb-3">
                                     <Text className="text-amber-600 font-bold">Toll Charges</Text>
                                     <Text className="text-amber-600 font-black">+₹{bookingDetails.tollFee}</Text>
@@ -166,7 +161,6 @@ const RideCompletionScreen = () => {
                                 </Text>
                             </View>
                         </View>
-                    )}
 
                     <View className="mx-6 bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-6">
                         <Text className="text-slate-500 font-bold text-xs uppercase mb-4 tracking-wider">Trip Details</Text>

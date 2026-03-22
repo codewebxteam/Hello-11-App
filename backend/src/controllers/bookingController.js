@@ -1,3 +1,4 @@
+import { clearUserCache } from "../middleware/cacheMiddleware.js";
 import Booking from "../models/Booking.js";
 import Driver from "../models/Driver.js";
 import User from "../models/User.js";
@@ -12,6 +13,41 @@ const TEST_WAITING_LIMIT_SECONDS = null;
 const resolveWaitingLimitSeconds = (distanceKm = 0) =>
   TEST_WAITING_LIMIT_SECONDS ?? (calcAllowedTime(distanceKm) * 60);
 
+// ================= GET ACTIVE BOOKING (Persistence) =================
+export const getActiveBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findOne({
+      user: req.userId,
+      status: { $in: ["accepted", "driver_assigned", "arrived", "started", "waiting", "return_ride_started"] }
+    })
+      .populate("user", "name mobile profileImage")
+      .populate("driver", "name vehicleModel vehicleNumber rating profileImage mobile latitude longitude");
+
+    if (!booking) {
+      return res.json({ success: true, booking: null });
+    }
+
+    // Dynamic penalty calculation if waiting started
+    if (booking.waitingStartedAt) {
+      // Lazy import to avoid circular dependency if needed, though they usually coexist fine
+      const { calculateAndUpdatePenalty } = await import("./driverController.js").catch(() => ({}));
+      if (typeof calculateAndUpdatePenalty === 'function') {
+        await calculateAndUpdatePenalty(booking);
+      }
+    }
+
+    // Always expose computed trip total for consistency
+    booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+
+    res.json({
+      success: true,
+      booking
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to fetch active booking", error: error.message });
+  }
+};
+
 // ================= CREATE BOOKING =================
 export const createBooking = async (req, res) => {
   try {
@@ -23,7 +59,6 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // Prevent multiple active bookings
     // Prevent multiple active bookings
     const activeBooking = await Booking.findOne({
       user: req.userId,
@@ -65,8 +100,11 @@ export const createBooking = async (req, res) => {
       baseFare: req.body.baseFare || req.body.fare || 0,
       distance: req.body.distance || 0,
       duration: req.body.duration || 0,
+      nightSurcharge: req.body.nightSurcharge || 0,
       fare: req.body.fare || 0,
-      totalFare: req.body.fare || 0, // Initial total is just the fare
+      hasReturnTrip: req.body.hasReturnTrip || false,
+      returnTripFare: req.body.returnTripFare || 0,
+      totalFare: req.body.totalFare || (Number(req.body.fare || 0) + Number(req.body.nightSurcharge || 0) + Number(req.body.returnTripFare || 0) + Number(req.body.tollFee || 0)),
       tollFee: req.body.tollFee || 0,
       waitingLimit: resolveWaitingLimitSeconds(req.body.distance || 0), // Store in seconds
     });
@@ -121,7 +159,7 @@ export const createBooking = async (req, res) => {
               driver.pushToken,
               "New Ride Request",
               `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.fare}`,
-              { 
+              {
                 bookingId: booking._id.toString(),
                 type: 'new_ride'
               }
@@ -135,6 +173,7 @@ export const createBooking = async (req, res) => {
       serverLog(`SCHEDULED: Booking ${booking._id} created with scheduled date ${booking.scheduledDate}. Driver broadcast skipped.`);
     }
 
+    if (req.userId) await clearUserCache(req.userId, 'user');
     res.status(201).json({
       message: "Booking created successfully",
       booking: {
@@ -164,11 +203,72 @@ export const createBooking = async (req, res) => {
 // ================= GET USER BOOKINGS =================
 export const getUserBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.userId })
-      .sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const { bookingType, status, rideType, paymentStatus, startDate, endDate } = req.query;
+
+    console.log('[getUserBookings] Input params:', { bookingType, status, rideType, paymentStatus });
+
+    // Build filter query
+    const query = { user: req.userId };
+
+    // Handle bookingType filtering with automatic status filtering
+    if (bookingType === "schedule") {
+      query.bookingType = "schedule";
+      query.status = "scheduled";  // Scheduled rides must have status "scheduled"
+    } else if (bookingType === "now") {
+      query.bookingType = "now";
+      // For "now" rides, exclude the "scheduled" status - show only completed, cancelled, accepted, etc.
+      query.status = { $ne: "scheduled" };
+    } else if (bookingType) {
+      query.bookingType = bookingType;
+    }
+
+    // Override with explicit status if provided in query
+    if (status) {
+      query.status = status;
+    }
+
+    // IMPORTANT: rideType filter - apply only if not empty string
+    if (rideType && rideType !== "all") {
+      console.log('[getUserBookings] Filtering by rideType:', rideType);
+      query.rideType = rideType;
+    } else {
+      console.log('[getUserBookings] No rideType filter (all rides selected)');
+    }
+
+    if (paymentStatus) {
+      query.paymentStatus = paymentStatus;
+    }
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    console.log('[getUserBookings] Final query filter:', JSON.stringify(query));
+
+    // Parallelize count and data fetch for speed
+    // Sort by scheduledDate for scheduled rides, createdAt for now rides
+    const sortOrder = bookingType === "schedule" ? { scheduledDate: 1 } : { createdAt: -1 };
+
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .select('pickupLocation dropLocation fare status rideType paymentStatus createdAt distance driver rating vehicleType totalFare scheduledDate bookingType')
+        .sort(sortOrder)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments(query)
+    ]);
+
+    console.log(`[getUserBookings] Found ${bookings.length} bookings. Ride types:`, bookings.map(b => b.rideType));
 
     res.json({
-      bookings
+      success: true,
+      bookings,
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) }
     });
   } catch (error) {
     res.status(500).json({
@@ -186,7 +286,10 @@ export const getScheduledBookings = async (req, res) => {
       user: req.userId,
       status: "scheduled"
       // No date filter — show all scheduled regardless of time
-    }).sort({ scheduledDate: 1 });
+    })
+      .select('pickupLocation dropLocation fare status rideType vehicleType scheduledDate distance')
+      .sort({ scheduledDate: 1 })
+      .lean();
 
     console.log('[getScheduledBookings] found:', bookings.length);
     res.json({ success: true, bookings });
@@ -202,16 +305,45 @@ export const getScheduledBookings = async (req, res) => {
 // ================= GET SCHEDULED RIDE HISTORY =================
 export const getScheduledHistory = async (req, res) => {
   try {
-    // Rides that were originally scheduled but have now moved past 'scheduled' status
-    const bookings = await Booking.find({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const { status, rideType, paymentStatus, startDate, endDate } = req.query;
+
+    const query = {
       user: req.userId,
       bookingType: "schedule",
-      status: { $nin: ["scheduled"] }   // everything except still-pending scheduled
-    })
-      .sort({ scheduledDate: -1 })      // Most recent first
-      .limit(50);
+      status: { $nin: ["scheduled"] }
+    };
 
-    res.json({ success: true, bookings });
+    // Add optional filters
+    if (status && status !== "all") {
+      query.status = status;
+    }
+    if (rideType && rideType !== "all") {
+      query.rideType = rideType;
+    }
+    if (paymentStatus && paymentStatus !== "all") {
+      query.paymentStatus = paymentStatus;
+    }
+    if (startDate || endDate) {
+      query.scheduledDate = {};
+      if (startDate) query.scheduledDate.$gte = new Date(startDate);
+      if (endDate) query.scheduledDate.$lte = new Date(endDate);
+    }
+
+    // Parallelize for speed
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .select('pickupLocation dropLocation fare status rideType paymentStatus scheduledDate createdAt distance driver rating vehicleType totalFare')
+        .sort({ scheduledDate: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments(query)
+    ]);
+
+    res.json({ success: true, bookings, pagination: { total, page, limit, pages: Math.ceil(total / limit) } });
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch scheduled ride history",
@@ -254,7 +386,7 @@ export const getBookingById = async (req, res) => {
     }
 
     // Always expose computed trip total for consistency in history/details
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
 
     res.json({
       booking
@@ -271,7 +403,6 @@ export const getBookingById = async (req, res) => {
 export const cancelBooking = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-
     if (!booking) {
       return res.status(404).json({
         message: "Booking not found"
@@ -304,7 +435,6 @@ export const cancelBooking = async (req, res) => {
 
     // Notify both user and driver
     try {
-      const { getIO } = await import("../utils/socketLogic.js");
       const io = getIO();
 
       // Notify User (to sync across devices/sessions)
@@ -367,13 +497,15 @@ export const getBookingStatus = async (req, res) => {
     }
 
     // Dynamic penalty calculation if waiting started
-    console.log(`[Status Request] ID: ${req.params.id} | Status: ${booking.status} | WaitingStartedAt: ${booking.waitingStartedAt}`);
     if (booking.waitingStartedAt) {
-      await calculateAndUpdatePenalty(booking);
+      const { calculateAndUpdatePenalty } = await import("./driverController.js").catch(() => ({}));
+      if (typeof calculateAndUpdatePenalty === 'function') {
+        await calculateAndUpdatePenalty(booking);
+      }
     }
 
     // Always expose computed trip total for consistency in tracking/details
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
 
     res.json({
       success: true,
@@ -381,81 +513,6 @@ export const getBookingStatus = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch booking status", error: error.message });
-  }
-};
-
-// Helper for dynamic penalty calculation
-export const calculateAndUpdatePenalty = async (booking) => {
-  if (!booking.waitingStartedAt) return;
-
-  const now = new Date();
-  const elapsedSeconds = Math.floor((now - booking.waitingStartedAt) / 1000);
-  const limit = booking.waitingLimit || 3600;
-  const extraTimeSeconds = elapsedSeconds - limit;
-
-  console.log(`[Penalty Debug] Booking: ${booking._id}, Elapsed: ${elapsedSeconds}s, Limit: ${limit}s, Extra: ${extraTimeSeconds}s`);
-
-  // Explicit guard: only apply if we have actually EXCEEDED the limit
-  if (extraTimeSeconds > 0) {
-    // Current rule: If you exceed even by 1 second, it charges for the first hour (₹100)
-    // Subsequent hours are added every 3600 seconds thereafter.
-    const extraHours = Math.floor(extraTimeSeconds / 3600) + 1;
-    const currentPenalty = extraHours * 100; // ₹100 per hour
-
-    console.log(`[Penalty Debug] Current Penalty: ₹${currentPenalty}, Existing: ₹${booking.penaltyApplied || 0}`);
-
-    if (currentPenalty > (booking.penaltyApplied || 0)) {
-      const penaltyIncrement = currentPenalty - (booking.penaltyApplied || 0);
-      // KEY FIX: Only update penaltyApplied, do NOT mutate booking.fare
-      // booking.fare stays as the original base trip price
-      booking.penaltyApplied = currentPenalty;
-      booking.lastPenaltyAppliedAt = now;
-
-      // Update totalFare dynamically
-      const totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + currentPenalty + (booking.tollFee || 0);
-      booking.totalFare = totalFare;
-
-      await booking.save();
-      console.log(`[Penalty Debug] APPLIED ₹${penaltyIncrement}. Total (base+return+penalty): ₹${totalFare}`);
-
-      try {
-        const io = getIO();
-        const userRoom = booking.user.toString();
-        const rooms = [userRoom];
-        if (booking.driver) rooms.push(booking.driver.toString());
-
-        // Send Push Notification to User
-        const user = await User.findById(booking.user);
-        if (user && user.pushToken) {
-          sendPushNotification(
-            user.pushToken,
-            "Wait Penalty Applied",
-            `₹${penaltyIncrement} has been added to your fare due to extended waiting time.`,
-            { bookingId: booking._id.toString(), type: 'penalty_applied' }
-          );
-        }
-
-        rooms.forEach(room => {
-          io.to(room).emit("penaltyApplied", {
-            bookingId: booking._id,
-            penaltyApplied: booking.penaltyApplied,
-            totalFare: totalFare,
-            message: `Wait penalty of ₹${penaltyIncrement} applied.`
-          });
-        });
-
-        // Create persistent notification
-        await createNotification({
-          userId: booking.user,
-          title: "Wait Penalty Applied",
-          body: `₹${penaltyIncrement} has been added to your fare due to extended waiting time.`,
-          type: "ride_nearby",
-          bookingId: booking._id
-        });
-      } catch (err) {
-        serverLog(`Error emitting penalty socket: ${err.message}`);
-      }
-    }
   }
 };
 
@@ -500,6 +557,7 @@ export const completeRide = async (req, res) => {
   try {
     const { fare, distance } = req.body;
     const booking = await Booking.findById(req.params.id);
+    if (booking) await clearUserCache(booking.user, 'user');
 
     if (!booking) {
       return res.status(404).json({
@@ -517,7 +575,7 @@ export const completeRide = async (req, res) => {
     booking.rideCompletedAt = new Date();
 
     // Always store full trip total (base + return + penalty)
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
 
     await booking.save();
 
@@ -633,7 +691,7 @@ export const updatePaymentChoice = async (req, res) => {
     }
 
     booking.paymentChoice = paymentChoice;
-    
+
     // If user chooses total_at_end for an outstation trip, we can proceed to waiting
     if (paymentChoice === "total_at_end" && booking.rideType === "outstation") {
       booking.status = "waiting";
@@ -663,7 +721,7 @@ export const updatePaymentChoice = async (req, res) => {
           message: `Payment choice updated: ${paymentChoice}`
         });
       }
-    } catch (err) {}
+    } catch (err) { }
 
   } catch (error) {
     res.status(500).json({ message: "Failed to update payment choice", error: error.message });
@@ -685,6 +743,7 @@ export const requestPayment = async (req, res) => {
     const returnFare = Number(breakdown?.returnFare || 0);
     const penalty = Number(breakdown?.penalty || 0);
     const toll = Number(breakdown?.toll || 0);
+    const nightSurcharge = Number(breakdown?.nightSurcharge || 0);
     const firstLegPaid = !!breakdown?.firstLegPaid;
 
     // Guard against undefined/invalid amount reaching passenger UI.
@@ -709,6 +768,7 @@ export const requestPayment = async (req, res) => {
           returnFare,
           penalty,
           toll,
+          nightSurcharge,
           firstLegPaid
         }
       });
@@ -808,9 +868,9 @@ export const startWaiting = async (req, res) => {
     }
 
     // Security: Only the assigned driver can start the waiting timer
-    const driverId = req.driverId || req.userId; // Middleware might set either depending on context
+    const authId = (req.driverId || req.userId || "").toString();
 
-    if (!booking.driver || booking.driver.toString() !== driverId.toString()) {
+    if (!booking.driver || booking.driver.toString() !== authId) {
       return res.status(403).json({ message: "Not authorized to start waiting" });
     }
 
@@ -825,16 +885,16 @@ export const startWaiting = async (req, res) => {
 
     // Logic: Split payment check
     if (booking.rideType === "normal" && !booking.firstLegPaid) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Payment for the first leg is required before starting the waiting timer for normal trips.",
-        requiresPayment: true 
+        requiresPayment: true
       });
     }
 
     if (booking.rideType === "outstation" && booking.paymentChoice === "leg_by_leg" && !booking.firstLegPaid) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Confirmation required: Collect payment or choose 'Total at end' for outstation return.",
-        requiresChoice: true 
+        requiresChoice: true
       });
     }
 
@@ -873,4 +933,3 @@ export const startWaiting = async (req, res) => {
     res.status(500).json({ message: "Failed to start waiting", error: error.message });
   }
 };
-

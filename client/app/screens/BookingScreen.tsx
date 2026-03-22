@@ -32,9 +32,9 @@ const BookingScreen = () => {
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
 
   // Fare/Vehicle state
-  const [fares, setFares] = useState<{ [key: string]: { fare: number; total: number; isNight: boolean } }>({
-    '5seater': { fare: 0, total: 0, isNight: false },
-    '7seater': { fare: 0, total: 0, isNight: false },
+  const [fares, setFares] = useState<{ [key: string]: { fare: number; total: number; isNight: boolean; nightSurcharge: number } }>({
+    '5seater': { fare: 0, total: 0, isNight: false, nightSurcharge: 0 },
+    '7seater': { fare: 0, total: 0, isNight: false, nightSurcharge: 0 },
   });
   const [loadingFares, setLoadingFares] = useState(false);
 
@@ -130,14 +130,16 @@ const BookingScreen = () => {
             newFares['5seater'] = {
               fare: res5.data.data.totalFare,
               total: res5.data.data.totalFare,
-              isNight: res5.data.data.isNightSurcharge ?? false
+              isNight: res5.data.data.isNightSurcharge ?? false,
+              nightSurcharge: res5.data.data.nightSurcharge || 0
             };
           }
           if (res7.data?.success) {
             newFares['7seater'] = {
               fare: res7.data.data.totalFare,
               total: res7.data.data.totalFare,
-              isNight: res7.data.data.isNightSurcharge ?? false
+              isNight: res7.data.data.isNightSurcharge ?? false,
+              nightSurcharge: res7.data.data.nightSurcharge || 0
             };
           }
           setFares(newFares);
@@ -255,6 +257,8 @@ const BookingScreen = () => {
         vehicleType: selectedVehicle,
         scheduledDate: bookingType === 'schedule' ? scheduledDate.toISOString() : undefined,
         fare: fares[selectedVehicle].fare,
+        baseFare: Math.max(0, fares[selectedVehicle].fare - (fares[selectedVehicle].nightSurcharge || 0)),
+        nightSurcharge: fares[selectedVehicle].nightSurcharge || 0,
         distance: distanceKm,
       };
 
@@ -415,11 +419,11 @@ const BookingScreen = () => {
                   <ActivityIndicator size="small" color="#FFD700" />
                 ) : (
                   <>
-                    <Text className="text-slate-900 font-black text-3xl">₹{fares['5seater']?.fare || '--'}</Text>
+                    <Text className="text-slate-900 font-black text-3xl">₹{Math.max(0, (fares['5seater']?.fare || 0) - (fares['5seater']?.nightSurcharge || 0))}</Text>
                     {fares['5seater']?.isNight && (
                       <View className="flex-row items-center mt-1">
                         <Ionicons name="moon" size={10} color="#6366F1" />
-                        <Text className="text-[#6366F1] text-[8px] font-black uppercase ml-1">Night Fare</Text>
+                        <Text className="text-[#6366F1] text-[8px] font-black uppercase ml-1">Night Fare +₹{fares['5seater']?.nightSurcharge}</Text>
                       </View>
                     )}
                   </>

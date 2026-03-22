@@ -13,13 +13,14 @@ import {
   BackHandler,
   ToastAndroid,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  AppState
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";
-import { useLocalSearchParams, useRouter } from "expo-router"; //
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import ProfileScreen from "./ProfileScreen";
@@ -32,6 +33,7 @@ const { width, height } = Dimensions.get('window');
 
 
 import { userAPI, bookingAPI, notificationAPI, locationAPI } from "../../utils/api";
+import { useAuth } from "../../context/AuthContext";
 import { showToast } from "../../components/NotificationToast";
 
 const HomeScreen = () => {
@@ -42,12 +44,24 @@ const HomeScreen = () => {
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const { user: authUser, refreshProfile } = useAuth();
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await userAPI.getProfile();
-        const userData = response.data.user;
-        setDisplayName(userData.name || "User");
+        if (authUser) {
+          console.log("[Home] fetchUser: using authUser", authUser.name);
+          setDisplayName(authUser.name || "User");
+        } else {
+          console.log("[Home] fetchUser: authUser missing, triggering refresh...");
+          await refreshProfile();
+        }
+
+        const userData = authUser;
+        if (!userData) {
+          console.warn("Home: No user data available for socket connection");
+          return;
+        }
 
         // Initialize Socket and join user room
         const { initSocket } = require("../../utils/socket");
@@ -67,16 +81,22 @@ const HomeScreen = () => {
           setAssignedDriver(data.booking.driver);
           setActiveBookingId(data.booking.id);
           setIsSearching(false);
-          
+
           sendLocalNotification(
             "Ride Accepted",
             `${data.booking.driver.name} is on the way in a ${data.booking.driver.vehicleModel}`
           );
-          
+
           // Auto-redirect to tracking screen immediately
           router.push({
             pathname: "/screens/LiveRideTrackingScreen",
-            params: { bookingId: data.booking.id }
+            params: {
+              bookingId: data.booking.id,
+              pLat: data.booking.pickupLatitude,
+              pLon: data.booking.pickupLongitude,
+              dLat: data.booking.dropLatitude,
+              dLon: data.booking.dropLongitude
+            }
           });
         });
 
@@ -138,14 +158,51 @@ const HomeScreen = () => {
           console.log("Push token registration failed", tokenErr);
         }
 
+        // --- RIDE PERSISTENCE ---
+        await checkActiveBooking();
+
       } catch (err) {
         console.error("Home: fetch profile or socket error", err);
       }
     };
+
+    const checkActiveBooking = async () => {
+      try {
+        const res = await bookingAPI.getActiveBooking();
+        if (res.data.success && res.data.booking) {
+          const b = res.data.booking;
+          console.log("ACTIVE BOOKING FOUND (Persistence):", b._id, b.status);
+
+          // Redirect to Live Ride Tracking screen
+          router.replace({
+            pathname: "/screens/LiveRideTrackingScreen",
+            params: {
+              bookingId: b._id,
+              pLat: b.pickupLatitude,
+              pLon: b.pickupLongitude,
+              dLat: b.dropLatitude,
+              dLon: b.dropLongitude
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Persistence check error:", err);
+      }
+    };
+
     fetchUser();
     fetchCurrentLocation();
 
+    // AppState listener for background/foreground persistence
+    const subscription = AppState.addEventListener("change", nextAppState => {
+      if (nextAppState === "active") {
+        console.log("App foregrounded - checking for active ride");
+        checkActiveBooking();
+      }
+    });
+
     return () => {
+      subscription.remove();
       const { getSocket } = require("../../utils/socket");
       const socket = getSocket();
       if (socket) {
@@ -247,7 +304,7 @@ const HomeScreen = () => {
               if (coords.length > 0) setRouteCoords(coords);
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       } else {
         // Only source selected — show pickup pin, clear route/drop
         setRouteCoords([]);
@@ -431,7 +488,7 @@ const HomeScreen = () => {
               keyboardShouldPersistTaps="handled"
             >
               <Animated.View
-                className="bg-white rounded-3xl p-5 shadow-xl border border-slate-100 z-50 elevation-10"
+                className="bg-white rounded-[35px] p-6 shadow-2xl shadow-slate-300 border border-slate-50 z-50 elevation-10"
                 style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
               >
                 <View className="mb-4">
@@ -621,7 +678,13 @@ const HomeScreen = () => {
                                   setActiveBookingId(existingBookingId);
                                   router.push({
                                     pathname: "/screens/LiveRideTrackingScreen",
-                                    params: { bookingId: existingBookingId }
+                                    params: {
+                                      bookingId: existingBookingId,
+                                      pLat: err.response?.data?.booking?.pickupLatitude || '',
+                                      pLon: err.response?.data?.booking?.pickupLongitude || '',
+                                      dLat: err.response?.data?.booking?.dropLatitude || '',
+                                      dLon: err.response?.data?.booking?.dropLongitude || ''
+                                    }
                                   });
                                 }
                               }
@@ -648,22 +711,26 @@ const HomeScreen = () => {
 
               <Animated.View className="mt-8" style={[{ opacity: fadeAnim }]}>
                 <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-lg font-black text-slate-800">Your Travel Feed</Text>
-                  <TouchableOpacity><Text className="text-xs font-black text-blue-600">See All</Text></TouchableOpacity>
+                  <Text className="text-xl font-black text-slate-800 italic tracking-tighter">Your Travel Feed</Text>
                 </View>
 
                 <View className="flex-row gap-4">
-                  <View className="flex-1 bg-indigo-500 p-5 rounded-[30px] shadow-sm relative overflow-hidden">
-                    <View className="absolute -right-4 -top-4 w-16 h-16 bg-white/20 rounded-full" />
-                    <Ionicons name="gift" size={24} color="#FFF" />
-                    <Text className="text-white font-black text-sm mt-3">Special Offer</Text>
-                    <Text className="text-white/80 text-[10px] font-bold">Get 20% off on your first outstation ride.</Text>
+                  <View className="flex-1 bg-indigo-600 p-5 rounded-[35px] shadow-xl shadow-indigo-200 relative overflow-hidden">
+                    <View className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full" />
+                    <View className="bg-white/20 self-start p-2 rounded-2xl mb-3">
+                      <Ionicons name="gift" size={22} color="#FFF" />
+                    </View>
+                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Discount 50%</Text>
+                    <Text className="text-white/90 text-[11px] font-bold mt-1">Get half off on your next city ride. Limited time only!</Text>
                   </View>
 
-                  <View className="flex-1 bg-slate-900 p-5 rounded-[30px] shadow-sm">
-                    <Ionicons name="shield-checkmark" size={24} color="#FFD700" />
-                    <Text className="text-white font-black text-sm mt-3">Safe Travels</Text>
-                    <Text className="text-white/80 text-[10px] font-bold">Verified drivers & 24/7 SOS support active.</Text>
+                  <View className="flex-1 bg-slate-900 p-5 rounded-[35px] shadow-xl shadow-slate-400 relative overflow-hidden">
+                    <View className="absolute -right-6 -bottom-6 w-24 h-24 bg-white/5 rounded-full" />
+                    <View className="bg-white/10 self-start p-2 rounded-2xl mb-3">
+                      <Ionicons name="time" size={22} color="#FFD700" />
+                    </View>
+                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Wait Less</Text>
+                    <Text className="text-white/90 text-[11px] font-bold mt-1">Priority matching active. Average wait: 2 mins.</Text>
                   </View>
                 </View>
               </Animated.View>
@@ -743,7 +810,13 @@ const HomeScreen = () => {
           setIsDriverAssigned(false);
           router.push({
             pathname: "/screens/LiveRideTrackingScreen",
-            params: { bookingId: activeBookingId }
+            params: {
+              bookingId: activeBookingId,
+              pLat: assignedDriver?.pickupLatitude || '',
+              pLon: assignedDriver?.pickupLongitude || '',
+              dLat: assignedDriver?.dropLatitude || '',
+              dLon: assignedDriver?.dropLongitude || ''
+            }
           });
         }}
       />

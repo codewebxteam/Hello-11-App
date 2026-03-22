@@ -84,12 +84,28 @@ export default function WaitingForReturnScreen() {
     const remainingSeconds = waitingLimit - secondsElapsed;
     const isPenaltyActive = remainingSeconds < 0;
 
+    // Timer - Use absolute synchronization with server timestamp to prevent drift
     useEffect(() => {
-        const timer = setInterval(() => {
-            setSecondsElapsed(prev => prev + 1);
-        }, 1000);
+        if (!booking?.waitingStartedAt) return;
+        
+        const startTime = new Date(booking.waitingStartedAt).getTime();
+        
+        const updateTimer = () => {
+            const now = new Date().getTime();
+            const elapsed = Math.floor((now - startTime) / 1000);
+            setSecondsElapsed(elapsed);
+
+            // AUTO-REFRESH: Sync latest penalty from server when limit is reached
+            const limit = booking?.waitingLimit || 3600;
+            if (elapsed === limit + 1 || (elapsed > limit && elapsed % 60 === 0)) {
+                fetchData();
+            }
+        };
+
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
         return () => clearInterval(timer);
-    }, []);
+    }, [booking?.waitingStartedAt]);
 
     // Format Helpers
     const formatTime = (totalSeconds: number) => {
@@ -144,14 +160,14 @@ export default function WaitingForReturnScreen() {
 
             <View className="px-6 py-4 border-b border-white/10">
                 <Text className="text-white/70 text-sm font-bold uppercase tracking-widest text-center">
-                    {isPenaltyActive ? "⚠️ PENALTY MODE ACTIVE" : "Waiting for Passenger"}
+                    {isPenaltyActive ? "⚠️ OVERDUE" : "Free Waiting"}
                 </Text>
             </View>
 
             <View className="flex-1 items-center justify-center px-6">
                 <View className={`w-64 h-64 rounded-full items-center justify-center border-8 mb-10 ${isPenaltyActive ? 'border-red-500 bg-red-500/10' : 'border-[#FFD700] bg-[#FFD700]/10'}`}>
                     <Text className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">
-                        {isPenaltyActive ? "Overdue Time" : "Time Remaining"}
+                        {isPenaltyActive ? "Overdue" : "Time Remaining"}
                     </Text>
                     <Text className={`text-5xl font-black ${isPenaltyActive ? 'text-red-400' : 'text-white'}`}>
                         {formatTime(remainingSeconds)}
@@ -167,27 +183,20 @@ export default function WaitingForReturnScreen() {
                     <Text className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">Current Billing</Text>
 
                     <View className="flex-row justify-between mb-2">
-                        <Text className="text-slate-400 font-bold">Outbound Trip</Text>
-                        <Text className="text-white font-black">₹{booking?.fare || 0}</Text>
+                        <Text className="text-slate-400 font-bold">Base Fare (Leg 1)</Text>
+                        <Text className="text-white font-black">₹{Math.max(0, Number(booking?.fare || 0) - Number(booking?.nightSurcharge || 0))}</Text>
                     </View>
 
-                    {Number(booking?.penaltyApplied) > 0 && (
-                        <View className="flex-row justify-between mb-4">
-                            <Text className="text-red-400 font-bold">Waiting Charges</Text>
-                            <Text className="text-red-400 font-black">+ ₹{booking?.penaltyApplied || 0}</Text>
-                        </View>
-                    )}
-
-                    {Number(booking?.tollFee) > 0 && (
-                        <View className="flex-row justify-between mb-4">
-                            <Text className="text-amber-400 font-bold">Toll Charges</Text>
-                            <Text className="text-amber-400 font-black">+ ₹{booking?.tollFee || 0}</Text>
+                    {Number(booking?.nightSurcharge) > 0 && (
+                        <View className="flex-row justify-between mb-2">
+                            <Text className="text-indigo-400 font-bold">Night Surcharge</Text>
+                            <Text className="text-indigo-400 font-black">+ ₹{booking?.nightSurcharge || 0}</Text>
                         </View>
                     )}
 
                     <View className="border-t border-slate-700/50 pt-4 flex-row justify-between items-center">
-                        <Text className="text-white text-sm font-black uppercase tracking-wider">Estimated Total</Text>
-                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{(Number(booking?.fare || 0) + Number(booking?.penaltyApplied || 0) + Number(booking?.tollFee || 0))}</Text>
+                        <Text className="text-white text-sm font-black uppercase tracking-wider">Leg 1 Total (Paid)</Text>
+                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{(Number(booking?.fare || 0))}</Text>
                     </View>
                 </View>
 

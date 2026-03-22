@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const DRIVER_TOKEN_KEY = "driver_auth_token";
 const DRIVER_DATA_KEY = "driver_data";
+const EARNINGS_DATA_KEY = "earnings_data";
 
 // Save driver token
 export const setDriverToken = async (token: string): Promise<void> => {
@@ -51,10 +52,30 @@ export const getDriverData = async (): Promise<any | null> => {
   }
 };
 
+// Save earnings data
+export const setEarningsData = async (data: any): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(EARNINGS_DATA_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.error("Error saving earnings data:", error);
+  }
+};
+
+// Get earnings data
+export const getEarningsData = async (): Promise<any | null> => {
+  try {
+    const data = await AsyncStorage.getItem(EARNINGS_DATA_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error("Error getting earnings data:", error);
+    return null;
+  }
+};
+
 // Clear all driver data (logout)
 export const clearDriverData = async (): Promise<void> => {
   try {
-    await AsyncStorage.multiRemove([DRIVER_TOKEN_KEY, DRIVER_DATA_KEY]);
+    await AsyncStorage.multiRemove([DRIVER_TOKEN_KEY, DRIVER_DATA_KEY, EARNINGS_DATA_KEY]);
   } catch (error) {
     console.error("Error clearing driver data:", error);
   }

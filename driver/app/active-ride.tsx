@@ -33,9 +33,21 @@ export default function ActiveRideScreen() {
 
     const [hasReturnTrip, setHasReturnTrip] = React.useState(false);
     const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
-    const [region, setRegion] = React.useState<any>(null);
+    const [region, setRegion] = React.useState<any>(() => {
+        if (params.pLat && params.pLon) {
+            return {
+                latitude: Number(params.pLat),
+                longitude: Number(params.pLon),
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05
+            };
+        }
+        return null;
+    });
+
     const [distance, setDistance] = React.useState<string>("---");
     const [eta, setEta] = React.useState<string>("---");
+    const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
 
     // Animation Shared Values
     const translateY = useSharedValue(0);
@@ -178,20 +190,28 @@ export default function ActiveRideScreen() {
                         const targetLon = isReturnTrip ? Number(booking?.pickupLongitude) : Number(booking?.dropLongitude);
 
                         if (targetLat && targetLon) {
-                            locationAPI.getDirections(latitude, longitude, targetLat, targetLon)
-                                .then(res => {
-                                    if (res.data?.data) {
-                                        setDistance(`${res.data.data.distanceKm} km`);
-                                        setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
-                                        if (res.data.data.geometry?.coordinates) {
-                                            const coords = res.data.data.geometry.coordinates.map((c: any) => ({
-                                                latitude: Number(c[1]),
-                                                longitude: Number(c[0])
-                                            }));
-                                            setRouteCoords(coords);
+                            // Only fetch directions if we've moved significantly (>100m) or if it's the first time
+                            const shouldUpdateDirections = !lastUpdateCoords.current || 
+                                Math.abs(lastUpdateCoords.current.lat - latitude) > 0.001 || 
+                                Math.abs(lastUpdateCoords.current.lon - longitude) > 0.001;
+
+                            if (shouldUpdateDirections) {
+                                lastUpdateCoords.current = { lat: latitude, lon: longitude };
+                                locationAPI.getDirections(latitude, longitude, targetLat, targetLon)
+                                    .then(res => {
+                                        if (res.data?.data) {
+                                            setDistance(`${res.data.data.distanceKm} km`);
+                                            setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                                            if (res.data.data.geometry?.coordinates) {
+                                                const coords = res.data.data.geometry.coordinates.map((c: any) => ({
+                                                    latitude: Number(c[1]),
+                                                    longitude: Number(c[0])
+                                                }));
+                                                setRouteCoords(coords);
+                                            }
                                         }
-                                    }
-                                }).catch(() => { });
+                                    }).catch(() => { });
+                            }
                         }
                     }
                 );
@@ -262,6 +282,11 @@ export default function ActiveRideScreen() {
         updateTollFee(parsed);
     };
 
+    const handleClearToll = () => {
+        setTollInput("");
+        updateTollFee(0);
+    };
+
     const handleEndRide = () => {
         Alert.alert(
             "End Ride?",
@@ -284,6 +309,7 @@ export default function ActiveRideScreen() {
                                 outboundDistance: (booking?.distance || 0).toString(),
                                 time: eta.replace(' min', '') || '0',
                                 baseFare: (booking?.fare || 0).toString(),
+                                nightSurcharge: (booking?.nightSurcharge || 0).toString(),
                                 returnFare: (booking?.returnTripFare || 0).toString(),
                                 pickup: booking?.pickupLocation || '',
                                 drop: booking?.dropLocation || '',
@@ -318,6 +344,7 @@ export default function ActiveRideScreen() {
                                     isFirstLeg: 'true',
                                     toll: tollAmount || '0',
                                     baseFare: (booking?.fare || 0).toString(),
+                                    nightSurcharge: (booking?.nightSurcharge || 0).toString(),
                                     distance: distance.replace(' km', '') || distanceKm.toString(),
                                     pickup: booking?.pickupLocation || '',
                                     drop: booking?.dropLocation || '',
@@ -361,6 +388,7 @@ export default function ActiveRideScreen() {
                                     isFirstLeg: 'true',
                                     toll: tollAmount || '0',
                                     baseFare: (booking?.fare || 0).toString(),
+                                    nightSurcharge: (booking?.nightSurcharge || 0).toString(),
                                     distance: distance.replace(' km', '') || distanceKm.toString(),
                                     pickup: booking?.pickupLocation || '',
                                     drop: booking?.dropLocation || '',
@@ -395,50 +423,47 @@ export default function ActiveRideScreen() {
                             />
                         )}
 
-                        {booking && (
-                            <>
-                                {/* Start Point Marker (Only relevant to show where you came from) */}
-                                {Number(isReturnTrip ? booking.dropLatitude : booking.pickupLatitude) !== 0 && (
-                                    <Marker
-                                        coordinate={{
-                                            latitude: Number(isReturnTrip ? (booking.dropLatitude || 0) : (booking.pickupLatitude || 0)) || 0,
-                                            longitude: Number(isReturnTrip ? (booking.dropLongitude || 0) : (booking.pickupLongitude || 0)) || 0
-                                        }}
-                                    >
-                                        <View className="items-center">
-                                            <View className="bg-blue-500 px-2 py-0.5 rounded mb-1 shadow-md">
-                                                <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                                                    {isReturnTrip ? 'START' : 'PICKUP'}
-                                                </Text>
-                                            </View>
-                                            <View className="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg">
-                                                <Ionicons name="location" size={16} color="white" />
-                                            </View>
-                                        </View>
-                                    </Marker>
-                                )}
+                        {/* Markers show even before booking data loads if params are present */}
+                        {Number(booking?.pickupLatitude || (isReturnTrip ? params.dLat : params.pLat)) !== 0 && (
+                            <Marker
+                                tracksViewChanges={false}
+                                coordinate={{
+                                    latitude: Number(isReturnTrip ? (booking?.dropLatitude || params.dLat) : (booking?.pickupLatitude || params.pLat)) || 0,
+                                    longitude: Number(isReturnTrip ? (booking?.dropLongitude || params.dLon) : (booking?.pickupLongitude || params.pLon)) || 0
+                                }}
+                            >
+                                <View className="items-center">
+                                    <View className="bg-blue-500 px-2 py-0.5 rounded mb-1 shadow-md">
+                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                                            {isReturnTrip ? 'START' : 'PICKUP'}
+                                        </Text>
+                                    </View>
+                                    <View className="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg">
+                                        <Ionicons name="location" size={16} color="white" />
+                                    </View>
+                                </View>
+                            </Marker>
+                        )}
 
-                                {/* Destination Marker */}
-                                {Number(isReturnTrip ? booking.pickupLatitude : booking.dropLatitude) !== 0 && (
-                                    <Marker
-                                        coordinate={{
-                                            latitude: Number(isReturnTrip ? (booking.pickupLatitude || 0) : (booking.dropLatitude || 0)) || 0,
-                                            longitude: Number(isReturnTrip ? (booking.pickupLongitude || 0) : (booking.dropLongitude || 0)) || 0
-                                        }}
-                                    >
-                                        <View className="items-center">
-                                            <View className="bg-red-500 px-2 py-0.5 rounded mb-1 shadow-md">
-                                                <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                                                    {isReturnTrip ? 'HOME' : 'DROP'}
-                                                </Text>
-                                            </View>
-                                            <View className="bg-red-600 p-2 rounded-full border-2 border-white shadow-lg">
-                                                <Ionicons name="flag" size={18} color="white" />
-                                            </View>
-                                        </View>
-                                    </Marker>
-                                )}
-                            </>
+                        {Number(booking?.dropLatitude || (isReturnTrip ? params.pLat : params.dLat)) !== 0 && (
+                            <Marker
+                                tracksViewChanges={false}
+                                coordinate={{
+                                    latitude: Number(isReturnTrip ? (booking?.pickupLatitude || params.pLat) : (booking?.dropLatitude || params.dLat)) || 0,
+                                    longitude: Number(isReturnTrip ? (booking?.pickupLongitude || params.pLon) : (booking?.dropLongitude || params.dLon)) || 0
+                                }}
+                            >
+                                <View className="items-center">
+                                    <View className="bg-red-500 px-2 py-0.5 rounded mb-1 shadow-md">
+                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                                            {isReturnTrip ? 'HOME' : 'DROP'}
+                                        </Text>
+                                    </View>
+                                    <View className="bg-red-600 p-2 rounded-full border-2 border-white shadow-lg">
+                                        <Ionicons name="flag" size={18} color="white" />
+                                    </View>
+                                </View>
+                            </Marker>
                         )}
                     </MapView>
                 ) : (
@@ -528,103 +553,81 @@ export default function ActiveRideScreen() {
                                 </View>
                                 <View className="items-end">
                                     <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Distance</Text>
-                                    <Text className="text-white text-4xl font-black italic">{distance.split(' ')[0]} <Text className="text-lg text-slate-500 not-italic">{distance.split(' ')[1] || 'km'}</Text></Text>
+                                    <Text className="text-white text-xl font-bold">{distance}</Text>
                                 </View>
                             </View>
 
-                            {/* Destination Address */}
-                            <View className="bg-slate-800/50 p-4 rounded-2xl mb-4 border border-slate-700/50 flex-row items-center">
-                                <View className="w-10 h-10 rounded-full bg-red-500/20 items-center justify-center border border-red-500/30 mr-4">
-                                    <Ionicons name="flag" size={20} color="#EF4444" />
-                                </View>
-                                <View className="flex-1">
-                                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">
-                                        {isReturnTrip ? 'Return To (Original Pickup)' : 'Destination'}
-                                    </Text>
-                                    <Text className="text-white text-sm font-bold leading-5" numberOfLines={2}>
-                                        {isReturnTrip ? (booking?.pickupLocation || '---') : (booking?.dropLocation || '---')}
-                                    </Text>
-                                </View>
-                            </View>
-
-                            {/* ── LIVE BILLING CARD ── */}
-                            <View className="bg-slate-800/80 p-5 rounded-3xl mb-6 border border-slate-700">
-
-                                {/* Header row: title + current-leg badge */}
-                                <View className="flex-row items-center justify-between mb-4">
-                                    <Text className="text-slate-400 text-[9px] uppercase font-black tracking-[2px]">Current Billing</Text>
-                                    <View className={`px-2.5 py-1 rounded-full ${isReturnTrip ? 'bg-yellow-400' : 'bg-blue-500'}`}>
-                                        <Text className={`text-[8px] font-black uppercase tracking-widest ${isReturnTrip ? 'text-slate-900' : 'text-white'}`}>
-                                            {isReturnTrip ? '↩ Leg 2 – Return' : hasReturnTrip ? 'Leg 1 – Outbound' : 'Single Trip'}
-                                        </Text>
+                            {/* LIVE BILLING CARD */}
+                            <View className="bg-slate-800/50 rounded-3xl p-5 mb-6 border border-slate-700">
+                                <View className="flex-row justify-between items-center mb-4">
+                                    <Text className="text-slate-400 font-bold text-xs uppercase tracking-widest">Live Billing</Text>
+                                    <View className="bg-green-500/20 px-2 py-0.5 rounded border border-green-500/30">
+                                        <Text className="text-green-400 text-[9px] font-black uppercase">Active</Text>
                                     </View>
                                 </View>
 
-                                {/* Leg 1 – Base Fare row */}
                                 <View className="flex-row justify-between items-center mb-3">
                                     <View className="flex-row items-center flex-1">
-                                        <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${booking?.firstLegPaid ? 'bg-green-500' : 'bg-blue-500/20'}`}>
-                                            <Ionicons
-                                                name={booking?.firstLegPaid ? 'checkmark' : 'navigate'}
-                                                size={12}
-                                                color={booking?.firstLegPaid ? 'white' : '#60a5fa'}
-                                            />
+                                        <View className="w-6 h-6 rounded-full bg-blue-500/20 items-center justify-center mr-2">
+                                            <Ionicons name="car-outline" size={12} color="#3b82f6" />
                                         </View>
                                         <View>
-                                            <Text className="text-white text-sm font-bold">
-                                                {hasReturnTrip ? 'Leg 1 Fare' : 'Ride Fare'}
+                                            <Text className="text-slate-300 text-sm">
+                                                {booking?.hasReturnTrip || Number(booking?.returnTripFare) > 0 ? 'Base Fare (Leg 1)' : 'Ride Fare'}
                                             </Text>
                                             {booking?.firstLegPaid && (
-                                                <Text className="text-green-400 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
+                                                <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid</Text>
                                             )}
                                         </View>
                                     </View>
-                                    <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-400' : 'text-white'}`}>
-                                        ₹{Number(booking?.fare || 0)}
-                                    </Text>
+                                    <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-500' : 'text-white'}`}>₹{booking?.baseFare || Math.max(0, Number(booking?.fare || 0) - Number(booking?.nightSurcharge || 0))}</Text>
                                 </View>
 
-                                {/* Leg 2 – Return Fare row (only if return trip booked) */}
-                                {hasReturnTrip && (
+                                {(Number(booking?.nightSurcharge) > 0) && (
                                     <View className="flex-row justify-between items-center mb-3">
                                         <View className="flex-row items-center flex-1">
-                                            <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${isReturnTrip ? 'bg-yellow-400' : 'bg-slate-700'}`}>
-                                                <Ionicons
-                                                    name="repeat"
-                                                    size={12}
-                                                    color={isReturnTrip ? '#0f172a' : '#64748b'}
-                                                />
+                                            <View className="w-6 h-6 rounded-full bg-indigo-500/20 items-center justify-center mr-2">
+                                                <Ionicons name="moon" size={12} color="#6366f1" />
                                             </View>
                                             <View>
-                                                <Text className={`text-sm font-bold ${isReturnTrip ? 'text-yellow-400' : 'text-slate-400'}`}>
-                                                    Leg 2 Fare
-                                                </Text>
-                                                <View className="flex-row items-center">
-                                                    <View className="bg-yellow-400/20 px-1 py-0.5 rounded mr-1">
-                                                        <Text className="text-yellow-400 text-[7px] font-black uppercase">50% OFF</Text>
-                                                    </View>
-                                                    {isReturnTrip && (
-                                                        <Text className="text-yellow-400 text-[9px] font-bold uppercase tracking-wider">Active</Text>
-                                                    )}
-                                                </View>
+                                                <Text className="text-indigo-400 text-sm font-bold">Night Surcharge</Text>
+                                                {booking?.firstLegPaid && (
+                                                    <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid</Text>
+                                                )}
                                             </View>
                                         </View>
-                                        <Text className={`text-sm font-bold ${isReturnTrip ? 'text-yellow-400' : 'text-slate-500'}`}>
-                                            +₹{booking?.returnTripFare || 0}
-                                        </Text>
+                                        <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-500' : 'text-indigo-400'}`}>+₹{booking?.nightSurcharge || 0}</Text>
                                     </View>
                                 )}
 
-                                {/* Waiting Charges row (only when penalty active) */}
-                                {(Number(penaltyAmount) > 0) && (
+                                {hasReturnTrip && (
+                                    <View className="flex-row justify-between items-center mb-3">
+                                        <View className="flex-row items-center flex-1">
+                                            <View className="w-6 h-6 rounded-full bg-purple-500/20 items-center justify-center mr-2">
+                                                <Ionicons name="return-down-back" size={12} color="#a855f7" />
+                                            </View>
+                                            <View className="flex-row items-center">
+                                            <Text className="text-slate-300 text-sm italic">Leg 2 (Return)</Text>
+                                            {isReturnTrip && (
+                                                <View className="bg-green-500/20 px-1.5 py-0.5 rounded border border-green-500/30 ml-2">
+                                                    <Text className="text-green-400 text-[8px] font-black uppercase">Active</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+                                    <Text className="text-white text-sm font-bold">₹{booking?.returnTripFare || 0}</Text>
+                                    </View>
+                                )}
+
+                                {Number(penaltyAmount) > 0 && (
                                     <View className="flex-row justify-between items-center mb-3">
                                         <View className="flex-row items-center flex-1">
                                             <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-2">
-                                                <Ionicons name="time" size={12} color="#ef4444" />
+                                                <Ionicons name="time-outline" size={12} color="#ef4444" />
                                             </View>
-                                            <Text className="text-red-400 text-sm font-bold">Waiting Charges</Text>
+                                            <Text className="text-red-400 text-sm font-bold">Waiting Penalty</Text>
                                         </View>
-                                        <Text className="text-red-400 text-sm font-bold">+₹{penaltyAmount || 0}</Text>
+                                        <Text className="text-red-400 text-sm font-bold">+₹{penaltyAmount}</Text>
                                     </View>
                                 )}
 
@@ -639,58 +642,48 @@ export default function ActiveRideScreen() {
                                         <Text className="text-amber-400 text-sm font-bold">+₹{tollAmount || 0}</Text>
                                     </View>
                                 )}
-
                                 <View className="flex-row items-center gap-2 mb-3">
                                     <TextInput
+                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white text-sm"
+                                        placeholder="Add Manual Toll (₹)"
+                                        placeholderTextColor="#64748b"
+                                        keyboardType="numeric"
                                         value={tollInput}
                                         onChangeText={setTollInput}
-                                        placeholder="Enter toll amount"
-                                        placeholderTextColor="#94a3b8"
-                                        keyboardType="number-pad"
-                                        className="flex-1 bg-slate-900 text-white text-sm font-bold px-3 py-2.5 rounded-lg border border-slate-600"
                                     />
-                                    <TouchableOpacity onPress={handleApplyManualToll} className="bg-amber-500 px-4 py-2.5 rounded-lg">
-                                        <Text className="text-slate-900 text-[10px] font-black uppercase">Apply</Text>
+                                    <TouchableOpacity 
+                                        onPress={handleApplyManualToll}
+                                        className="bg-amber-500/20 border border-amber-500/30 px-3 py-2 rounded-xl"
+                                    >
+                                        <Text className="text-amber-400 font-bold text-[10px] uppercase">Add Toll</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => updateTollFee(0)} className="bg-slate-700 px-3 py-2.5 rounded-lg">
-                                        <Text className="text-slate-300 text-[10px] font-black uppercase">Clear Toll</Text>
+                                    <TouchableOpacity 
+                                        onPress={handleClearToll}
+                                        className="bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-xl"
+                                    >
+                                        <Text className="text-red-400 font-bold text-[10px] uppercase">Clear</Text>
                                     </TouchableOpacity>
                                 </View>
 
-                                {/* Divider + Total */}
-                                <View className="border-t border-slate-700 mt-3 pt-4 flex-row justify-between items-center">
-                                    <View>
-                                        <Text className="text-white text-sm font-bold">
-                                            Estimated Total
-                                        </Text>
-                                        <Text className="text-slate-500 text-[9px] uppercase tracking-wider">
-                                            {booking?.paymentMethod || 'Cash'} • {booking?.paymentChoice === 'total_at_end' ? 'Pay at End' : booking?.firstLegPaid ? 'Leg 1 settled' : 'Leg-by-leg'}
-                                        </Text>
-                                    </View>
-                                    <View className="items-end">
-                                        <Text className="text-[#FFD700] text-2xl font-black italic">
-                                            ₹{Math.round(Number(booking?.fare || 0) + Number(booking?.returnTripFare || 0) + Number(penaltyAmount || 0) + Number(tollAmount || 0))}
-                                        </Text>
-                                        {booking?.firstLegPaid && (
-                                            <Text className="text-green-400 text-xs font-bold mt-1">
-                                                Balance: ₹{(Number(booking?.returnTripFare || 0) + Number(penaltyAmount || 0) + Number(tollAmount || 0))}
-                                            </Text>
-                                        )}
-                                    </View>
+                                <View className="h-[1px] bg-slate-700/50 w-full my-3" />
+
+                                <View className="flex-row justify-between items-center">
+                                    <Text className="text-white font-bold">Estimated Total</Text>
+                                    <Text className="text-[#FFD700] text-xl font-black italic">₹{(booking?.fare || 0) + (hasReturnTrip ? (booking?.returnTripFare || 0) : 0) + Number(penaltyAmount) + Number(tollAmount)}</Text>
                                 </View>
                             </View>
 
-                            {/* End Ride Button */}
+                            {/* End Ride / Start Return Buttons */}
                             <TouchableOpacity
-                                activeOpacity={0.9}
-                                onPress={(hasReturnTrip && !isReturnTrip) ? handleEndLeg1 : handleEndRide}
-                                className={`w-full ${(hasReturnTrip && !isReturnTrip) ? 'bg-blue-600' : 'bg-red-500'} py-5 rounded-[24px] items-center flex-row justify-center shadow-lg`}
+                                onPress={hasReturnTrip ? (isReturnTrip ? handleEndRide : handleEndLeg1) : handleEndRide}
+                                className={`w-full py-5 rounded-2xl items-center flex-row justify-center shadow-xl ${hasReturnTrip ? (isReturnTrip ? 'bg-red-500' : 'bg-purple-600') : 'bg-red-500'}`}
                             >
-                                <Ionicons name={(hasReturnTrip && !isReturnTrip) ? "arrow-forward-circle" : "stop-circle"} size={24} color="#FFF" style={{ marginRight: 8 }} />
-                                <Text className="text-white font-black text-lg tracking-[3px] uppercase">
-                                    {(hasReturnTrip && !isReturnTrip) ? "End First Leg" : "End Ride"}
+                                <Ionicons name={hasReturnTrip ? (isReturnTrip ? "flag" : "repeat") : "flag"} size={24} color="white" style={{ marginRight: 10 }} />
+                                <Text className="text-white font-black text-lg uppercase tracking-wider">
+                                    {hasReturnTrip ? (isReturnTrip ? 'Complete Return Trip' : 'Arrived at Destination') : 'End Ride'}
                                 </Text>
                             </TouchableOpacity>
+
                         </Animated.View>
                     </View>
                 </GestureDetector>

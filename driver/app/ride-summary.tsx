@@ -16,6 +16,7 @@ export default function RideSummaryScreen() {
     const returnFare = params.returnFare || "0";
     const penalty = params.penalty || "0";
     const toll = params.toll || "0";
+    const nightSurcharge = params.nightSurcharge || "0";
     const totalAmount = params.totalAmount || "0";
     const distance = params.distance || "0";
     const time = params.time || "0";
@@ -88,16 +89,40 @@ export default function RideSummaryScreen() {
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-6">Fare Breakdown</Text>
 
                         <View className="flex-row justify-between mb-3">
-                            <Text className="text-slate-300 text-sm font-medium">Base Fare (Outbound)</Text>
-                            <View className="flex-row items-center">
+                            <View>
+                                <Text className="text-slate-300 text-sm font-medium">
+                                    {params.hasReturnTrip === 'true' || Number(returnFare) > 0 ? 'Base Fare (Leg 1)' : 'Ride Fare'}
+                                </Text>
                                 {params.firstLegPaid === 'true' && (
-                                    <View className="bg-green-500/20 px-1.5 py-0.5 rounded-md mr-1.5 border border-green-500/30">
-                                        <Text className="text-green-400 text-[8px] font-black uppercase">Already Paid</Text>
-                                    </View>
+                                    <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid</Text>
                                 )}
-                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-slate-500 line-through' : 'text-white'}`}>₹{fare}</Text>
+                            </View>
+                            <View className="items-end">
+                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-green-500' : 'text-white'}`}>₹{Math.max(0, Number(fare) - Number(nightSurcharge))}</Text>
                             </View>
                         </View>
+
+                        {Number(nightSurcharge) > 0 && (
+                             <View className="flex-row justify-between mb-3">
+                                <View>
+                                    <Text className="text-indigo-400 text-sm font-medium">Night Surcharge</Text>
+                                    {params.firstLegPaid === 'true' && (
+                                        <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid</Text>
+                                    )}
+                                </View>
+                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-green-500' : 'text-indigo-400'}`}>+ ₹{nightSurcharge}</Text>
+                            </View>
+                        )}
+
+                        {(Number(returnFare) > 0 || params.hasReturnTrip === 'true') && (
+                            <View className="flex-row justify-between mb-3">
+                                <View className="flex-row items-center">
+                                    <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
+                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (50% OFF)</Text>
+                                </View>
+                                <Text className="text-blue-400 text-sm font-bold">+ ₹{returnFare || 0}</Text>
+                            </View>
+                        )}
 
                         {Number(penalty) > 0 && (
                             <View className="flex-row justify-between mb-3">
@@ -113,21 +138,16 @@ export default function RideSummaryScreen() {
                             </View>
                         )}
 
-                        {(Number(returnFare) > 0 || params.hasReturnTrip === 'true') && (
-                            <View className="flex-row justify-between mb-3">
-                                <View className="flex-row items-center">
-                                    <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
-                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (50% OFF)</Text>
-                                </View>
-                                <Text className="text-blue-400 text-sm font-bold">+ ₹{returnFare || 0}</Text>
-                            </View>
-                        )}
-
                         <View className="h-[1px] bg-slate-700 w-full my-4" />
 
                         <View className="flex-row justify-between items-center">
-                            <Text className="text-white text-lg font-black">Total Earned</Text>
-                            <Text className="text-[#FFD700] text-3xl font-black">₹{(Number(fare) + Number(returnFare) + Number(penalty) + Number(toll))}</Text>
+                            <View>
+                                <Text className="text-white text-lg font-black">Total Earned</Text>
+                            </View>
+                            <View className="items-end">
+                                <Text className="text-[#FFD700] text-3xl font-black">₹{Number(fare) + Number(returnFare) + Number(penalty) + Number(toll)}</Text>
+                                {params.firstLegPaid === 'true' && <Text className="text-slate-400 text-xs font-bold mt-1">Collected Now: ₹{totalAmount}</Text>}
+                            </View>
                         </View>
                     </View>
 

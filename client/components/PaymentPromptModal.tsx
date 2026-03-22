@@ -11,6 +11,7 @@ interface PaymentDetails {
         returnFare: number;
         penalty: number;
         toll: number;
+        nightSurcharge: number;
         firstLegPaid: boolean;
     };
 }
@@ -23,16 +24,25 @@ interface PaymentPromptModalProps {
 
 const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onClose, details }) => {
     if (!details) return null;
-    const baseFare = Number(details?.breakdown?.baseFare || 0);
+    const nightSurcharge = Number(details?.breakdown?.nightSurcharge || 0);
+    const rawBaseFare = Math.max(0, Number(details?.breakdown?.baseFare || 0));
+    const requestedAmount = Number(details?.amount);
+
+    // If baseFare + surcharge > requestedAmount, it means baseFare is likely the total one-way, 
+    // so we should subtract. Otherwise, if it's already clean, use it as is.
+    // However, the most robust way is to check the DB persisted baseFare.
+    // For now, we'll assume baseFare sent from payment.tsx might be total or clean.
+    const displayBaseFare = (rawBaseFare + nightSurcharge > requestedAmount && nightSurcharge > 0)
+        ? Math.max(0, rawBaseFare - nightSurcharge)
+        : rawBaseFare;
     const returnFare = Number(details?.breakdown?.returnFare || 0);
     const penalty = Number(details?.breakdown?.penalty || 0);
     const toll = Number(details?.breakdown?.toll || 0);
-    const requestedAmount = Number(details?.amount);
     const payableNow = Number.isFinite(requestedAmount)
         ? requestedAmount
         : (details.isPartial
-            ? baseFare
-            : (details?.breakdown?.firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll)));
+            ? rawBaseFare
+            : (details?.breakdown?.firstLegPaid ? (returnFare + penalty + toll) : (rawBaseFare + returnFare + penalty + toll)));
 
     return (
         <Modal
@@ -58,7 +68,7 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
 
                     <View className="bg-slate-800/50 rounded-3xl p-6 border border-slate-700/50 mb-6 items-center">
                         <Text className="text-slate-500 text-[10px] font-black uppercase tracking-[2px] mb-2">Payable Now</Text>
-                        <Text className="text-[#FFD700] text-5xl font-black italic">Rs {payableNow}</Text>
+                        <Text className="text-[#FFD700] text-5xl font-black italic">₹{payableNow}</Text>
                         {details.breakdown.firstLegPaid && (
                             <Text className="text-slate-400 text-[10px] font-bold mt-2 uppercase tracking-wider text-center">
                                 First leg already paid
@@ -71,49 +81,81 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
 
                         <View className="space-y-3">
                             <View className="flex-row justify-between items-center">
-                                <Text className="text-slate-400 text-sm">Base Fare (Outbound)</Text>
-                                <View className="flex-row items-center">
-                                    {details.breakdown.firstLegPaid && (
-                                        <View className="bg-green-500/20 px-2 py-0.5 rounded-md mr-2 border border-green-500/30">
-                                            <Text className="text-green-400 text-[8px] font-black uppercase">Already Paid</Text>
-                                        </View>
-                                    )}
-                                    <Text className={`text-sm font-bold ${details.breakdown.firstLegPaid ? 'text-slate-500' : 'text-white'}`}>
-                                        Rs {baseFare}
+                                <View>
+                                    <Text className="text-slate-400 text-sm">
+                                        {details.breakdown.returnFare > 0 ? 'Base Fare (Leg 1)' : 'Ride Fare'}
                                     </Text>
+                                    {details.breakdown.firstLegPaid && (
+                                        <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
+                                    )}
                                 </View>
+                                <Text className={`text-sm font-bold ${details.breakdown.firstLegPaid ? 'text-green-600' : 'text-white'}`}>
+                                    ₹{displayBaseFare}
+                                </Text>
                             </View>
 
-                            {returnFare > 0 && (
+                            {nightSurcharge > 0 && (
+                                <View className="flex-row justify-between items-center">
+                                    <View>
+                                        <Text className="text-indigo-400 text-sm font-bold">Night Surcharge</Text>
+                                        {details.breakdown.firstLegPaid && (
+                                            <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
+                                        )}
+                                    </View>
+                                    <Text className={`text-sm font-bold ${details.breakdown.firstLegPaid ? 'text-green-600' : 'text-indigo-400'}`}>
+                                        +₹{nightSurcharge}
+                                    </Text>
+                                </View>
+                            )}
+
+
+
+                            {!details.isPartial && returnFare > 0 && (
                                 <View className="flex-row justify-between items-center">
                                     <View className="flex-row items-center">
                                         <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
                                         <Text className="text-slate-400 text-sm">Return Trip (50% OFF)</Text>
                                     </View>
-                                    <Text className="text-white text-sm font-bold">+Rs {returnFare}</Text>
+                                    <Text className="text-white text-sm font-bold">+₹{returnFare}</Text>
                                 </View>
                             )}
 
-                            {penalty > 0 && (
+                            {!details.isPartial && penalty > 0 && (
                                 <View className="flex-row justify-between items-center">
                                     <Text className="text-red-400 text-sm">Waiting Penalty</Text>
-                                    <Text className="text-red-400 text-sm font-bold">+Rs {penalty}</Text>
+                                    <Text className="text-red-400 text-sm font-bold">+₹{penalty}</Text>
                                 </View>
                             )}
 
-                            {toll > 0 && (
+                            {!details.isPartial && toll > 0 && (
                                 <View className="flex-row justify-between items-center">
                                     <Text className="text-amber-400 text-sm">Toll Charges</Text>
-                                    <Text className="text-amber-400 text-sm font-bold">+Rs {toll}</Text>
+                                    <Text className="text-amber-400 text-sm font-bold">+₹{toll}</Text>
                                 </View>
                             )}
 
                             <View className="h-[1px] bg-slate-700 w-full my-1" />
 
+                            {!details.isPartial && details.breakdown.firstLegPaid && (
+                                <>
+                                    <View className="flex-row justify-between items-center opacity-70">
+                                        <Text className="text-slate-400 text-xs uppercase font-bold">Total Trip Cost</Text>
+                                        <Text className="text-white text-sm font-bold">₹{rawBaseFare + returnFare + penalty + toll}</Text>
+                                    </View>
+                                    <View className="flex-row justify-between items-center opacity-70">
+                                        <Text className="text-green-500 text-xs uppercase font-bold">Already Paid (Leg 1)</Text>
+                                        <Text className="text-green-500 text-sm font-bold">-₹{rawBaseFare}</Text>
+                                    </View>
+                                    <View className="h-[1px] bg-slate-700 w-1/2 self-end my-1" />
+                                </>
+                            )}
+
                             <View className="flex-row justify-between items-center">
-                                <Text className="text-white font-black text-sm uppercase">Total Trip Cost</Text>
-                                <Text className="text-white font-black text-lg">
-                                    Rs {baseFare + returnFare + penalty + toll}
+                                <Text className="text-[#FFD700] font-black text-sm uppercase tracking-wider">
+                                    {details.isPartial ? 'Amount Payable Now' : 'Payable at End'}
+                                </Text>
+                                <Text className="text-[#FFD700] font-black text-2xl italic">
+                                    ₹{payableNow}
                                 </Text>
                             </View>
                         </View>

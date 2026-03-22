@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+import Shimmer from '../components/Shimmer';
 import { driverAPI } from '../utils/api';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
@@ -46,6 +47,8 @@ interface RideItem {
     scheduledDate?: string | null;
 }
 
+
+
 const statusTabs = [
     { label: 'All', value: 'all' },
     { label: 'Completed', value: 'completed' },
@@ -76,6 +79,7 @@ export default function RideHistoryScreen() {
     const [search, setSearch] = React.useState('');
     const [searchQuery, setSearchQuery] = React.useState('');
     const shimmer = React.useRef(new Animated.Value(0.35)).current;
+
 
     React.useEffect(() => {
         const loop = Animated.loop(
@@ -129,9 +133,9 @@ export default function RideHistoryScreen() {
             bookingType: item.bookingType || 'now',
             paymentStatus: item.paymentStatus || 'pending',
             paymentMethod: item.paymentMethod || 'cash',
-            isNightFare: !!item.isNightFare,
-            nightFareApplied: !!item.nightFareApplied,
-            nightFareAmount: Number(item.nightFareAmount || 0),
+            isNightFare: !!item.isNightFare || (item.nightSurcharge && Number(item.nightSurcharge) > 0),
+            nightFareApplied: !!item.nightFareApplied || (item.nightSurcharge && Number(item.nightSurcharge) > 0),
+            nightFareAmount: Number(item.nightSurcharge || item.nightFareAmount || 0),
             scheduledDate: item.scheduledDate || null
         };
     }, []);
@@ -227,7 +231,7 @@ export default function RideHistoryScreen() {
                         </Text>
                     </View>
                 </View>
-                <Text className="text-slate-900 font-black text-sm">{item.amount}</Text>
+                <View />
             </View>
 
             <View className="pl-1 relative mb-4">
@@ -314,7 +318,7 @@ export default function RideHistoryScreen() {
                     <View className="h-3 w-28 bg-slate-200 rounded mb-2" />
                     <View className="h-5 w-20 bg-slate-200 rounded" />
                 </View>
-                <View className="h-4 w-16 bg-slate-200 rounded" />
+                <View className="h-4 w-16" />
             </View>
 
             <View className="mb-4">
@@ -373,7 +377,9 @@ export default function RideHistoryScreen() {
                             </View>
                         </View>
 
-                        {renderFilterRow('Status', statusTabs, statusFilter, setStatusFilter)}
+                        
+
+                        {renderFilterRow('Ride Status', statusTabs, statusFilter, setStatusFilter)}
                         {renderFilterRow('Ride Type', rideTypeTabs, rideTypeFilter, setRideTypeFilter)}
                     </View>
                 }

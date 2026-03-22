@@ -35,10 +35,22 @@ const LiveRideTrackingScreen = () => {
     const [booking, setBooking] = useState<any>(null);
     const [driverLocation, setDriverLocation] = useState<any>(null);
     const [routeCoords, setRouteCoords] = useState<any[]>([]);
-    const [region, setRegion] = useState<any>(null);
+    const [region, setRegion] = useState<any>(() => {
+        const { pLat, pLon, dLat, dLon } = params;
+        if (pLat && pLon) {
+            return {
+                latitude: Number(pLat),
+                longitude: Number(pLon),
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05
+            };
+        }
+        return null;
+    });
     const [currentStatus, setCurrentStatus] = useState<RideStatus>('accepted');
     const [distance, setDistance] = useState<string>("---");
     const [eta, setEta] = useState<string>("---");
+    const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
 
     // Waiting State
     const [waitingSecondsElapsed, setWaitingSecondsElapsed] = useState(0);
@@ -289,22 +301,30 @@ const LiveRideTrackingScreen = () => {
                 }
 
                 if (newLat && newLon && targetLat && targetLon) {
-                    locationAPI.getDirections(newLat, newLon, targetLat, targetLon).then(res => {
-                        if (res.data?.data) {
-                            if (res.data.data.distanceKm) setDistance(`${res.data.data.distanceKm} km`);
-                            if (res.data.data.duration) setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                    // Only fetch directions if driver has moved significantly (>50m) or first time
+                    const shouldUpdateDirections = !lastUpdateCoords.current || 
+                        Math.abs(lastUpdateCoords.current.lat - newLat) > 0.0005 || 
+                        Math.abs(lastUpdateCoords.current.lon - newLon) > 0.0005;
 
-                            if (res.data.data.geometry && Array.isArray(res.data.data.geometry.coordinates)) {
-                                const coords = res.data.data.geometry.coordinates
-                                    .filter((c: any) => Array.isArray(c) && c.length >= 2 && c[1] !== null && c[0] !== null)
-                                    .map((c: any) => ({
-                                        latitude: Number(c[1]),
-                                        longitude: Number(c[0])
-                                    }));
-                                if (coords.length > 0) setRouteCoords(coords);
+                    if (shouldUpdateDirections) {
+                        lastUpdateCoords.current = { lat: newLat, lon: newLon };
+                        locationAPI.getDirections(newLat, newLon, targetLat, targetLon).then(res => {
+                            if (res.data?.data) {
+                                if (res.data.data.distanceKm) setDistance(`${res.data.data.distanceKm} km`);
+                                if (res.data.data.duration) setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+
+                                if (res.data.data.geometry && Array.isArray(res.data.data.geometry.coordinates)) {
+                                    const coords = res.data.data.geometry.coordinates
+                                        .filter((c: any) => Array.isArray(c) && c.length >= 2 && c[1] !== null && c[0] !== null)
+                                        .map((c: any) => ({
+                                            latitude: Number(c[1]),
+                                            longitude: Number(c[0])
+                                        }));
+                                    if (coords.length > 0) setRouteCoords(coords);
+                                }
                             }
-                        }
-                    }).catch(() => { });
+                        }).catch(() => { });
+                    }
                 }
             }
         };
@@ -344,7 +364,8 @@ const LiveRideTrackingScreen = () => {
                             totalFare: data.totalFare,
                             distance: data.distance,
                             pickup: bookingRef.current?.pickupLocation,
-                            drop: bookingRef.current?.dropLocation
+                            drop: bookingRef.current?.dropLocation,
+                            firstLegPaid: String(bookingRef.current?.firstLegPaid || false)
                         }
                     });
                 }
@@ -382,12 +403,13 @@ const LiveRideTrackingScreen = () => {
                 const returnFare = Number(data?.breakdown?.returnFare || 0);
                 const penalty = Number(data?.breakdown?.penalty || 0);
                 const toll = Number(data?.breakdown?.toll || 0);
+                const nightSurcharge = Number(data?.breakdown?.nightSurcharge || 0);
                 const parsedAmount = Number(data?.amount);
                 const safeAmount = Number.isFinite(parsedAmount)
                     ? parsedAmount
                     : (data?.isPartial
-                        ? baseFare
-                        : (data?.breakdown?.firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll)));
+                        ? baseFare + nightSurcharge
+                        : (data?.breakdown?.firstLegPaid ? (returnFare + penalty + toll) : (baseFare + nightSurcharge + returnFare + penalty + toll)));
 
                 setPaymentDetails({
                     ...data,
@@ -397,6 +419,7 @@ const LiveRideTrackingScreen = () => {
                         returnFare,
                         penalty,
                         toll,
+                        nightSurcharge,
                         firstLegPaid: !!data?.breakdown?.firstLegPaid
                     }
                 });
@@ -436,23 +459,28 @@ const LiveRideTrackingScreen = () => {
         };
     }, [socketReady, bookingId, fetchInitialData]);
 
-    // Timer for waiting
+    // Timer for waiting - Use absolute time difference for accuracy
     useEffect(() => {
-        if (currentStatus === 'waiting') {
-            const effectiveWaitingLimit = booking?.waitingLimit || 3600;
-            const timer = setInterval(() => {
-                setWaitingSecondsElapsed(prev => {
-                    const next = prev + 1;
-                    // Force refresh when we cross the limit + 1 second, or every minute
-                    if (next === effectiveWaitingLimit + 1 || (next > effectiveWaitingLimit && next % 60 === 0)) {
-                        fetchInitialData();
-                    }
-                    return next;
-                });
-            }, 1000);
+        if (currentStatus === 'waiting' && booking?.waitingStartedAt) {
+            const startTime = new Date(booking.waitingStartedAt).getTime();
+            
+            const updateTimer = () => {
+                const now = new Date().getTime();
+                const elapsed = Math.floor((now - startTime) / 1000);
+                setWaitingSecondsElapsed(elapsed);
+
+                // Periodically refresh stats when over the limit to get latest penalty from backend
+                const limit = booking?.waitingLimit || 3600;
+                if (elapsed === limit + 1 || (elapsed > limit && elapsed % 60 === 0)) {
+                    fetchInitialData();
+                }
+            };
+
+            updateTimer(); // Initial call
+            const timer = setInterval(updateTimer, 1000);
             return () => clearInterval(timer);
         }
-    }, [currentStatus, booking?.waitingLimit, fetchInitialData]);
+    }, [currentStatus, booking?.waitingStartedAt]);
 
     // Format Helpers
     const formatTime = (totalSeconds: number) => {
@@ -492,6 +520,7 @@ const LiveRideTrackingScreen = () => {
                                 {/* Pickup / Return-Start Marker */}
                                 {Number(booking.pickupLatitude) !== 0 && Number(booking.pickupLongitude) !== 0 && (
                                     <Marker 
+                                        tracksViewChanges={false}
                                         coordinate={{
                                             latitude: Number(currentStatus === 'return_ride_started' ? booking.dropLatitude : booking.pickupLatitude) || 0,
                                             longitude: Number(currentStatus === 'return_ride_started' ? booking.dropLongitude : booking.pickupLongitude) || 0
@@ -514,6 +543,7 @@ const LiveRideTrackingScreen = () => {
                                 {/* Drop / Return-End Marker */}
                                 {Number(booking.dropLatitude) !== 0 && Number(booking.dropLongitude) !== 0 && (
                                     <Marker 
+                                        tracksViewChanges={false}
                                         coordinate={{
                                             latitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLatitude : booking.dropLatitude) || 0,
                                             longitude: Number(currentStatus === 'return_ride_started' ? booking.pickupLongitude : booking.dropLongitude) || 0
@@ -562,7 +592,7 @@ const LiveRideTrackingScreen = () => {
                                 <View className="flex-1 items-center justify-center py-1">
                                     <View className="flex-row items-center mb-0.5">
                                         <Ionicons name="time" size={12} color="#94a3b8" />
-                                        <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">{isPenaltyActive ? 'Overdue' : 'Free Wait'}</Text>
+                                        <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">{isPenaltyActive ? 'Overdue' : 'Free Waiting'}</Text>
                                     </View>
                                     <Text className={`text-lg font-black ${isPenaltyActive ? 'text-red-500' : 'text-slate-900'}`}>{formatTime(remainingSeconds)}</Text>
                                 </View>
@@ -606,7 +636,7 @@ const LiveRideTrackingScreen = () => {
                             <View className="flex-row items-center flex-1">
                                 <Ionicons name="time" size={20} color="white" />
                                 <View className="ml-2">
-                                    <Text className="text-white text-sm font-black">{isPenaltyActive ? 'PENALTY ACTIVE' : 'WAITING FOR YOU'}</Text>
+                                    <Text className="text-white text-sm font-black">{isPenaltyActive ? '⚠️ OVERDUE' : 'FREE WAITING'}</Text>
                                     <Text className="text-white/80 text-[10px] font-bold">Wait Penalty: ₹100/Hour after free limit</Text>
                                 </View>
                             </View>
@@ -721,7 +751,7 @@ const LiveRideTrackingScreen = () => {
                                 </View>
                                 <View>
                                     <Text className="text-slate-900 text-sm font-bold">
-                                        {booking?.hasReturnTrip ? 'Leg 1 Fare' : 'Ride Fare'}
+                                        {booking?.hasReturnTrip || Number(booking?.returnTripFare) > 0 ? 'Base Fare (Leg 1)' : 'Ride Fare'}
                                     </Text>
                                     {booking?.firstLegPaid && (
                                         <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
@@ -729,9 +759,26 @@ const LiveRideTrackingScreen = () => {
                                 </View>
                             </View>
                             <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-600' : 'text-slate-900'}`}>
-                                ₹{Number(booking?.fare || 0)}
+                                ₹{booking?.baseFare || Math.max(0, Number(booking?.fare || 0) - Number(booking?.nightSurcharge || 0))}
                             </Text>
                         </View>
+
+                        {(Number(booking?.nightSurcharge) > 0) && (
+                            <View className="flex-row justify-between items-center mb-3">
+                                <View className="flex-row items-center flex-1">
+                                    <View className="w-6 h-6 rounded-full bg-indigo-500/20 items-center justify-center mr-2">
+                                        <Ionicons name="moon" size={12} color="#6366f1" />
+                                    </View>
+                                    <View>
+                                        <Text className="text-indigo-500 text-sm font-bold">Night Surcharge</Text>
+                                        {booking?.firstLegPaid && (
+                                            <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">✓ Paid</Text>
+                                        )}
+                                    </View>
+                                </View>
+                                <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-600' : 'text-indigo-500'}`}>+₹{booking?.nightSurcharge || 0}</Text>
+                            </View>
+                        )}
 
                         {/* Leg 2 – Return Fare row (only if return trip booked) */}
                         {booking?.hasReturnTrip && (
@@ -764,8 +811,7 @@ const LiveRideTrackingScreen = () => {
                             </View>
                         )}
 
-                        {/* Waiting Charges row (only when penalty active) */}
-                        {(Number(booking?.penaltyApplied) > 0) && (
+                        {Number(booking?.penaltyApplied) > 0 && (
                             <View className="flex-row justify-between items-center mb-3">
                                 <View className="flex-row items-center flex-1">
                                     <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-2">

@@ -16,14 +16,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userAPI } from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 const ProfileScreen = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { user: authUser, refreshProfile, logout } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!authUser);
 
     const [userInfo, setUserInfo] = useState({
         name: "",
@@ -33,20 +35,39 @@ const ProfileScreen = () => {
     });
 
     useEffect(() => {
+        // 1. Initialize with current context data immediately
+        if (authUser) {
+            console.log("[Profile] Initializing with authUser:", authUser.name);
+            setUserInfo({
+                name: authUser.name || "",
+                email: authUser.email || "",
+                phone: authUser.mobile || "",
+                gender: authUser.gender || ""
+            });
+        }
+        
+        // 2. Always fetch fresh data in background on mount
         fetchProfile();
-    }, []);
+    }, []); // Only on mount
 
     const fetchProfile = async () => {
         try {
-            setLoading(true);
+            // Background fetch - don't show spinner if we already have data
             const response = await userAPI.getProfile();
+            console.log("[Profile] fetchProfile: response", response.data);
             const { user } = response.data;
             setUserInfo({
-                name: user.name || "",
-                email: user.email || "",
-                phone: user.mobile || "",
-                gender: user.gender || ""
+                name: user?.name || "",
+                email: user?.email || "",
+                phone: user?.mobile || "",
+                gender: user?.gender || ""
             });
+
+            // Keep AuthContext in sync
+            if (refreshProfile) {
+                console.log("[Profile] Triggering AuthContext refresh...");
+                await refreshProfile();
+            }
         } catch (error) {
             Alert.alert("Error", "Failed to fetch profile data");
         } finally {
@@ -61,6 +82,10 @@ const ProfileScreen = () => {
                 email: userInfo.email,
                 gender: userInfo.gender
             });
+            
+            // Refresh global state after update
+            if (refreshProfile) await refreshProfile();
+            
             setIsEditing(false);
             Alert.alert("Success", "Profile updated successfully!");
         } catch (error: any) {
@@ -74,7 +99,10 @@ const ProfileScreen = () => {
             'Are you sure you want to log out of your account?',
             [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Log Out', style: 'destructive', onPress: () => router.replace('/') }
+                { text: 'Log Out', style: 'destructive', onPress: async () => {
+                    await logout();
+                    router.replace('/');
+                }}
             ],
             { cancelable: true }
         );
@@ -147,7 +175,8 @@ const ProfileScreen = () => {
         );
     };
 
-    if (loading) {
+    // Only show full screen loader if we have NO data at all
+    if (loading && !userInfo.name && !authUser) {
         return (
             <View className="flex-1 bg-white justify-center items-center">
                 <ActivityIndicator size="large" color="#FFD700" />

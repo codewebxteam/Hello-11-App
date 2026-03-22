@@ -19,38 +19,33 @@ function RootLayoutNav() {
     );
   }
 
-  // If user is logged in, show all app screens
-  if (isAuthenticated) {
-    return (
-      <>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="screens/HomeScreen" />
-          <Stack.Screen name="screens/BookingScreen" />
-          <Stack.Screen name="screens/ChatScreen" />
-          <Stack.Screen name="screens/LiveRideTrackingScreen" />
-          <Stack.Screen name="screens/NotificationsScreen" />
-          <Stack.Screen name="screens/OutstationBookingScreen" />
-          <Stack.Screen name="screens/ProfileScreen" />
-          <Stack.Screen name="screens/RideCompletionScreen" />
-          <Stack.Screen name="screens/RideDetailsScreen" />
-          <Stack.Screen name="screens/ScheduledRidesScreen" />
-          <Stack.Screen name="screens/HistoryScreen" />
-          <Stack.Screen name="screens/ThankYouScreen" />
-          <Stack.Screen name="screens/WaitingTimerScreen" />
-        </Stack>
-        <StatusBar style="dark" />
-      </>
-    );
-  }
-
-  // If not logged in, show auth screens
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="screens/LoginScreen" />
-        <Stack.Screen name="screens/registerScreen" />
-        <Stack.Screen name="screens/ForgotPasswordScreen" />
+        {isAuthenticated ? (
+          <>
+            <Stack.Screen name="screens/HomeScreen" />
+            <Stack.Screen name="screens/BookingScreen" />
+            <Stack.Screen name="screens/ChatScreen" />
+            <Stack.Screen name="screens/LiveRideTrackingScreen" />
+            <Stack.Screen name="screens/NotificationsScreen" />
+            <Stack.Screen name="screens/OutstationBookingScreen" />
+            <Stack.Screen name="screens/ProfileScreen" />
+            <Stack.Screen name="screens/RideCompletionScreen" />
+            <Stack.Screen name="screens/RideDetailsScreen" />
+            <Stack.Screen name="screens/ScheduledRidesScreen" />
+            <Stack.Screen name="screens/HistoryScreen" />
+            <Stack.Screen name="screens/ThankYouScreen" />
+            <Stack.Screen name="screens/WaitingTimerScreen" />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="screens/LoginScreen" />
+            <Stack.Screen name="screens/registerScreen" />
+            <Stack.Screen name="screens/ForgotPasswordScreen" />
+          </>
+        )}
       </Stack>
       <StatusBar style="dark" />
     </>

@@ -6,182 +6,212 @@ import {
     ScrollView,
     Platform,
     StatusBar as RNStatusBar,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { driverAPI } from '../utils/api';
+import { getEarningsData, setEarningsData } from '../utils/storage';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function EarningsScreen() {
     const router = useRouter();
     const [earnings, setEarnings] = React.useState<any>(null);
+    const [selectedPeriod, setSelectedPeriod] = React.useState('week');
+    const [periodData, setPeriodData] = React.useState<Record<string, any>>({});
     const [loading, setLoading] = React.useState(true);
+    const [refreshing, setRefreshing] = React.useState(false);
+
+    const loadData = async (period = 'week', isInitial = false) => {
+        try {
+            setSelectedPeriod(period);
+            
+            // Show cached data immediately if available
+            if (periodData[period]) {
+                setEarnings(periodData[period]);
+                setRefreshing(true); // Still fetch update in background
+            } else if (isInitial) {
+                const cached = await getEarningsData();
+                if (cached) {
+                    setEarnings(cached);
+                    setPeriodData(prev => ({ ...prev, week: cached }));
+                    setLoading(false);
+                }
+            } else {
+                setRefreshing(true);
+            }
+
+            const response = await driverAPI.getEarnings(period);
+            if (response.data && response.data.earnings) {
+                const newData = response.data.earnings;
+                setEarnings(newData);
+                setPeriodData(prev => ({ ...prev, [period]: newData }));
+                
+                if (period === 'week') { // Cache the default/weekly view to storage
+                    await setEarningsData(newData);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching earnings:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
     useFocusEffect(
         React.useCallback(() => {
-            const fetchEarnings = async () => {
-                try {
-                    const response = await driverAPI.getEarnings();
-                    if (response.data && response.data.earnings) {
-                        setEarnings(response.data.earnings);
-                    }
-                } catch (error) {
-                    console.error("Error fetching earnings:", error);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            fetchEarnings();
+            loadData('week', true);
         }, [])
     );
 
+    const StatCard = ({ title, value, icon, color, subtitle, isCurrency }: any) => (
+        <View style={{ flex: 1, backgroundColor: 'white', padding: 20, borderRadius: 28, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 16, marginHorizontal: 4 }}>
+            <View style={{ width: 40, height: 40, backgroundColor: color, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                <Ionicons name={icon} size={20} color="white" />
+            </View>
+            <Text style={{ color: '#0F172A', fontSize: 20, fontWeight: '900' }}>{isCurrency ? '₹' : ''}{value}</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 9, fontWeight: '700', marginTop: 4, textTransform: 'uppercase' }}>{title}</Text>
+            {subtitle && <Text style={{ color: '#CBD5E1', fontSize: 8, fontWeight: '700', marginTop: 2 }}>{subtitle}</Text>}
+        </View>
+    );
+
+    if (loading && !earnings) {
+        return (
+            <View style={{ flex: 1, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" color="#FFD700" />
+            </View>
+        );
+    }
+
     return (
-        <View className="flex-1 bg-slate-50">
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar style="dark" />
 
-            <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm">
+            {/* Header */}
+            <View style={{ paddingTop: STATUSBAR_HEIGHT, backgroundColor: 'white' }}>
                 <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
+                    <TouchableOpacity 
+                        onPress={() => router.back()} 
+                        style={{ width: 40, height: 40, backgroundColor: '#F8FAFC', borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F1F5F9' }}
+                    >
                         <Ionicons name="arrow-back" size={24} color="#1E293B" />
                     </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Earnings</Text>
-                    <View className="w-10" />
+                    <Text style={{ color: '#0F172A', fontWeight: '900', fontSize: 18, textTransform: 'uppercase' }}>Analytics</Text>
+                    <TouchableOpacity 
+                        onPress={() => loadData(earnings?.period || 'week')}
+                        style={{ width: 40, height: 40, backgroundColor: '#F8FAFC', borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F1F5F9' }}
+                    >
+                        <Ionicons name="refresh" size={20} color="#1E293B" />
+                    </TouchableOpacity>
                 </View>
             </View>
 
-            <ScrollView className="flex-1" contentContainerStyle={{ padding: 24 }}>
-                <View className="bg-slate-900 rounded-[32px] p-8 mb-8 shadow-xl shadow-slate-900/30 overflow-hidden relative">
-                    <View className="absolute -top-10 -right-10 w-40 h-40 bg-[#FFD700] rounded-full opacity-10" />
-                    <Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-2">Total Earnings</Text>
-                    <View className="flex-row items-baseline">
-                        <Text className="text-white text-4xl font-black italic">₹{earnings?.totalEarnings || 0}</Text>
-                        <Text className="text-[#FFD700] ml-2 font-bold mb-1">ALL TIME</Text>
+            <ScrollView 
+                style={{ flex: 1 }}
+                contentContainerStyle={{ padding: 20 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Main Hero Card */}
+                <View
+                    style={{ 
+                        borderRadius: 32, 
+                        padding: 32, 
+                        marginBottom: 24, 
+                        backgroundColor: '#0F172A',
+                    }}
+                >
+                    <View style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, backgroundColor: '#FFD700', borderRadius: 80, opacity: 0.1 }} />
+                    
+                    <Text style={{ color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', fontSize: 10, marginBottom: 4 }}>Total Balance</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                        <Text style={{ color: 'white', fontSize: 40, fontWeight: '900' }}>₹{earnings?.totalEarnings || 0}</Text>
+                        <Text style={{ color: '#FFD700', marginLeft: 12, fontWeight: '700', marginBottom: 4, textTransform: 'uppercase', fontSize: 12 }}>Overall: ₹{earnings?.lifetimeBalance || 0}</Text>
                     </View>
 
-                    <View className="flex-row justify-between mt-8 pt-6 border-t border-white/10">
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
                         <View>
-                            <Text className="text-slate-400 text-[9px] font-bold uppercase mb-1">Today</Text>
-                            <Text className="text-white text-xl font-black italic">₹{earnings?.todayEarnings || 0}</Text>
+                            <Text style={{ color: '#94A3B8', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 }}>Today's Gain</Text>
+                            <Text style={{ color: 'white', fontSize: 24, fontWeight: '900' }}>₹{earnings?.todayEarnings || 0}</Text>
                         </View>
-                        <View className="items-end">
-                            <Text className="text-slate-400 text-[9px] font-bold uppercase mb-1">Average / Trip</Text>
-                            <Text className="text-white text-xl font-black italic">₹{earnings?.averageFare || 0}</Text>
-                        </View>
-                    </View>
-                </View>
-
-                <View className="flex-row mb-8">
-                    <View className="flex-1 bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm items-center mr-2">
-                        <View className="w-10 h-10 bg-blue-50 rounded-full items-center justify-center mb-3">
-                            <Ionicons name="car" size={20} color="#3B82F6" />
-                        </View>
-                        <Text className="text-slate-900 text-2xl font-black">{earnings?.totalTrips || 0}</Text>
-                        <Text className="text-slate-400 text-[9px] font-bold uppercase mt-1">Total Trips</Text>
-                    </View>
-                    <View className="flex-1 bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm items-center ml-2">
-                        <View className="w-10 h-10 bg-green-50 rounded-full items-center justify-center mb-3">
-                            <Ionicons name="time" size={20} color="#22C55E" />
-                        </View>
-                        <Text className="text-slate-900 text-2xl font-black">{earnings?.onlineHours || '0.0'}</Text>
-                        <Text className="text-slate-400 text-[9px] font-bold uppercase mt-1">Online Hours</Text>
-                    </View>
-                </View>
-
-                <View className="flex-row justify-between items-center mb-6">
-                    <Text className="text-slate-900 font-black text-base uppercase tracking-wider">Activities</Text>
-                    <View className="flex-row">
-                        <TouchableOpacity
-                            onPress={async () => {
-                                setLoading(true);
-                                try {
-                                    const response = await driverAPI.getEarnings('day');
-                                    if (response.data && response.data.earnings) {
-                                        setEarnings(response.data.earnings);
-                                    }
-                                } catch (e) {
-                                    console.log("Filter error:", e);
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }}
-                            className={`px-4 py-1.5 rounded-full border mr-2 ${earnings?.period === 'day' ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'}`}
-                        >
-                            <Text className={`text-[10px] font-black uppercase ${earnings?.period === 'day' ? 'text-[#FFD700]' : 'text-slate-500'}`}>Day</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={async () => {
-                                setLoading(true);
-                                try {
-                                    const response = await driverAPI.getEarnings('week');
-                                    if (response.data && response.data.earnings) {
-                                        setEarnings(response.data.earnings);
-                                    }
-                                } catch (e) {
-                                    console.log("Filter error:", e);
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }}
-                            className={`px-4 py-1.5 rounded-full border mr-2 ${earnings?.period === 'week' ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'}`}
-                        >
-                            <Text className={`text-[10px] font-black uppercase ${earnings?.period === 'week' ? 'text-[#FFD700]' : 'text-slate-500'}`}>Week</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={async () => {
-                                setLoading(true);
-                                try {
-                                    const response = await driverAPI.getEarnings('month');
-                                    if (response.data && response.data.earnings) {
-                                        setEarnings(response.data.earnings);
-                                    }
-                                } catch (e) {
-                                    console.log("Filter error:", e);
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }}
-                            className={`px-4 py-1.5 rounded-full border ${earnings?.period === 'month' ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'}`}
-                        >
-                            <Text className={`text-[10px] font-black uppercase ${earnings?.period === 'month' ? 'text-[#FFD700]' : 'text-slate-500'}`}>Month</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {earnings?.activities && earnings.activities.length > 0 ? (
-                    earnings.activities.map((item: any) => (
-                        <View key={item.id} className="bg-white rounded-[24px] p-5 mb-4 border border-slate-50 flex-row items-center justify-between shadow-sm">
-                            <View className="flex-row items-center">
-                                <View className={`w-12 h-12 ${item.status === 'completed' ? 'bg-green-50' : 'bg-amber-50'} rounded-2xl items-center justify-center border border-slate-100`}>
-                                    <Ionicons
-                                        name={item.status === 'completed' ? "checkmark-circle-outline" : "time-outline"}
-                                        size={24}
-                                        color={item.status === 'completed' ? "#22C55E" : "#F59E0B"}
-                                    />
-                                </View>
-                                <View className="ml-4">
-                                    <Text className="text-slate-900 font-bold text-sm">Activity ({item.status})</Text>
-                                    <Text className="text-slate-400 text-[10px] uppercase font-bold mt-0.5">
-                                        {new Date(item.date).toLocaleDateString()} • {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </Text>
-                                </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ color: '#94A3B8', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 }}>Efficiency</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Ionicons name="trending-up" size={14} color="#22C55E" style={{ marginRight: 4 }} />
+                                <Text style={{ color: '#22C55E', fontSize: 24, fontWeight: '900' }}>94%</Text>
                             </View>
-                            <Text className={`${item.status === 'rejected' ? 'text-red-500' : 'text-slate-900'} font-black`}>₹{item.amount}</Text>
                         </View>
-                    ))
-                ) : (
-                    <View className="bg-white rounded-[24px] p-8 mb-4 border border-slate-50 items-center justify-center shadow-sm">
-                        <Ionicons name="receipt-outline" size={32} color="#CBD5E1" />
-                        <Text className="text-slate-400 font-bold mt-2">No recent activities</Text>
                     </View>
-                )}
+                </View>
 
-                {loading ? (
-                    <Text className="text-slate-400 text-center font-bold mt-4">Refreshing earnings...</Text>
-                ) : null}
+                <View style={{ backgroundColor: 'white', padding: 6, borderRadius: 40, borderWidth: 1, borderColor: '#F1F5F9', flexDirection: 'row', marginBottom: 32 }}>
+                    {['day', 'week', 'month'].map((p) => (
+                        <TouchableOpacity
+                            key={p}
+                            onPress={() => loadData(p)}
+                            style={{ 
+                                flex: 1, 
+                                paddingVertical: 12, 
+                                borderRadius: 30, 
+                                alignItems: 'center',
+                                backgroundColor: selectedPeriod === p ? '#0F172A' : 'transparent'
+                            }}
+                        >
+                            <Text style={{ 
+                                fontSize: 10, 
+                                fontWeight: '900', 
+                                textTransform: 'uppercase',
+                                color: selectedPeriod === p ? '#FFD700' : '#94A3B8'
+                            }}>
+                                {p === 'day' ? 'Today' : p === 'week' ? 'Weekly' : 'Monthly'}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* Grid Layout Stats */}
+                <View style={{ flexDirection: 'row' }}>
+                    <StatCard 
+                        title="Avg / Trip" 
+                        value={earnings?.averageFare || 0} 
+                        icon="cash" 
+                        color="#10B981" 
+                        isCurrency={true}
+                    />
+                    <StatCard 
+                        title="Total Trips" 
+                        value={earnings?.totalTrips || 0} 
+                        icon="car" 
+                        color="#3B82F6" 
+                        isCurrency={false}
+                    />
+                </View>
+
+                <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                    <StatCard 
+                        title="Online Time" 
+                        value={earnings?.onlineHours || '0.0'} 
+                        icon="time" 
+                        color="#F59E0B" 
+                        isCurrency={false}
+                    />
+                    <StatCard 
+                        title="Rating" 
+                        value="4.9" 
+                        icon="star" 
+                        color="#A855F7" 
+                        isCurrency={false}
+                    />
+                </View>
+
+
+                {/* Decorative Footer */}
+                <View className="mt-10 mb-8 items-center">
+                    <View className="w-12 h-1 bg-slate-200 rounded-full mb-4 opacity-50" />
+                    <Text className="text-slate-300 text-[10px] font-black uppercase tracking-[4px]">Hello-11 Premium Analytics</Text>
+                </View>
             </ScrollView>
         </View>
     );
