@@ -448,7 +448,7 @@ const HomeScreen = () => {
 
       {activeTab === "Home" && (
         <>
-          <View className="h-[45vh] bg-[#FFD700] rounded-b-[50px] z-10 relative overflow-hidden">
+          <View className="min-h-[350px] bg-[#FFD700] rounded-b-[50px] z-10 relative overflow-hidden pb-10">
             <View className="absolute -bottom-[20%] self-center w-[150%] h-[20%] bg-white rounded-[100%] scale-x-[1.3] opacity-10" />
 
             <SafeAreaView className="flex-1 px-6 pt-4">

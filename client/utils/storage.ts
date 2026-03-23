@@ -16,7 +16,11 @@ const base64Decode = (str: string): string => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
     let output = '';
     
-    // Remove padding and ensure length is multiple of 4
+    // Convert base64url to base64 by replacing specific characters
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Remove padding! The loop correctly reads unpadded strings
+    // but computes '=' as 64, outputting extraneous characters like '@'
     str = str.replace(/=/g, '');
     
     for (let bc = 0, bs: any, buffer, idx = 0; buffer = str.charAt(idx++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer,
@@ -37,6 +41,7 @@ const decodeToken = (token: string) => {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
 
+    // Decode payload directly (sufficient for standard JWT ASCII claims)
     const decoded = JSON.parse(base64Decode(parts[1]));
     return decoded;
   } catch (error) {

@@ -100,7 +100,7 @@ const RegisterScreen = () => {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         className="flex-1"
       >
@@ -190,10 +190,8 @@ const RegisterScreen = () => {
                 <Button 
                   title={isLoading ? "" : "Sign Up"} 
                   onPress={handleRegister} 
-                  disabled={isLoading}
-                >
-                  {isLoading && <ActivityIndicator color="#1E293B" />}
-                </Button>
+                  isLoading={isLoading}
+                />
               </View>
             </View>
 

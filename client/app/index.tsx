@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity, Dimensions, Animated, FlatList } from 'react-native';
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -14,6 +15,12 @@ const SLIDE_DATA = [
 ];
 
 const Start = () => {
+  const { isAuthenticated } = useAuth();
+  
+  if (isAuthenticated) {
+    return <Redirect href="/screens/HomeScreen" />;
+  }
+
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
@@ -49,7 +56,7 @@ const Start = () => {
         
         <Animated.View 
           style={{ opacity: fadeAnim }}
-          className="flex-[1.3] justify-center items-center px-6"
+          className="flex-1 justify-center items-center px-6 min-h-[250px]"
         >
           <View 
             style={{ 
@@ -69,7 +76,7 @@ const Start = () => {
 
         <Animated.View 
           style={{ opacity: fadeAnim }}
-          className="flex-1 bg-white rounded-t-[50px] pt-10 shadow-inner"
+          className="flex-[1.2] bg-white rounded-t-[50px] pt-10 shadow-inner min-h-[340px]"
         >
           <Animated.FlatList
             ref={flatListRef}
