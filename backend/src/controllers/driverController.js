@@ -8,8 +8,8 @@ import jwt from "jsonwebtoken";
 import Payout from "../models/Payout.js";
 import { serverLog } from "../utils/logger.js";
 import { getIO } from "../utils/socketLogic.js";
-import { calculateAndUpdatePenalty } from "./bookingController.js";
-import { sendPushNotification } from "../utils/notifications.js";
+import { calculateAndUpdatePenalty, calcTripTotal } from "./bookingController.js";
+import { sendPushNotification, safeSendNotification } from "../utils/notifications.js";
 
 // ================= GENERATE JWT TOKEN FOR DRIVER =================
 const generateDriverToken = (driverId) => {
@@ -463,7 +463,7 @@ export const updateTollFee = async (req, res) => {
     }
 
     booking.tollFee = parsedToll;
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + parsedToll;
+    booking.totalFare = calcTripTotal(booking);
     await booking.save();
 
     try {
@@ -843,8 +843,7 @@ export const acceptBooking = async (req, res) => {
       .populate("driver", "name mobile vehicleModel vehicleNumber rating vehicleType profileImage latitude longitude location");
 
     // NOTIFY USER via Socket
-    const { getIO: ioGetter } = await import("../utils/socketLogic.js");
-    const io = ioGetter();
+    const io = getIO();
     io.to(populatedBooking.user._id.toString()).emit("rideAccepted", {
       booking: {
         id: populatedBooking._id,
@@ -876,12 +875,14 @@ export const acceptBooking = async (req, res) => {
     });
 
     // Send Push Notification to User
+    // Critical: passenger needs to know their driver is actively en route
     if (populatedBooking.user && populatedBooking.user.pushToken) {
-      sendPushNotification(
+      await safeSendNotification(
         populatedBooking.user.pushToken,
         "Ride Accepted",
         `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
-        { bookingId: populatedBooking._id.toString(), type: 'ride_accepted' }
+        { bookingId: populatedBooking._id.toString(), type: 'ride_accepted' },
+        { critical: true }
       );
     }
 
@@ -994,7 +995,7 @@ export const updateBookingStatus = async (req, res) => {
       if (!booking.fare || booking.fare === 0) {
         booking.fare = fare || 0;
       }
-      booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+      booking.totalFare = calcTripTotal(booking);
       booking.distance = distance || booking.distance || 0;
       booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
 
@@ -1037,13 +1038,15 @@ export const updateBookingStatus = async (req, res) => {
         });
 
         // Send Push Notification to User
+        // Critical: passenger needs to know to walk to the vehicle
         const foundUser = await User.findById(booking.user);
         if (foundUser && foundUser.pushToken) {
-          sendPushNotification(
+          await safeSendNotification(
             foundUser.pushToken,
             "Driver Arrived",
             "Your driver has arrived at the pickup location. Please proceed to the vehicle.",
-            { bookingId: booking._id.toString(), type: 'ride_arrived' }
+            { bookingId: booking._id.toString(), type: 'ride_arrived' },
+            { critical: true }
           );
         }
       }
@@ -1149,7 +1152,7 @@ export const getDriverHistory = async (req, res) => {
         penaltyApplied: booking.penaltyApplied || 0,
         returnTripFare: booking.returnTripFare || 0,
         hasReturnTrip: !!booking.hasReturnTrip,
-        totalFare: (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0),
+        totalFare: calcTripTotal(booking),
         distance: booking.distance,
         paymentStatus: booking.paymentStatus,
         paymentMethod: booking.paymentMethod || "cash",
@@ -1211,10 +1214,7 @@ export const getDriverEarnings = async (req, res) => {
       status: "completed"
     });
 
-    const bookingTotal = (booking) =>
-      Number((booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0));
-
-    const totalEarnings = completedBookings.reduce((sum, booking) => sum + bookingTotal(booking), 0);
+    const totalEarnings = completedBookings.reduce((sum, booking) => sum + calcTripTotal(booking), 0);
     const totalTrips = completedBookings.length;
     const averageFare = totalTrips > 0 ? totalEarnings / totalTrips : 0;
 
@@ -1364,16 +1364,17 @@ export const verifyRideOtp = async (req, res) => {
       // Send Push Notifications to User
       const user = await User.findById(booking.user);
       if (user && user.pushToken) {
-        // 1. Ride Started Notification
-        sendPushNotification(
+        // 1. Ride Started Notification — critical: passenger confirms ride is live
+        await safeSendNotification(
           user.pushToken,
           "Ride Started",
           "Your ride has officially started. Have a safe journey!",
-          { bookingId: booking._id.toString(), type: 'ride_started' }
+          { bookingId: booking._id.toString(), type: 'ride_started' },
+          { critical: true }
         );
 
-        // 2. Return Trip Offer Notification
-        sendPushNotification(
+        // 2. Return Trip Offer — non-critical: informational, socket already handles the popup
+        safeSendNotification(
           user.pushToken,
           "Limited Offer: 50% OFF Return Trip",
           "Book your return trip now and save 50%. Offer valid for this ride only!",
@@ -1435,7 +1436,7 @@ export const completeRide = async (req, res) => {
     if (!booking.fare || booking.fare === 0) {
       booking.fare = fare || 0;
     }
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = calcTripTotal(booking);
     booking.distance = distance || booking.distance || 0;
     booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
     booking.rideCompletedAt = new Date();
@@ -1527,7 +1528,6 @@ export const cancelBooking = async (req, res) => {
 
     // Notify User
     try {
-      const { getIO } = await import("../utils/socketLogic.js");
       getIO().to(booking.user.toString()).emit("bookingCancelledByDriver", {
         bookingId: booking._id,
         message: "The driver has cancelled this ride."

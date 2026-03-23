@@ -95,6 +95,31 @@ export const calcAllowedTime = (km) => {
   return Math.round(baseKm * 12 + extraKm * 4);
 };
 
+/**
+ * Single canonical function to compute a booking's grand total.
+ *
+ * This is the ONLY place that defines how the four components add up.
+ * Every controller must call this instead of copy-pasting the arithmetic.
+ *
+ * Components:
+ *   fare          – base one-way trip fare (never mutated after creation)
+ *   returnTripFare – 50%-off return leg, 0 when no return trip
+ *   penaltyApplied – accumulated waiting-time surcharge, 0 by default
+ *   tollFee        – driver-entered tolls, 0 by default
+ *
+ * @param {object} booking - a Booking document or plain object
+ * @returns {number} grand total in ₹, always ≥ 0
+ */
+export const calcTripTotal = (booking) => {
+  const total =
+    (booking.fare            || 0) +
+    (booking.returnTripFare  || 0) +
+    (booking.penaltyApplied  || 0) +
+    (booking.tollFee         || 0);
+  return Math.max(0, total);
+};
+
+
 // Get cab fare rates - Updated for 5/7 seater
 export const getCabRates = (req, res) => {
   res.json({

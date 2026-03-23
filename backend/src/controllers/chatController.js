@@ -1,4 +1,5 @@
 import Chat from "../models/Chat.js";
+import { getIO } from "../utils/socketLogic.js";
 
 // ================= GET CHAT HISTORY =================
 export const getChatHistory = async (req, res) => {
@@ -41,7 +42,6 @@ export const sendMessage = async (req, res) => {
 
         // Emit via socket if possible
         try {
-            const { getIO } = await import("../utils/socketLogic.js");
             getIO().to(`chat_${bookingId}`).emit("receiveMessage", {
                 id: chat._id,
                 sender: chat.sender,

@@ -1,6 +1,8 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import Booking from "../models/Booking.js";
+import Driver from "../models/Driver.js";
+import { calcTripTotal } from "./fareController.js";
 
 // ================= GET USER PROFILE =================
 export const getProfile = async (req, res) => {
@@ -88,7 +90,7 @@ export const getHistory = async (req, res) => {
     const bookings = await Booking.find({ user: req.userId }).sort({ createdAt: -1 });
     const normalizedBookings = bookings.map((booking) => {
       const obj = booking.toObject();
-      obj.totalFare = (obj.fare || 0) + (obj.returnTripFare || 0) + (obj.penaltyApplied || 0) + (obj.tollFee || 0);
+      obj.totalFare = calcTripTotal(obj);
       return obj;
     });
 
@@ -165,7 +167,6 @@ export const submitReview = async (req, res) => {
 
     // Update Driver Rating (Simple Average)
     if (booking.driver) {
-      const Driver = (await import("../models/Driver.js")).default;
       const driver = await Driver.findById(booking.driver);
       if (driver) {
         const totalRatings = driver.totalRatings || 0;

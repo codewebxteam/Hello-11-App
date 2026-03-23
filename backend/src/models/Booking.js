@@ -190,6 +190,28 @@ const bookingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// ── Atomic duplicate-booking guard ──────────────────────────────────────────
+// This index is the ONLY reliable way to prevent two simultaneous POST /booking
+// requests from both passing the application-level check and creating duplicate
+// active bookings (classic TOCTOU / race condition).
+//
+// partialFilterExpression limits enforcement to rows where status is one of the
+// two initial statuses a newly-created booking can have:
+//   • 'pending'   → ride-now bookings
+//   • 'scheduled' → future-scheduled bookings
+//
+// Once a booking moves to 'accepted', 'started', 'completed', etc., this index
+// no longer applies, so the same user can make a new booking later.
+bookingSchema.index(
+  { user: 1, status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ["pending", "scheduled"] } },
+    name: "unique_active_booking_per_user"
+  }
+);
+// ────────────────────────────────────────────────────────────────────────────
+
 bookingSchema.pre('validate', function() {
   if (this.vehicleType) {
     const vType = this.vehicleType.toLowerCase();

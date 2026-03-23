@@ -4,8 +4,8 @@ import User from "../models/User.js";
 import { getIO } from "../utils/socketLogic.js";
 import { serverLog } from "../utils/logger.js";
 import { createNotification } from "./notificationController.js";
-import { sendPushNotification } from "../utils/notifications.js";
-import { calcAllowedTime } from "./fareController.js";
+import { sendPushNotification, safeSendNotification } from "../utils/notifications.js";
+import { calcAllowedTime, calcTripTotal } from "./fareController.js";
 
 // Keep this null in normal flow; only set a value for temporary testing overrides.
 const TEST_WAITING_LIMIT_SECONDS = null;
@@ -116,15 +116,13 @@ export const createBooking = async (req, res) => {
           });
 
           // Send Push Notification if token exists
+          // Non-critical: driver can still see the request on the ride list screen
           if (driver.pushToken) {
-            sendPushNotification(
+            safeSendNotification(
               driver.pushToken,
               "New Ride Request",
               `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.fare}`,
-              { 
-                bookingId: booking._id.toString(),
-                type: 'new_ride'
-              }
+              { bookingId: booking._id.toString(), type: 'new_ride' }
             );
           }
         });
@@ -154,6 +152,16 @@ export const createBooking = async (req, res) => {
   } catch (error) {
     serverLog(`CREATE BOOKING ERROR: ${error.message}`);
     console.error("Booking Creation Error:", error);
+
+    // MongoDB duplicate-key error — thrown by the unique partial index when two
+    // simultaneous requests both pass the application-level check and race to insert.
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "You already have an active booking. Please cancel it before creating a new one.",
+        code: "DUPLICATE_ACTIVE_BOOKING"
+      });
+    }
+
     res.status(500).json({
       message: "Failed to create booking",
       error: error.message
@@ -254,7 +262,7 @@ export const getBookingById = async (req, res) => {
     }
 
     // Always expose computed trip total for consistency in history/details
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = calcTripTotal(booking);
 
     res.json({
       booking
@@ -304,7 +312,6 @@ export const cancelBooking = async (req, res) => {
 
     // Notify both user and driver
     try {
-      const { getIO } = await import("../utils/socketLogic.js");
       const io = getIO();
 
       // Notify User (to sync across devices/sessions)
@@ -366,6 +373,17 @@ export const getBookingStatus = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    // Ownership check: only the booking's passenger or the assigned driver may view this
+    const requesterId = (req.userId || req.driverId || "").toString();
+    const bookingUserId = (booking.user?._id || booking.user || "").toString();
+    const bookingDriverId = (booking.driver?._id || booking.driver || "").toString();
+    const isPassenger = bookingUserId === requesterId;
+    const isDriver = bookingDriverId && bookingDriverId === requesterId;
+
+    if (!isPassenger && !isDriver) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
     // Dynamic penalty calculation if waiting started
     console.log(`[Status Request] ID: ${req.params.id} | Status: ${booking.status} | WaitingStartedAt: ${booking.waitingStartedAt}`);
     if (booking.waitingStartedAt) {
@@ -373,7 +391,7 @@ export const getBookingStatus = async (req, res) => {
     }
 
     // Always expose computed trip total for consistency in tracking/details
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = calcTripTotal(booking);
 
     res.json({
       success: true,
@@ -412,7 +430,8 @@ export const calculateAndUpdatePenalty = async (booking) => {
       booking.lastPenaltyAppliedAt = now;
 
       // Update totalFare dynamically
-      const totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + currentPenalty + (booking.tollFee || 0);
+      // Use a transient override so calcTripTotal sees the updated penalty
+      const totalFare = calcTripTotal({ ...booking.toObject(), penaltyApplied: currentPenalty });
       booking.totalFare = totalFare;
 
       await booking.save();
@@ -425,13 +444,15 @@ export const calculateAndUpdatePenalty = async (booking) => {
         if (booking.driver) rooms.push(booking.driver.toString());
 
         // Send Push Notification to User
+        // Critical: passenger's fare changed — they must be notified even if they close the app
         const user = await User.findById(booking.user);
         if (user && user.pushToken) {
-          sendPushNotification(
+          await safeSendNotification(
             user.pushToken,
             "Wait Penalty Applied",
             `₹${penaltyIncrement} has been added to your fare due to extended waiting time.`,
-            { bookingId: booking._id.toString(), type: 'penalty_applied' }
+            { bookingId: booking._id.toString(), type: 'penalty_applied' },
+            { critical: true }
           );
         }
 
@@ -517,7 +538,7 @@ export const completeRide = async (req, res) => {
     booking.rideCompletedAt = new Date();
 
     // Always store full trip total (base + return + penalty)
-    booking.totalFare = (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = calcTripTotal(booking);
 
     await booking.save();
 
@@ -537,13 +558,15 @@ export const completeRide = async (req, res) => {
     }
 
     // Send Push Notification to User
+    // Critical: passenger must receive final fare even if app was backgrounded
     const user = await User.findById(booking.user);
     if (user && user.pushToken) {
-      sendPushNotification(
+      await safeSendNotification(
         user.pushToken,
         "Ride Completed",
         `Your ride has been completed. Total fare: ₹${booking.totalFare}. Thank you for riding with Hello-11!`,
-        { bookingId: booking._id.toString(), type: 'ride_completed' }
+        { bookingId: booking._id.toString(), type: 'ride_completed' },
+        { critical: true }
       );
     }
 
@@ -807,11 +830,15 @@ export const startWaiting = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Security: Only the assigned driver can start the waiting timer
-    const driverId = req.driverId || req.userId; // Middleware might set either depending on context
+    // Security: Only the assigned driver can start the waiting timer.
+    // Be explicit — never fall back to a user/passenger ID. A passenger token
+    // must never be able to trigger this driver-only action, even accidentally.
+    if (!req.driverId) {
+      return res.status(403).json({ error: "Driver authentication required" });
+    }
 
-    if (!booking.driver || booking.driver.toString() !== driverId.toString()) {
-      return res.status(403).json({ message: "Not authorized to start waiting" });
+    if (!booking.driver || booking.driver.toString() !== req.driverId.toString()) {
+      return res.status(403).json({ error: "Not your booking" });
     }
 
     // Validation
