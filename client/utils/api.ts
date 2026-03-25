@@ -194,9 +194,9 @@ export const locationAPI = {
   getDirections: (lat1: number, lon1: number, lat2: number, lon2: number) =>
     api.get(API_ENDPOINTS.DIRECTIONS, { params: { lat1, lon1, lat2, lon2 } }),
 
-  // Get autocomplete suggestions
-  getAutocomplete: (query: string) =>
-    api.get(API_ENDPOINTS.AUTOCOMPLETE, { params: { query } }),
+  // Get autocomplete suggestions (restricted to India, biased to user location within 50km)
+  getAutocomplete: (query: string, lat?: number, lon?: number) =>
+    api.get(API_ENDPOINTS.AUTOCOMPLETE, { params: { query, lat, lon } }),
 
   // Check API status
   getStatus: () => api.get(API_ENDPOINTS.LOCATION_STATUS),

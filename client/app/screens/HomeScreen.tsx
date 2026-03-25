@@ -344,7 +344,10 @@ const HomeScreen = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const response = await locationAPI.getAutocomplete(query);
+        // Pass user location so backend restricts to India and biases to 50km radius
+        const userLat = sourceCoords ? parseFloat(sourceCoords.lat) : undefined;
+        const userLon = sourceCoords ? parseFloat(sourceCoords.lon) : undefined;
+        const response = await locationAPI.getAutocomplete(query, userLat, userLon);
         setSuggestions(response.data.data);
       } catch (err) {
         console.error("Autocomplete error", err);
@@ -352,7 +355,7 @@ const HomeScreen = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [source, destination, activeInput]);
+  }, [source, destination, activeInput, sourceCoords]);
 
   // --- DOUBLE BACK PRESS TO EXIT LOGIC ---
   useEffect(() => {

@@ -105,12 +105,15 @@ const BookingScreen = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await locationAPI.getAutocomplete(query);
+        // Pass pickup coords so backend restricts suggestions to India + 50km radius
+        const userLat = pickupCoords?.lat;
+        const userLon = pickupCoords?.lon;
+        const res = await locationAPI.getAutocomplete(query, userLat, userLon);
         setSuggestions(res.data.data || []);
       } catch { setSuggestions([]); }
     }, 500);
     return () => clearTimeout(timer);
-  }, [pickup, drop, activeInput]);
+  }, [pickup, drop, activeInput, pickupCoords]);
 
   // --- FARE CALCULATION ---
   useEffect(() => {
