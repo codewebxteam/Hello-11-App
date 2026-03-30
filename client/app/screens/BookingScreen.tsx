@@ -418,8 +418,11 @@ const BookingScreen = () => {
                 </View>
               </View>
               <View className="items-end">
-                {loadingFares ? (
-                  <ActivityIndicator size="small" color="#FFD700" />
+                {loadingFares || (distanceKm > 0 && (fares['5seater']?.fare || 0) === 0) ? (
+                  <View className="flex-row items-center">
+                    <ActivityIndicator size="small" color="#FFD700" />
+                    <Text className="text-slate-400 text-[10px] font-bold ml-2">Calculating...</Text>
+                  </View>
                 ) : (
                   <>
                     <Text className="text-slate-900 font-black text-3xl">₹{Math.max(0, (fares['5seater']?.fare || 0) - (fares['5seater']?.nightSurcharge || 0))}</Text>

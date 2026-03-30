@@ -484,7 +484,11 @@ const OutstationBookingScreen = () => {
             <View className="w-[1px] bg-slate-100" />
             <View className="flex-1 items-center">
               <Text className="text-slate-400 text-[9px] font-black uppercase mb-1">Min Fare</Text>
-              <Text className="text-slate-900 font-black text-lg">₹{fares['5seater'].fare || '--'}</Text>
+              {loadingFares || (distanceKm > 0 && (fares['5seater']?.fare || 0) === 0) ? (
+                <ActivityIndicator size="small" color="#FFD700" />
+              ) : (
+                <Text className="text-slate-900 font-black text-lg">₹{fares['5seater'].fare || '--'}</Text>
+              )}
             </View>
           </View>
         )}
@@ -550,7 +554,7 @@ const OutstationBookingScreen = () => {
 
                 {/* Right: Fare */}
                 <View style={{ alignItems: 'flex-end' }}>
-                  {loadingFares ? (
+                  {loadingFares || (distanceKm > 0 && vehicleFare === 0) ? (
                     <ActivityIndicator size="small" color="#FFD700" />
                   ) : (
                     <>
@@ -649,7 +653,12 @@ const OutstationBookingScreen = () => {
           )}
 
           {/* Fare Summary */}
-          {fares[carType].fare > 0 && (
+          {(loadingFares || (distanceKm > 0 && fares[carType].fare === 0)) ? (
+            <View className="bg-slate-800 p-6 rounded-xl mb-4 items-center justify-center">
+              <ActivityIndicator color="#FFD700" size="large" />
+              <Text className="text-slate-400 text-[10px] font-black uppercase mt-3 tracking-widest">Calculating Fare...</Text>
+            </View>
+          ) : fares[carType].fare > 0 && (
             <View className="bg-slate-800 p-4 rounded-xl mb-4">
               <View className="flex-row justify-between items-center mb-3">
                 <View>
