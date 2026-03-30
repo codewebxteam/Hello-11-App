@@ -7,7 +7,8 @@ import {
     RefreshControl,
     ActivityIndicator,
     Alert,
-    Platform
+    Platform,
+    BackHandler
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,6 +70,16 @@ const NotificationsScreen = () => {
 
         loadCachedNotifications();
     }, [fetchNotifications]);
+
+    // --- BACK BUTTON HANDLING ---
+    useEffect(() => {
+        const backAction = () => {
+            router.replace("/screens/HomeScreen");
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+        return () => backHandler.remove();
+    }, []);
 
     const onRefresh = () => {
         setRefreshing(true);

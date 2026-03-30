@@ -1,43 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Settings, Server } from "lucide-react";
-import { adminAPI } from "../services/api";
-
-type Stats = {
-  totalUsers: number;
-  totalDrivers: number;
-  totalBookings: number;
-};
+import React from "react";
+import { Settings, Server, RefreshCw } from "lucide-react";
+import { useData } from "../context/DataContext";
 
 const SettingsPage: React.FC = () => {
-  const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalDrivers: 0, totalBookings: 0 });
-  const [lastSync, setLastSync] = useState<string>("-");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
+  const { stats, lastSync, loading, refreshing, error: contextError, refreshAll } = useData();
+  const error = contextError;
+  const fetchData = refreshAll;
   const backendUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-
-  const fetchData = useCallback(async () => {
-    try {
-      setError("");
-      const res = await adminAPI.getStats();
-      setStats({
-        totalUsers: res.data?.stats?.totalUsers || 0,
-        totalDrivers: res.data?.stats?.totalDrivers || 0,
-        totalBookings: res.data?.stats?.totalBookings || 0,
-      });
-      setLastSync(new Date().toLocaleString());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load settings diagnostics.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 20000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
 
   return (
     <div className="space-y-6">
@@ -46,8 +15,13 @@ const SettingsPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-500 mt-1 text-sm">{loading ? "Loading..." : "Realtime system diagnostics"}</p>
         </div>
-        <button onClick={fetchData} className="px-4 py-2 rounded-lg bg-yellow-100 border border-yellow-200 text-sm font-semibold text-gray-900">
-          Refresh
+        <button 
+          onClick={() => fetchData()} 
+          disabled={refreshing}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-100 border border-yellow-200 text-sm font-semibold text-gray-900 ${refreshing ? 'opacity-70' : ''}`}
+        >
+          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 

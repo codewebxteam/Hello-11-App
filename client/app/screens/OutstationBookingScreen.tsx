@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  Alert, ActivityIndicator, Platform, FlatList, Animated
+  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
@@ -54,6 +54,16 @@ const OutstationBookingScreen = () => {
   const [scheduledDate, setScheduledDate] = useState<Date>(new Date(Date.now() + 3600000)); // 1hr from now
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+
+  // ─── Back Handler ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const backAction = () => {
+      router.replace("/screens/HomeScreen");
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+    return () => backHandler.remove();
+  }, []);
 
   // ─── Autocomplete ────────────────────────────────────────────────────────────
   useEffect(() => {

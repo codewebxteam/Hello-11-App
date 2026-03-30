@@ -9,7 +9,8 @@ import {
     KeyboardAvoidingView, 
     Platform, 
     Dimensions,
-    ActivityIndicator 
+    ActivityIndicator,
+    BackHandler
 } from 'react-native';
 import { useRouter } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +50,16 @@ const ProfileScreen = () => {
         // 2. Always fetch fresh data in background on mount
         fetchProfile();
     }, []); // Only on mount
+
+    // --- BACK BUTTON HANDLING ---
+    useEffect(() => {
+        const backAction = () => {
+            router.replace("/screens/HomeScreen");
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+        return () => backHandler.remove();
+    }, []);
 
     const fetchProfile = async () => {
         try {

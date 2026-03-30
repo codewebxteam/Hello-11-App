@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, Image, Linking, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, Image, Linking, Platform, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -194,6 +194,16 @@ const LiveRideTrackingScreen = () => {
         setup();
         return () => { isMounted = false; };
     }, [fetchInitialData]);
+
+    // --- BACK BUTTON HANDLING ---
+    useEffect(() => {
+        const backAction = () => {
+            router.replace("/screens/HomeScreen");
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+        return () => backHandler.remove();
+    }, []);
 
     const handleAcceptReturn = async () => {
         if (isAcceptingReturnRef.current || isAcceptingReturn) {

@@ -1,46 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, User, Car, IndianRupee } from "lucide-react";
-import { adminAPI } from "../services/api";
+import React, { useMemo, useState, useEffect } from "react";
+import { Search, User, Car, IndianRupee, RefreshCw } from "lucide-react";
+import { useData, type UserItem } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
-
-type UserItem = {
-  _id: string;
-  name?: string;
-  mobile?: string;
-  email?: string;
-  createdAt?: string;
-  totalRides?: number;
-  totalSpent?: number;
-};
+import UserDetailModal from "./UserDetailModal";
 
 const UsersList: React.FC = () => {
+  const { users, loading, refreshing, error: contextError, refreshAll } = useData();
   const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
-  const [users, setUsers] = useState<UserItem[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const error = contextError;
+  const fetchUsers = refreshAll;
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setError("");
-      const response = await adminAPI.getUsers();
-      setUsers(response.data?.users || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load users.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Modal State
+  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-    const interval = setInterval(fetchUsers, 15000);
-    return () => clearInterval(interval);
-  }, [fetchUsers]);
+  const handleUserClick = (user: UserItem) => {
+    setSelectedUser(user);
+    setIsModalOpen(true);
+  };
 
   const filteredUsers = useMemo(() => {
     const terms = [(searchParams.get("q") || "").trim().toLowerCase(), search.trim().toLowerCase()]
@@ -77,10 +58,12 @@ const UsersList: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={fetchUsers}
-          className="px-4 py-2 rounded-lg bg-yellow-100 border border-yellow-200 text-sm font-semibold text-gray-900"
+          onClick={() => fetchUsers()}
+          disabled={refreshing}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-100 border border-yellow-200 text-sm font-semibold text-gray-900 ${refreshing ? 'opacity-70' : ''}`}
         >
-          Refresh
+          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
@@ -105,24 +88,25 @@ const UsersList: React.FC = () => {
         {paginatedUsers.map((user) => (
           <div
             key={user._id}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4"
+            onClick={() => handleUserClick(user)}
+            className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:border-yellow-400 hover:shadow-md transition-all group"
           >
             <div className="flex items-start md:items-center space-x-4">
-              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700">
+              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-700 group-hover:bg-yellow-400 group-hover:text-black transition-colors">
                 <User size={24} />
               </div>
 
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-bold text-gray-900">{user.name || "Unknown User"}</h3>
+                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-yellow-600 transition-colors uppercase">{user.name || "Unknown User"}</h3>
                   <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded font-mono font-medium">
                     {user._id.slice(-6).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex items-center text-sm text-gray-500 gap-4 mt-1">
                   <span>{user.mobile || "-"}</span>
-                  <span>{user.email || "-"}</span>
-                  <span>
+                  <span className="hidden sm:inline">{user.email || "-"}</span>
+                  <span className="hidden lg:inline">
                     Joined{" "}
                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}
                   </span>
@@ -132,27 +116,28 @@ const UsersList: React.FC = () => {
 
             <div className="flex items-center gap-8 pl-16 md:pl-0">
               <div className="text-center md:text-right">
-                <div className="flex items-center gap-1 text-yellow-600 font-medium justify-end">
+                <div className="flex items-center gap-1 text-yellow-600 font-bold justify-end">
                   <Car size={16} />
                   <span>{user.totalRides || 0}</span>
                 </div>
-                <p className="text-xs text-gray-500">Rides</p>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rides</p>
               </div>
 
               <div className="text-center md:text-right">
-                <div className="flex items-center gap-1 text-green-600 font-medium justify-end">
+                <div className="flex items-center gap-1 text-green-600 font-bold justify-end">
                   <IndianRupee size={16} />
                   <span>{Number(user.totalSpent || 0).toLocaleString()}</span>
                 </div>
-                <p className="text-xs text-gray-500">Ride Spent Amount</p>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Spent</p>
               </div>
             </div>
           </div>
         ))}
 
         {!loading && filteredUsers.length === 0 && (
-          <div className="bg-white p-8 rounded-xl border border-gray-100 text-sm text-gray-500">
-            No users found.
+          <div className="bg-white p-12 rounded-[32px] border-2 border-dashed border-gray-100 flex flex-col items-center justify-center text-center">
+            <User className="text-gray-200 mb-2" size={40} />
+            <p className="text-gray-500 font-bold">No users found</p>
           </div>
         )}
 
@@ -164,6 +149,12 @@ const UsersList: React.FC = () => {
           onPageChange={setPage}
         />
       </div>
+
+      <UserDetailModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        user={selectedUser} 
+      />
     </div>
   );
 };

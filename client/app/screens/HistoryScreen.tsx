@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, StatusBar, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, SafeAreaView, StatusBar, Platform, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import ActivitySection from '../../components/ActivitySection';
@@ -8,6 +8,16 @@ const STATUSBAR_HEIGHT = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight ||
 
 const HistoryScreen = () => {
     const router = useRouter();
+
+    // --- BACK BUTTON HANDLING ---
+    React.useEffect(() => {
+        const backAction = () => {
+            router.replace("/screens/HomeScreen");
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+        return () => backHandler.remove();
+    }, []);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-50" style={{ paddingTop: Platform.OS === 'android' ? STATUSBAR_HEIGHT : 0 }}>

@@ -723,8 +723,8 @@ const HomeScreen = () => {
                     <View className="bg-white/20 self-start p-2 rounded-2xl mb-3">
                       <Ionicons name="gift" size={22} color="#FFF" />
                     </View>
-                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Discount 50%</Text>
-                    <Text className="text-white/90 text-[11px] font-bold mt-1">Get half off on your next city ride. Limited time only!</Text>
+                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Round-Trip Joy</Text>
+                    <Text className="text-white/90 text-[11px] font-bold mt-1">Grab a flat 50% discount on every return journey!</Text>
                   </View>
 
                   <View className="flex-1 bg-slate-900 p-5 rounded-[35px] shadow-xl shadow-slate-400 relative overflow-hidden">
@@ -732,8 +732,8 @@ const HomeScreen = () => {
                     <View className="bg-white/10 self-start p-2 rounded-2xl mb-3">
                       <Ionicons name="time" size={22} color="#FFD700" />
                     </View>
-                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Wait Less</Text>
-                    <Text className="text-white/90 text-[11px] font-bold mt-1">Priority matching active. Average wait: 2 mins.</Text>
+                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Relax, We'll Wait</Text>
+                    <Text className="text-white/90 text-[11px] font-bold mt-1">Enjoy 12 mins of complimentary wait time per KM.</Text>
                   </View>
                 </View>
               </Animated.View>

@@ -1,31 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, CheckCircle, Clock, User, Car } from "lucide-react";
-import { adminAPI } from "../services/api";
+import React, { useEffect, useMemo, useState } from "react";
+import { Search, Clock, User, Car, RefreshCw } from "lucide-react";
+import { useData, type Booking } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
-
-type BookingItem = {
-  _id: string;
-  status: string;
-  paymentStatus?: string;
-  pickupLocation?: string;
-  dropLocation?: string;
-  createdAt: string;
-  fare?: number;
-  totalFare?: number;
-  returnTripFare?: number;
-  penaltyApplied?: number;
-  tollFee?: number;
-  user?: {
-    name?: string;
-    mobile?: string;
-  };
-  driver?: {
-    name?: string;
-    vehicleModel?: string;
-    vehicleNumber?: string;
-  };
-};
+import BookingDetailModal from "./BookingDetailModal";
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
@@ -38,42 +16,27 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-700",
 };
 
-const PAY_COLORS: Record<string, string> = {
-  paid: "bg-green-50 text-green-700 border-green-200",
-  pending: "bg-orange-100 text-orange-700 border-orange-200",
-};
-
-const getAmount = (b: BookingItem) =>
+const getAmount = (b: Booking) =>
   Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
 
 const BookingsList: React.FC = () => {
+  const { bookings, loading, refreshing, error: contextError, refreshAll } = useData();
   const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
-  const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const error = contextError;
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const fetchBookings = refreshAll;
 
-  const fetchBookings = useCallback(async () => {
-    try {
-      setError("");
-      const response = await adminAPI.getBookings();
-      setBookings(response.data?.bookings || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load bookings.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Handle status filter from URL if present
   useEffect(() => {
-    fetchBookings();
-    const interval = setInterval(fetchBookings, 15000);
-    return () => clearInterval(interval);
-  }, [fetchBookings]);
+    const statusParam = searchParams.get("status");
+    if (statusParam) {
+        setStatusFilter(statusParam);
+    }
+  }, [searchParams]);
 
   const statuses = useMemo(() => {
     const unique = Array.from(new Set(bookings.map((b) => b.status)));
@@ -81,18 +44,24 @@ const BookingsList: React.FC = () => {
   }, [bookings]);
 
   const filtered = useMemo(() => {
-    const terms = [(searchParams.get("q") || "").trim().toLowerCase(), search.trim().toLowerCase()]
+    const query = (searchParams.get("q") || "").trim().toLowerCase();
+    const searchTerms = [query, search.trim().toLowerCase()]
       .filter(Boolean)
       .flatMap((s) => s.split(/\s+/).filter(Boolean));
+      
     return bookings.filter((b) => {
-      const statusOk = statusFilter === "all" || b.status === statusFilter;
+      // Apply status filter (ongoing is a special case from dashboard)
+      const isOngoing = statusFilter === "ongoing" && ["started", "accepted", "arrived", "waiting"].includes(b.status);
+      const statusOk = statusFilter === "all" || b.status === statusFilter || isOngoing;
+      
       if (!statusOk) return false;
-      if (terms.length === 0) return true;
+      if (searchTerms.length === 0) return true;
+      
       const haystack = [b._id, b.user?.name, b.user?.mobile, b.pickupLocation, b.dropLocation, b.driver?.name]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-      return terms.every((t) => haystack.includes(t));
+      return searchTerms.every((t) => haystack.includes(t));
     });
   }, [bookings, search, searchParams, statusFilter]);
 
@@ -108,119 +77,136 @@ const BookingsList: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            {loading ? "Loading..." : `${filtered.length} bookings`}
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Bookings</h1>
+          <p className="text-gray-500 mt-1 font-medium">
+            {loading ? "Loading records..." : `Managing ${filtered.length} booking records`}
           </p>
         </div>
         <button
-          onClick={fetchBookings}
-          className="px-4 py-2 rounded-lg bg-yellow-100 border border-yellow-200 text-sm font-semibold text-gray-900"
+          onClick={() => fetchBookings()}
+          disabled={refreshing}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl bg-yellow-400 text-black font-bold shadow-lg shadow-yellow-100 hover:shadow-xl transition-all active:scale-95 text-sm uppercase tracking-wider ${refreshing ? 'opacity-70' : ''}`}
         >
-          Refresh
+          {refreshing ? (
+            <>
+              <RefreshCw size={16} className="animate-spin" />
+              Refreshing...
+            </>
+          ) : (
+            "Refresh List"
+          )}
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm font-bold flex items-center gap-2">
+          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
           {error}
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+      <div className="relative group">
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-yellow-500 transition-colors" size={20} />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by booking ID, customer, phone, route..."
-          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent shadow-sm placeholder-gray-400"
+          placeholder="Search by ID, Customer Name, Mobile, Route..."
+          className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-yellow-400/20 focus:border-yellow-400 shadow-sm placeholder-gray-400 font-medium transition-all"
         />
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
         {statuses.map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
-            className={`px-4 py-2 rounded-lg border text-sm whitespace-nowrap ${
+            className={`px-5 py-2 rounded-xl border text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
               statusFilter === status
-                ? "bg-yellow-100 border-yellow-300 text-gray-900"
-                : "bg-white border-gray-200 text-gray-600"
+                ? "bg-black border-black text-white shadow-lg"
+                : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"
             }`}
           >
-            {status === "all" ? "All Status" : status}
+            {status === "all" ? "All Journeys" : status.replace('_', ' ')}
           </button>
         ))}
       </div>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4">
         {paginatedBookings.map((booking) => {
           const statusClass = STATUS_COLORS[booking.status] || "bg-gray-100 text-gray-700";
-          const paymentStatus = booking.paymentStatus || "pending";
-          const payClass = PAY_COLORS[paymentStatus] || "bg-gray-100 text-gray-700 border-gray-200";
           return (
-            <div key={booking._id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div 
+                key={booking._id} 
+                onClick={() => setSelectedBooking(booking)}
+                className="group bg-white p-6 rounded-3xl shadow-sm border border-gray-50 hover:shadow-xl hover:shadow-gray-200/50 transition-all cursor-pointer hover:-translate-y-1"
+            >
               <div className="flex flex-col lg:flex-row justify-between gap-6">
-                <div className="space-y-4 flex-1">
+                <div className="space-y-5 flex-1 min-w-0">
                   <div className="flex items-center justify-between lg:justify-start lg:gap-4">
-                    <h3 className="font-bold text-gray-900 text-lg">{booking._id}</h3>
-                    <div className="flex gap-2">
-                      <span className={`text-xs px-2 py-1 rounded font-bold flex items-center gap-1 ${statusClass}`}>
-                        <CheckCircle size={12} /> {booking.status}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded font-bold border ${payClass}`}>
-                        {paymentStatus}
+                    <h3 className="font-bold text-gray-900 text-lg tracking-tight group-hover:text-yellow-600 transition-colors uppercase truncate">
+                      Ride with {booking.user?.name || "Private User"}
+                    </h3>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${statusClass}`}>
+                         {booking.status}
                       </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                          <span className="font-medium text-gray-900">{booking.pickupLocation || "-"}</span>
-                        </div>
-                        <div className="w-0.5 h-3 bg-gray-300 ml-0.5"></div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                          <span className="font-medium text-gray-900">{booking.dropLocation || "-"}</span>
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                    <div className="flex flex-col justify-center space-y-3">
+                         <div className="flex items-start gap-3">
+                           <div className="w-2 h-2 mt-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
+                           <span className="font-medium text-gray-600 line-clamp-1 text-xs">{booking.pickupLocation || "N/A"}</span>
+                         </div>
+                         <div className="flex items-start gap-3">
+                           <div className="w-2 h-2 mt-1.5 rounded-full bg-red-500 flex-shrink-0"></div>
+                           <span className="font-medium text-gray-600 line-clamp-1 text-xs">{booking.dropLocation || "N/A"}</span>
+                         </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <User size={16} className="text-gray-400" />
-                        <span className="text-gray-900 font-medium">{booking.user?.name || "Unknown User"}</span>
-                        <span className="text-gray-400 text-xs">({booking.user?.mobile || "-"})</span>
+                    
+                    <div className="flex flex-col gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-white rounded-lg shadow-sm text-yellow-600">
+                            <User size={14} />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-gray-900 font-bold text-xs uppercase">{booking.user?.name || "Anonymous"}</span>
+                            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">{booking.user?.mobile || "No Mobile"}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Car size={16} className="text-gray-400" />
-                        <span className="text-gray-700">
-                          {booking.driver?.vehicleModel || "Vehicle N/A"}
-                        </span>
-                        <span className="text-gray-400">•</span>
-                        <span className="text-gray-500 text-xs">
-                          Driver: {booking.driver?.name || "Not Assigned"}
-                        </span>
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-white rounded-lg shadow-sm text-gray-400">
+                            <Car size={14} />
+                        </div>
+                        <div className="flex flex-col">
+                           <span className="text-gray-700 font-bold text-xs uppercase">{booking.driver?.name || "Awaiting Partner"}</span>
+                           <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">{booking.driver?.vehicleNumber || "---"}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-2">
-                    <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
-                      <Clock size={12} /> {new Date(booking.createdAt).toLocaleString()}
+                  
+                  <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={12} /> {new Date(booking.createdAt).toLocaleDateString()}
                     </span>
+                    <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-500">{booking.rideType || 'Standard'} Ride</span>
                   </div>
                 </div>
 
-                <div className="flex lg:flex-col justify-between items-end gap-4 lg:min-w-[140px]">
+                <div className="flex lg:flex-col justify-between items-end gap-2 lg:min-w-[140px] border-t lg:border-t-0 lg:border-l border-gray-50 pt-4 lg:pt-0 lg:pl-6">
                   <div className="text-right">
-                    <p className="text-xl font-bold text-gray-900">Rs {Math.round(getAmount(booking)).toLocaleString()}</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Fare</p>
+                    <p className="text-xl font-bold text-gray-900 tracking-tight">₹{Math.round(getAmount(booking)).toLocaleString()}</p>
                   </div>
+                  <button className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors">
+                      View Profile
+                  </button>
                 </div>
               </div>
             </div>
@@ -228,8 +214,12 @@ const BookingsList: React.FC = () => {
         })}
 
         {!loading && filtered.length === 0 && (
-          <div className="bg-white p-8 rounded-xl border border-gray-100 text-sm text-gray-500">
-            No bookings found.
+          <div className="bg-white p-16 rounded-3xl border border-gray-100 text-center space-y-3">
+            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto">
+                <Search size={32} className="text-gray-300" />
+            </div>
+            <p className="font-bold text-gray-900 text-lg">No journeys found</p>
+            <p className="text-gray-400 font-medium">Try adjusting your filters or search terms.</p>
           </div>
         )}
 
@@ -241,8 +231,15 @@ const BookingsList: React.FC = () => {
           onPageChange={setPage}
         />
       </div>
+
+      {/* Detail Modal */}
+      <BookingDetailModal 
+        booking={selectedBooking} 
+        onClose={() => setSelectedBooking(null)} 
+      />
     </div>
   );
 };
 
 export default BookingsList;
+

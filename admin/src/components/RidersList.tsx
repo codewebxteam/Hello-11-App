@@ -1,69 +1,55 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Car, IndianRupee } from "lucide-react";
-import { adminAPI } from "../services/api";
+import React, { useMemo, useState, useEffect } from "react";
+import { Search, Car, RefreshCw, Star, User, Info } from "lucide-react";
+import { useData, type DriverItem } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
-
-type DriverItem = {
-  _id: string;
-  name?: string;
-  mobile?: string;
-  createdAt?: string;
-  vehicleModel?: string;
-  vehicleNumber?: string;
-  vehicleType?: string;
-  rating?: number;
-  totalTrips?: number;
-  totalEarnings?: number;
-  available?: boolean;
-  online?: boolean;
-};
+import DriverDetailModal from "./DriverDetailModal";
 
 const RidersList: React.FC = () => {
+  const { drivers, loading, refreshing, error: contextError, refreshAll } = useData();
   const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
-  const [drivers, setDrivers] = useState<DriverItem[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const error = contextError;
+  const fetchDrivers = refreshAll;
 
-  const fetchDrivers = useCallback(async () => {
-    try {
-      setError("");
-      const response = await adminAPI.getDrivers();
-      setDrivers(response.data?.drivers || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load drivers.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Modal State
+  const [selectedDriver, setSelectedDriver] = useState<DriverItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchDrivers();
-    const interval = setInterval(fetchDrivers, 15000);
-    return () => clearInterval(interval);
-  }, [fetchDrivers]);
+  const handleDriverClick = (driver: DriverItem) => {
+    setSelectedDriver(driver);
+    setIsModalOpen(true);
+  };
 
   const filteredDrivers = useMemo(() => {
     const terms = [(searchParams.get("q") || "").trim().toLowerCase(), search.trim().toLowerCase()]
       .filter(Boolean)
       .flatMap((s) => s.split(/\s+/).filter(Boolean));
-    if (terms.length === 0) return drivers;
+    
     return drivers.filter((d) => {
+      const status = d.online ? (d.available ? "Active" : "Busy") : "Offline";
+      
+      // Status Filter
+      if (statusFilter !== "All" && status !== statusFilter && !(statusFilter === "Online" && (status === "Active" || status === "Busy"))) {
+          if (statusFilter === "Online" && !d.online) return false;
+          if (statusFilter === "Offline" && d.online) return false;
+          if (statusFilter === "Busy" && (status !== "Busy")) return false;
+      }
+
       const haystack = [d.name, d.mobile, d.vehicleModel, d.vehicleNumber, d._id]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return terms.every((t) => haystack.includes(t));
     });
-  }, [search, searchParams, drivers]);
+  }, [search, searchParams, drivers, statusFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, searchParams]);
+  }, [search, searchParams, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredDrivers.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -73,94 +59,112 @@ const RidersList: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 pb-12">
+      {/* Header Area */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Drivers</h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            {loading ? "Loading..." : `${filteredDrivers.length} drivers`}
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Driver Management</h1>
+          <p className="text-gray-500 mt-1 text-sm font-medium">
+            {loading ? "Syncing..." : `Monitoring ${filteredDrivers.length} verified partners`}
           </p>
         </div>
-        <button
-          onClick={fetchDrivers}
-          className="px-4 py-2 rounded-lg bg-yellow-100 border border-yellow-200 text-sm font-semibold text-gray-900"
-        >
-          Refresh
-        </button>
+        
+        <div className="flex items-center gap-3">
+           {/* status Filters */}
+           <div className="bg-gray-100 p-1 rounded-xl flex gap-1">
+              {["All", "Online", "Offline", "Busy"].map((f) => (
+                 <button
+                    key={f}
+                    onClick={() => setStatusFilter(f)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                 >
+                    {f}
+                 </button>
+              ))}
+           </div>
+
+           <button
+             onClick={() => fetchDrivers()}
+             disabled={refreshing}
+             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white text-sm font-bold shadow-lg shadow-gray-200 hover:scale-[1.02] transition-all active:scale-[0.98] ${refreshing ? 'opacity-70' : ''}`}
+           >
+             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+             {refreshing ? 'Refreshing...' : 'Refresh'}
+           </button>
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+        <div className="p-4 bg-red-50 border border-red-100 text-red-700 rounded-2xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-1">
+          <Info size={18} />
           {error}
         </div>
       )}
 
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+      {/* search input */}
+      <div className="relative group">
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-yellow-500 transition-colors" size={20} />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, phone, vehicle, number..."
-          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent shadow-sm placeholder-gray-400"
+          placeholder="Search by name, identifier, vehicle, or mobile number..."
+          className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] focus:outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 shadow-sm transition-all text-sm font-medium"
         />
       </div>
 
-      <div className="space-y-4">
+      {/* Grid List */}
+      <div className="grid grid-cols-1 gap-4">
         {paginatedDrivers.map((driver) => {
           const status = driver.online ? (driver.available ? "Active" : "Busy") : "Offline";
           return (
             <div
               key={driver._id}
-              className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4"
+              onClick={() => handleDriverClick(driver)}
+              className="bg-white p-6 rounded-[24px] shadow-sm border border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:border-yellow-400 hover:shadow-md transition-all group"
             >
-              <div className="flex items-start md:items-center space-x-4">
-                <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center text-yellow-400">
-                  <Car size={24} />
+              <div className="flex items-start md:items-center space-x-5 flex-1 min-w-0">
+                <div className="w-14 h-14 bg-gray-900 rounded-2xl flex-shrink-0 flex items-center justify-center text-yellow-400 group-hover:scale-105 transition-transform">
+                  <Car size={28} />
                 </div>
 
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-lg font-bold text-gray-900">{driver.name || "Unknown Driver"}</h3>
-                    <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-mono font-medium">
-                      {driver._id.slice(-6).toUpperCase()}
-                    </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                        status === "Active"
-                          ? "bg-green-100 text-green-700"
-                          : status === "Busy"
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {status}
-                    </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="text-lg font-bold text-gray-900 tracking-tight group-hover:text-yellow-600 transition-colors uppercase truncate">{driver.name || "Unknown Partner"}</h3>
+                    <div className="flex gap-2">
+                       <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded font-mono font-black uppercase tracking-widest whitespace-nowrap">
+                         ID: {driver._id.slice(-6).toUpperCase()}
+                       </span>
+                       <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-widest whitespace-nowrap ${
+                          status === "Active" ? "bg-green-100 text-green-700" : 
+                          status === "Busy" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-400"
+                       }`}>
+                          {status}
+                       </span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center text-sm text-gray-500 gap-x-4 gap-y-1 mt-1">
-                    <span>{driver.mobile || "-"}</span>
-                    <span>{driver.vehicleModel || "-"} ({driver.vehicleType || "5seater"})</span>
-                    <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{driver.vehicleNumber || "-"}</span>
-                    <span>Joined {driver.createdAt ? new Date(driver.createdAt).toLocaleDateString() : "-"}</span>
+                  <div className="flex flex-wrap items-center text-xs text-gray-400 font-bold gap-x-5 gap-y-1 mt-1.5 uppercase tracking-wide">
+                    <span className="flex items-center gap-1.5"><Star size={12} className="text-yellow-400" fill="currentColor" /> {driver.rating || '0.0'}</span>
+                    <span className="flex items-center gap-1.5"><Car size={12} /> {driver.vehicleModel}</span>
+                    <span className="px-2 py-0.5 bg-gray-50 text-gray-500 rounded border border-gray-100 font-mono text-[10px]">{driver.vehicleNumber}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-8 pl-16 md:pl-0 mt-4 md:mt-0">
-                <div className="text-center md:text-right">
-                  <div className="flex items-center gap-1 text-yellow-600 font-medium justify-end">
-                    <Car size={16} />
+              <div className="flex items-center gap-10 border-t md:border-t-0 md:border-l border-gray-50 pt-4 md:pt-0 md:pl-10">
+                <div className="text-right">
+                  <div className="flex items-center gap-1.5 text-gray-900 font-black justify-end text-lg leading-none">
                     <span>{driver.totalTrips || 0}</span>
                   </div>
-                  <p className="text-xs text-gray-500">Trips</p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Total Trips</p>
                 </div>
 
-                <div className="text-center md:text-right">
-                  <div className="flex items-center gap-1 text-green-600 font-medium justify-end">
-                    <IndianRupee size={16} />
+                <div className="text-right">
+                  <div className="flex items-center gap-1 text-gray-900 font-black justify-end text-lg leading-none">
+                    <span className="text-xs text-green-500 font-bold">₹</span>
                     <span>{Number(driver.totalEarnings || 0).toLocaleString()}</span>
                   </div>
-                  <p className="text-xs text-gray-500">Total Earnings</p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Earnings</p>
                 </div>
               </div>
             </div>
@@ -168,8 +172,9 @@ const RidersList: React.FC = () => {
         })}
 
         {!loading && filteredDrivers.length === 0 && (
-          <div className="bg-white p-8 rounded-xl border border-gray-100 text-sm text-gray-500">
-            No drivers found.
+          <div className="bg-white p-20 rounded-[32px] border-2 border-dashed border-gray-100 flex flex-col items-center justify-center text-center">
+            <User className="text-gray-200 mb-2" size={40} />
+            <p className="text-gray-500 font-bold">No drivers match your criteria</p>
           </div>
         )}
 
@@ -181,6 +186,12 @@ const RidersList: React.FC = () => {
           onPageChange={setPage}
         />
       </div>
+
+      <DriverDetailModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        driver={selectedDriver} 
+      />
     </div>
   );
 };
