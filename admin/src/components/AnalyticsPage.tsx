@@ -36,7 +36,7 @@ const getAmount = (b: Booking) =>
   Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
 
 const AnalyticsPage: React.FC = () => {
-  const { stats, bookings, loading, refreshing, error: contextError, refreshAll } = useData();
+  const { stats, bookings, refreshing, error: contextError, refreshAll } = useData();
   const error = contextError;
   const fetchData = refreshAll;
 
