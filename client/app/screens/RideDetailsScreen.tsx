@@ -12,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-import { bookingAPI } from '../../utils/api';
+import { userAPI, bookingAPI } from '../../utils/api';
+import { TextInput, Alert } from 'react-native';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 const { width } = Dimensions.get('window');
@@ -51,6 +52,11 @@ export default function RideDetailsScreen() {
 
     const [booking, setBooking] = useState<any>(initialPrefill);
     const [loading, setLoading] = useState(!initialPrefill);
+    
+    // Feedback State
+    const [userRating, setUserRating] = useState(0);
+    const [feedbackComment, setFeedbackComment] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (bookingId) fetchBookingDetails();
@@ -59,11 +65,45 @@ export default function RideDetailsScreen() {
     const fetchBookingDetails = async () => {
         try {
             const response = await bookingAPI.getBookingById(bookingId as string);
-            if (response.data?.booking) setBooking(response.data.booking);
+            if (response.data?.booking) {
+                setBooking(response.data.booking);
+                // Pre-fill rating if it exists (though UI uses booking.rating directly too)
+                if (response.data.booking.rating) {
+                    setUserRating(response.data.booking.rating);
+                }
+                if (response.data.booking.feedback) {
+                    setFeedbackComment(response.data.booking.feedback);
+                }
+            }
         } catch (error) {
             console.error("Error fetching booking details:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSubmitReview = async () => {
+        if (userRating === 0) {
+            Alert.alert("Rating Required", "Please select a star rating.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await userAPI.rateDriver({
+                bookingId: bookingId as string,
+                rating: userRating,
+                feedback: feedbackComment
+            });
+            
+            // Refresh booking details to show the new rating
+            await fetchBookingDetails();
+            Alert.alert("Success", "Thank you for your feedback!");
+        } catch (error) {
+            console.error("Error submitting review:", error);
+            Alert.alert("Error", "Failed to submit review. Please try again.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -667,9 +707,9 @@ export default function RideDetailsScreen() {
                                 className="text-slate-400 font-black uppercase tracking-widest"
                                 style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
                             >
-                                Your Rating
+                                {booking.rating > 0 ? "Your Rating" : "Rate this Ride"}
                             </Text>
-                            {booking.rating > 0 ? (
+                            {booking.rating > 0 && (
                                 <View 
                                     className="flex-row items-center bg-[#FFFBEB] rounded-full border border-[#FEF3C7]"
                                     style={{ paddingHorizontal: 12, paddingVertical: 6 }}
@@ -682,27 +722,69 @@ export default function RideDetailsScreen() {
                                         {booking.rating}.0
                                     </Text>
                                 </View>
-                            ) : (
-                                <View 
-                                    className="bg-slate-50 rounded-full border border-slate-100"
-                                    style={{ paddingHorizontal: 12, paddingVertical: 6 }}
-                                >
-                                    <Text 
-                                        className="text-slate-500 font-black uppercase"
-                                        style={{ fontSize: RESPONSIVE_CONFIG.labelSize }}
-                                    >
-                                        Not Rated Yet
-                                    </Text>
-                                </View>
                             )}
                         </View>
-                        {booking.rating > 0 && (
+
+                        {booking.rating > 0 ? (
                             <Text 
                                 className="text-slate-600 italic leading-6"
                                 style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
                             >
                                 {booking.feedback ? `"${booking.feedback}"` : 'No feedback provided.'}
                             </Text>
+                        ) : (
+                            <View className="items-center">
+                                <View className="flex-row gap-3 mb-6">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <TouchableOpacity
+                                            key={star}
+                                            onPress={() => setUserRating(star)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Ionicons
+                                                name={star <= userRating ? "star" : "star-outline"}
+                                                size={RESPONSIVE_CONFIG.iconSize * 1.8}
+                                                color={star <= userRating ? "#FFD700" : "#CBD5E1"}
+                                            />
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                <TextInput
+                                    placeholder="Tell us about your experience..."
+                                    placeholderTextColor="#94A3B8"
+                                    multiline
+                                    numberOfLines={3}
+                                    style={{ 
+                                        width: '100%',
+                                        backgroundColor: '#f8fafc',
+                                        borderRadius: 16,
+                                        padding: 16,
+                                        fontSize: RESPONSIVE_CONFIG.textSize,
+                                        color: '#1e293b',
+                                        textAlignVertical: 'top',
+                                        borderWidth: 1,
+                                        borderColor: '#e2e8f0',
+                                        minHeight: 100
+                                    }}
+                                    value={feedbackComment}
+                                    onChangeText={setFeedbackComment}
+                                />
+
+                                <TouchableOpacity
+                                    onPress={handleSubmitReview}
+                                    disabled={userRating === 0 || isSubmitting}
+                                    className={`w-full mt-6 py-4 rounded-2xl items-center shadow-lg active:scale-95 ${userRating > 0 ? 'bg-slate-900' : 'bg-slate-200'}`}
+                                >
+                                    {isSubmitting ? (
+                                        <ActivityIndicator color="#FFD700" size="small" />
+                                    ) : (
+                                        <Text className={`font-black uppercase tracking-widest ${userRating > 0 ? 'text-[#FFD700]' : 'text-slate-400'}`}>
+                                            SUBMIT FEEDBACK
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
                         )}
                     </View>
                 )}

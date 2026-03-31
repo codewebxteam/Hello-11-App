@@ -38,6 +38,8 @@ export type Booking = {
   penaltyApplied?: number;
   returnTripFare?: number;
   otp?: string;
+  rating?: number;
+  feedback?: string;
   user?: {
     name?: string;
     mobile?: string;
