@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, Modal, Dimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { SlideInDown, FadeIn } from 'react-native-reanimated';
+import { getImageUrl } from '../utils/imagekit';
 
 const { width } = Dimensions.get('window');
 
@@ -99,7 +100,10 @@ const DriverAssignedOverlay = ({
                             <View className="relative">
                                 <View className="w-16 h-16 bg-slate-200 rounded-full border-2 border-white shadow-md items-center justify-center overflow-hidden">
                                     {profileImage ? (
-                                        <Image source={{ uri: profileImage }} className="w-full h-full" />
+                                        <Image 
+                                            source={{ uri: getImageUrl(profileImage, { width: 150, height: 150, quality: 85 }) }} 
+                                            className="w-full h-full" 
+                                        />
                                     ) : (
                                         <Ionicons name="person" size={32} color="#94A3B8" />
                                     )}

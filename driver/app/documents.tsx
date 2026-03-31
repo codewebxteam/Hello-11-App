@@ -7,72 +7,171 @@ import {
     Platform,
     StatusBar as RNStatusBar,
     Alert,
+    ActivityIndicator,
+    Animated,
+    Easing
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { LinearGradient } from 'expo-linear-gradient';
 import { driverAPI } from '../utils/api';
+import { getImageUrl } from '../utils/imagekit';
+import { useDriverAuth } from '../context/DriverAuthContext';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
+// Shimmer Component
+const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
+    const shimmerAnim = React.useRef(new Animated.Value(-1)).current;
+
+    React.useEffect(() => {
+        Animated.loop(
+            Animated.timing(shimmerAnim, {
+                toValue: 1,
+                duration: 1500,
+                easing: Easing.linear,
+                useNativeDriver: true,
+            })
+        ).start();
+    }, []);
+
+    const translateX = shimmerAnim.interpolate({
+        inputRange: [-1, 1],
+        outputRange: [-200, 200],
+    });
+
+    return (
+        <View className={`${className} bg-slate-200 overflow-hidden relative`}>
+            <Animated.View
+                style={{
+                    transform: [{ translateX }],
+                    width: '100%',
+                    height: '100%',
+                    position: 'absolute',
+                }}
+            >
+                <LinearGradient
+                    colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ flex: 1 }}
+                />
+            </Animated.View>
+        </View>
+    );
+};
+
 export default function DocumentsScreen() {
     const router = useRouter();
-    const [loading, setLoading] = React.useState(false);
+    const [loading, setLoading] = React.useState(true);
+    const [individualLoading, setIndividualLoading] = React.useState<Record<string, boolean>>({
+        license: false,
+        insurance: false,
+        registration: false
+    });
     const [docs, setDocs] = React.useState({
         license: '',
         insurance: '',
         registration: ''
     });
 
-    React.useEffect(() => {
-        const loadDocs = async () => {
-            try {
-                const response = await driverAPI.getProfile();
-                if (response.data && response.data.driver) {
-                    const driver = response.data.driver;
-                    setDocs({
-                        license: driver.documents?.license || '',
-                        insurance: driver.documents?.insurance || '',
-                        registration: driver.documents?.registration || ''
-                    });
-                }
-            } catch (err) {
-                console.log("Docs load error:", err);
-            }
-        };
-        loadDocs();
-    }, []);
+    const [viewingDocs, setViewingDocs] = React.useState<Record<string, boolean>>({
+        license: false,
+        insurance: false,
+        registration: false
+    });
 
-    const handleSave = async () => {
+    const { refreshProfile } = useDriverAuth();
+
+    const loadDocs = async () => {
         setLoading(true);
         try {
-            let Haptics;
-            try {
-                Haptics = require('expo-haptics');
-            } catch (e) {
-                console.log("Haptics not available");
+            const response = await driverAPI.getProfile();
+            if (response.data && response.data.driver) {
+                const driverData = response.data.driver;
+                setDocs({
+                    license: driverData.documents?.license || '',
+                    insurance: driverData.documents?.insurance || '',
+                    registration: driverData.documents?.registration || ''
+                });
             }
-            const response = await driverAPI.updateDocuments(docs);
-            if (response.data) {
-                if (Haptics) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert("Success", "Documents updated successfully");
-            }
-        } catch (error: any) {
-            Alert.alert("Error", error.message || "Failed to update documents");
+        } catch (err) {
+            console.log("Docs load error:", err);
         } finally {
             setLoading(false);
         }
     };
 
+    const removeDocumentImage = (key: keyof typeof docs) => {
+        setDocs((prev) => ({ ...prev, [key]: '' }));
+    };
+
+    React.useEffect(() => {
+        console.log("[DEBUG_DOCS] DocumentsScreen Mounted");
+        console.log("[DEBUG_DOCS] FileSystem.cacheDirectory:", FileSystem.cacheDirectory);
+        console.log("[DEBUG_DOCS] FileSystem.documentDirectory:", FileSystem.documentDirectory);
+        
+        if (!FileSystem.cacheDirectory) {
+            console.error("[DEBUG_DOCS] CRITICAL: FileSystem.cacheDirectory is NULL!");
+            Alert.alert("System Error", "Local storage is not accessible. Please restart the app.");
+        }
+        
+        loadDocs();
+    }, []);
+
+    const handleIndividualSave = async (key: keyof typeof docs, value: string, title: string) => {
+        if (!value) return Alert.alert("Error", "Please select a document first");
+        if (value.startsWith('http')) return; // Already saved
+
+        setIndividualLoading(prev => ({ ...prev, [key]: true }));
+        try {
+            let Haptics;
+            try {
+                Haptics = require('expo-haptics');
+            } catch (e) {}
+
+            console.log(`[Documents] Uploading ${key}...`);
+            const response = await driverAPI.updateDocuments({ [key]: value });
+            console.log("[Documents] Backend raw response:", response.data);
+
+            if (response.data && response.data.driver) {
+                const updatedDriver = response.data.driver;
+                console.log("[Documents] Updated driver docs from server:", updatedDriver.documents);
+
+                const newDocs = {
+                    license: updatedDriver.documents?.license || '',
+                    insurance: updatedDriver.documents?.insurance || '',
+                    registration: updatedDriver.documents?.registration || ''
+                };
+                setDocs(newDocs);
+
+                if (Haptics) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert("Success", `${title} uploaded successfully! It is now locked and cannot be changed.`);
+                
+                await refreshProfile();
+            } else {
+                throw new Error("Server did not return updated profile data.");
+            }
+        } catch (error: any) {
+            console.error("[Documents] Upload error detail:", error);
+            const errMsg = error.response?.data?.message || error.message || `Failed to upload ${title.toLowerCase()}`;
+            Alert.alert("Error", errMsg);
+        } finally {
+            setIndividualLoading(prev => ({ ...prev, [key]: false }));
+        }
+    };
+
     const pickDocumentImage = async (key: keyof typeof docs, title: string) => {
         try {
-            let DocumentPicker, FileSystem, Haptics;
+            let DocumentPicker, Haptics;
             try {
                 DocumentPicker = require('expo-document-picker');
-                FileSystem = require('expo-file-system/legacy');
                 Haptics = require('expo-haptics');
             } catch (e) {
-                Alert.alert("Native Module Missing", "Required native modules (Picker/FileSystem) are missing. Please rebuild your app.");
+                Alert.alert("Native Module Missing", "Required native modules (Picker/Haptics) are missing.");
                 return;
             }
 
@@ -88,8 +187,7 @@ export default function DocumentsScreen() {
                     encoding: 'base64'
                 });
                 setDocs((prev: any) => ({ ...prev, [key]: `data:application/pdf;base64,${pdfBase64}` }));
-                Haptics.selectionAsync();
-                Alert.alert("Selected", `${title} PDF is ready to save.`);
+                if (Haptics) Haptics.selectionAsync();
             }
         } catch (error) {
             console.log("PDF picker error:", error);
@@ -97,35 +195,15 @@ export default function DocumentsScreen() {
         }
     };
 
-    const removeDocumentImage = (key: keyof typeof docs) => {
-        Alert.alert(
-            "Delete Document",
-            "Are you sure you want to remove this document?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: () => setDocs((prev) => ({ ...prev, [key]: '' }))
-                }
-            ]
-        );
-    };
-
-    const viewDocument = async (value: string, title: string) => {
+    const viewDocument = async (value: string, title: string, key: string) => {
+        if (!value) return;
+        console.log(`[DEBUG_DOCS] Entry - title: ${title}, key: ${key}, value: ${value.substring(0, 50)}`);
+        
+        setViewingDocs(prev => ({ ...prev, [key]: true }));
         try {
-            let FileSystem, Sharing;
-            try {
-                FileSystem = require('expo-file-system/legacy');
-                Sharing = require('expo-sharing');
-            } catch (e) {
-                Alert.alert("Native Module Missing", "Sharing or FileSystem native module is not available in this build. Please rebuild your app binary.");
-                return;
-            }
-
             if (value.startsWith('data:application/pdf;base64,')) {
                 const base64Content = value.split('base64,')[1];
-                const filename = `${title.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+                const filename = `${title.replace(/\s+/g, '_')}_PREVIEW.pdf`;
                 const fileUri = `${FileSystem.cacheDirectory}${filename}`;
                 
                 await FileSystem.writeAsStringAsync(fileUri, base64Content, {
@@ -137,68 +215,162 @@ export default function DocumentsScreen() {
                     dialogTitle: 'Preview Document',
                     UTI: 'com.adobe.pdf'
                 });
+            } else if (value.startsWith('http')) {
+                let extension = '.jpg';
+                let mimeType = 'image/jpeg';
+                
+                const lowerVal = value.toLowerCase();
+                if (lowerVal.includes('.pdf')) {
+                    extension = '.pdf';
+                    mimeType = 'application/pdf';
+                } else if (lowerVal.includes('.png')) {
+                    extension = '.png';
+                    mimeType = 'image/png';
+                }
+                
+                const filename = `${title.replace(/\s+/g, '_')}_VIEW${extension}`;
+                const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+                
+                console.log(`[DEBUG_DOCS] Download URL: ${value} -> Target: ${fileUri}`);
+                const downloadResult = await FileSystem.downloadAsync(value, fileUri);
+                
+                if (downloadResult.status >= 200 && downloadResult.status < 300) {
+                    await Sharing.shareAsync(downloadResult.uri, {
+                        dialogTitle: `View ${title}`,
+                        mimeType: mimeType
+                    });
+                } else {
+                    throw new Error(`Server returned status ${downloadResult.status}`);
+                }
             } else {
                 await Sharing.shareAsync(value);
             }
-        } catch (error) {
-            console.log("View error:", error);
-            Alert.alert("Error", "Could not open document preview.");
+        } catch (error: any) {
+            console.error("[DEBUG_DOCS] View error caught:", error);
+            Alert.alert("Error", `Could not open document preview: ${error.message || 'Unknown error'}`);
+        } finally {
+            setViewingDocs(prev => ({ ...prev, [key]: false }));
         }
     };
 
-    const renderDocItem = (title: string, value: string, key: keyof typeof docs, icon: any) => (
-        <View className="mb-6">
-            <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">{title}</Text>
-            <View className="bg-white border border-slate-200 rounded-[20px] px-4 py-4 shadow-sm">
-                <View className="flex-row items-center mb-3">
-                    <View className="w-9 h-9 rounded-full bg-slate-100 items-center justify-center">
-                        <Ionicons name={icon} size={18} color="#64738B" />
-                    </View>
-                    <Text className="ml-3 text-slate-700 font-bold flex-1">
-                        {value ? 'PDF Selected' : 'No document selected'}
-                    </Text>
+    const renderDocItem = (title: string, value: string, key: keyof typeof docs, icon: any) => {
+        const isUploaded = value && (value.startsWith('http') || value.startsWith('https'));
+        const isLocal = value && value.startsWith('data:');
+        const isSaving = individualLoading[key];
+        const isViewing = viewingDocs[key];
+
+        return (
+            <View className="mb-6">
+                <View className="flex-row justify-between items-center mb-2 ml-1">
+                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</Text>
+                    {isUploaded && (
+                        <View className="flex-row items-center bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                            <Ionicons name="lock-closed" size={10} color="#166534" />
+                            <Text className="text-green-700 text-[8px] font-black uppercase ml-1">LOCKED</Text>
+                        </View>
+                    )}
                 </View>
-
-                {value ? (
-                    <TouchableOpacity 
-                        onPress={() => viewDocument(value, title)}
-                        className="h-24 rounded-[20px] border border-blue-200 items-center justify-center mb-4 bg-blue-50/50 flex-col shadow-sm active:bg-blue-100/60"
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons name="document-text" size={28} color="#3B82F6" />
-                        <Text className="text-blue-700 text-xs font-bold mt-2 uppercase tracking-widest">View Document</Text>
-                        <Text className="text-blue-400 text-[9px] font-bold mt-1">Tap to open preview</Text>
-                    </TouchableOpacity>
-                ) : (
-                    <View className="h-24 rounded-2xl border border-dashed border-slate-300 items-center justify-center mb-4 bg-slate-50">
-                        <Text className="text-slate-400 text-[10px] uppercase font-bold">Upload PDF of {title.toLowerCase()}</Text>
+                
+                <View className={`bg-white border ${isUploaded ? 'border-green-100' : 'border-slate-200'} rounded-[20px] px-4 py-4 shadow-sm`}>
+                    <View className="flex-row items-center mb-3">
+                        <View className={`w-9 h-9 rounded-full ${isUploaded ? 'bg-green-50' : 'bg-slate-100'} items-center justify-center`}>
+                            <Ionicons name={icon} size={18} color={isUploaded ? "#166534" : "#64738B"} />
+                        </View>
+                        <View className="ml-3 flex-1">
+                            <Text className={`font-bold text-[13px] ${isUploaded ? 'text-green-700' : 'text-slate-700'}`}>
+                                {isUploaded ? 'Document Uploaded' : isLocal ? 'PDF Selected' : 'Pending Upload'}
+                            </Text>
+                            {isUploaded && <Text className="text-green-600/60 text-[9px] font-bold">Successfully saved to cloud</Text>}
+                        </View>
                     </View>
-                )}
-
-                <View className="flex-row gap-2">
-                    <TouchableOpacity
-                        onPress={() => pickDocumentImage(key, title)}
-                        className="flex-1 bg-slate-900 py-3 rounded-xl flex-row items-center justify-center"
-                    >
-                        <Ionicons name="document-attach-outline" size={16} color="#FFFFFF" />
-                        <Text className="text-white font-black text-xs uppercase tracking-wider ml-2">
-                            {value ? 'Change PDF' : 'Upload PDF'}
-                        </Text>
-                    </TouchableOpacity>
 
                     {value ? (
-                        <TouchableOpacity
-                            onPress={() => removeDocumentImage(key)}
-                            className="bg-red-50 border border-red-200 px-4 py-3 rounded-xl items-center justify-center"
+                        <TouchableOpacity 
+                            onPress={() => viewDocument(value, title, key)}
+                            disabled={isViewing || isSaving}
+                            className={`h-24 rounded-[20px] border ${isViewing ? 'bg-slate-100 border-slate-300' : isUploaded ? 'border-green-200 bg-green-50/30' : 'border-blue-200 bg-blue-50/50'} items-center justify-center mb-4 flex-col`}
+                            activeOpacity={0.7}
                         >
-                            <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                            {isViewing ? (
+                                <ActivityIndicator size="small" color={isUploaded ? "#166534" : "#3B82F6"} />
+                            ) : (
+                                <Ionicons name="eye-outline" size={28} color={isUploaded ? "#166534" : "#3B82F6"} />
+                            )}
+                            <Text className={`${isUploaded ? 'text-green-700' : 'text-blue-700'} text-xs font-black mt-2 uppercase tracking-widest`}>
+                                {isViewing ? 'PREPARING...' : isUploaded ? 'View & Download' : 'Preview & Confirm'}
+                            </Text>
                         </TouchableOpacity>
-                    ) : null}
+                    ) : (
+                        <View className="h-24 rounded-2xl border border-dashed border-slate-300 items-center justify-center mb-4 bg-slate-50">
+                            <Ionicons name="cloud-upload-outline" size={32} color="#94A3B8" />
+                            <Text className="text-slate-400 text-[9px] uppercase font-black tracking-tighter mt-2">Tap below to select {title.toLowerCase()} PDF</Text>
+                        </View>
+                    )}
+
+                    <View className="flex-row gap-2">
+                        {!isUploaded ? (
+                            <>
+                                <TouchableOpacity
+                                    onPress={() => isLocal ? handleIndividualSave(key, value, title) : pickDocumentImage(key, title)}
+                                    disabled={isSaving}
+                                    className={`flex-1 ${isLocal ? 'bg-indigo-600' : 'bg-slate-900'} py-4 rounded-xl flex-row items-center justify-center shadow-lg shadow-black/10`}
+                                >
+                                    {isSaving ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name={isLocal ? "shield-checkmark-outline" : "document-attach-outline"} size={16} color="#FFFFFF" />
+                                            <Text className="text-white font-black text-xs uppercase tracking-wider ml-2">
+                                                {isLocal ? 'CONFIRM & UPLOAD' : 'SELECT PDF'}
+                                            </Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+
+                                {isLocal && !isSaving && (
+                                    <TouchableOpacity
+                                        onPress={() => removeDocumentImage(key)}
+                                        className="bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl items-center justify-center"
+                                    >
+                                        <Ionicons name="close-circle-outline" size={20} color="#64738B" />
+                                    </TouchableOpacity>
+                                )}
+                            </>
+                        ) : (
+                            <View className="flex-1 bg-slate-100/50 border border-slate-200 py-4 rounded-xl flex-row items-center justify-center">
+                                <Ionicons name="checkmark-done-circle" size={18} color="#166534" />
+                                <Text className="text-slate-500 font-black text-xs uppercase tracking-widest ml-2">UPLOADED & ARCHIVED</Text>
+                            </View>
+                        )}
+                    </View>
+                    {!isUploaded && (
+                        <Text className="text-slate-400 text-[8px] font-bold mt-3 text-center uppercase tracking-tighter">
+                            {isLocal ? "Review PDF above then click Confirm to save permanently." : "Once uploaded, documents are locked for security."}
+                        </Text>
+                    )}
+                    {isUploaded && (
+                        <Text className="text-slate-400 text-[8px] font-bold mt-3 text-center uppercase tracking-tighter">
+                            Tip: Tap 'View' to share or download this document.
+                        </Text>
+                    )}
                 </View>
             </View>
+        );
+    };
+
+    const renderSkeletonItem = () => (
+        <View className="mb-6 bg-white border border-slate-100 rounded-[24px] p-6 shadow-sm">
+            <View className="flex-row items-center mb-4">
+                <ShimmerPlaceHolder className="w-10 h-10 rounded-full" />
+                <View className="ml-3 flex-1">
+                    <ShimmerPlaceHolder className="w-32 h-3 rounded-full mb-2" />
+                    <ShimmerPlaceHolder className="w-20 h-2 rounded-full" />
+                </View>
+            </View>
+            <ShimmerPlaceHolder className="h-28 rounded-2xl mb-4" />
+            <ShimmerPlaceHolder className="h-12 rounded-xl" />
         </View>
     );
-
 
     return (
         <View className="flex-1 bg-slate-50">
@@ -209,32 +381,41 @@ export default function DocumentsScreen() {
                     <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
                         <Ionicons name="arrow-back" size={24} color="#1E293B" />
                     </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Documents</Text>
+                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">KYC Documents</Text>
                     <View className="w-10" />
                 </View>
             </View>
 
-            <ScrollView className="flex-1 px-6 mt-8">
-                <View className="bg-blue-50 p-6 rounded-[24px] mb-8 border border-blue-100 flex-row items-center">
-                    <Ionicons name="information-circle" size={24} color="#3B82F6" />
-                    <Text className="text-blue-600 text-[11px] font-bold ml-3 flex-1 leading-4">
-                        Upload clear PDF documents of your driving license, insurance, and RC. Tap Save Documents when finished.
-                    </Text>
+            <ScrollView className="flex-1 px-6 mt-8" showsVerticalScrollIndicator={false}>
+                <View className="bg-amber-50 p-6 rounded-[24px] mb-8 border border-amber-100 flex-row items-center shadow-sm">
+                    <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center">
+                        <Ionicons name="alert-circle" size={24} color="#D97706" />
+                    </View>
+                    <View className="ml-4 flex-1">
+                        <Text className="text-amber-800 text-[12px] font-black uppercase tracking-tighter">Important Notice</Text>
+                        <Text className="text-amber-700/70 text-[10px] font-bold leading-4 mt-0.5">
+                            Documents can only be uploaded <Text className="text-amber-900 font-black">ONE TIME</Text>. Please ensure your PDF is clear and correct before saving.
+                        </Text>
+                    </View>
                 </View>
 
-                {renderDocItem("Driving License", docs.license, "license", "card")}
-                {renderDocItem("Vehicle Insurance", docs.insurance, "insurance", "shield-checkmark")}
-                {renderDocItem("Vehicle Registration (RC)", docs.registration, "registration", "document-text")}
-
-                <TouchableOpacity
-                    onPress={handleSave}
-                    disabled={loading}
-                    className={`mt-6 py-5 rounded-[24px] items-center mb-10 shadow-xl ${loading ? 'bg-slate-400' : 'bg-slate-900 shadow-slate-900/20'}`}
-                >
-                    <Text className="text-white font-black text-base uppercase tracking-widest">
-                        {loading ? 'Updating...' : 'Save Documents'}
-                    </Text>
-                </TouchableOpacity>
+                {loading ? (
+                    <>
+                        {renderSkeletonItem()}
+                        {renderSkeletonItem()}
+                        {renderSkeletonItem()}
+                    </>
+                ) : (
+                    <>
+                        {renderDocItem("Driving License", docs.license, "license", "card")}
+                        {renderDocItem("Vehicle Insurance", docs.insurance, "insurance", "shield-checkmark")}
+                        {renderDocItem("Vehicle Registration (RC)", docs.registration, "registration", "document-text")}
+                    </>
+                )}
+                
+                <View className="mb-10 items-center">
+                    <Text className="text-slate-300 text-[9px] font-black uppercase tracking-widest">Hello-11 Verification Protocol</Text>
+                </View>
             </ScrollView>
         </View>
     );

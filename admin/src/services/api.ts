@@ -22,6 +22,8 @@ export const adminAPI = {
   // Drivers
   getDrivers: () => api.get('/api/admin/drivers'),
   deleteDriver: (id: string) => api.delete(`/api/admin/drivers/${id}`),
+  verifyDriver: (id: string, isVerified: boolean, verificationNote?: string) => 
+    api.put(`/api/admin/drivers/${id}/verify`, { isVerified, verificationNote }),
 
   // Bookings
   getBookings: () => api.get('/api/admin/bookings'),

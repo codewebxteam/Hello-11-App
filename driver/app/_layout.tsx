@@ -4,19 +4,20 @@ import { Stack, usePathname, useRouter } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, ActivityIndicator, Text, TouchableOpacity, Vibration, AppState, Animated, Easing, Dimensions, Alert } from "react-native";
+import Constants from 'expo-constants';
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useAudioPlayer } from "expo-audio";
 import { DriverAuthProvider, useDriverAuth } from "../context/DriverAuthContext";
 import { driverAPI } from "../utils/api";
+import { Audio as ExpoAudio } from 'expo-av';
 import { initSocket } from "../utils/socket";
-import { registerForPushNotificationsAsync, sendLocalNotification } from "../utils/notifications";
+import { registerForPushNotificationsAsync } from "../utils/notifications";
 
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
-import notifee, { AndroidImportance, AndroidVisibility, AndroidCategory, EventType } from '@notifee/react-native';
+import { notifee, AndroidImportance, AndroidVisibility, AndroidCategory, EventType } from '../utils/notifee-helper';
 
-const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 const BACKGROUND_LOCATION_TASK = 'BACKGROUND_LOCATION_TASK';
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
@@ -30,59 +31,15 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   }
 });
 
-TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
-  if (error) {
-    console.error("Background Push Task Error:", error);
-    return;
-  }
-  if (data) {
-    const { notification } = data as any;
-    const bookingData = notification?.request?.content?.data;
-    
-    // If it's a new ride, use Notifee to wake up device (Full Screen Action)
-    if (bookingData?.type === 'new_ride') {
-      try {
-        await notifee.createChannel({
-          id: 'incoming_rides_fullscreen',
-          name: 'Incoming Rides (Full Screen)',
-          vibration: true,
-          vibrationPattern: [0, 1000, 500, 1000, 500],
-          importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PUBLIC,
-          bypassDnd: true,
-        });
+// --- REMOVED REDUNDANT EXPO TASKS ---
 
-        await notifee.displayNotification({
-          title: '🚕 New Ride Request!',
-          body: notification?.request?.content?.body || 'Tap to instantly view the request',
-          data: bookingData,
-          android: {
-            channelId: 'incoming_rides_fullscreen',
-            importance: AndroidImportance.HIGH,
-            category: AndroidCategory.CALL,
-            fullScreenAction: {
-              id: 'default',
-            },
-            pressAction: {
-              id: 'default',
-              launchActivity: 'default',
-            },
-          },
-        });
-      } catch (e) {
-        console.error("Notifee Background Error:", e);
-      }
+if (notifee && typeof notifee.onBackgroundEvent === 'function') {
+  notifee.onBackgroundEvent(async ({ type, detail }: any) => {
+    if (type === EventType.PRESS || type === (EventType?.PRESS || 'press')) {
+      console.log('User pressed a notification in the background', detail.notification);
     }
-  }
-});
-
-Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-
-notifee.onBackgroundEvent(async ({ type, detail }) => {
-  if (type === EventType.PRESS) {
-    console.log('User pressed a notification in the background', detail.notification);
-  }
-});
+  });
+}
 
 const { height } = Dimensions.get('window');
 
@@ -103,6 +60,22 @@ function DriverRealtimeOverlay() {
   const [isAccepting, setIsAccepting] = React.useState(false);
   const requestSlide = React.useRef(new Animated.Value(height)).current;
   const timerLine = React.useRef(new Animated.Value(1)).current;
+
+  React.useEffect(() => {
+    const configureAudio = async () => {
+      try {
+        await ExpoAudio.setAudioModeAsync({
+          staysActiveInBackground: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (e) {
+        console.log("Audio configuration error in layout:", e);
+      }
+    };
+    configureAudio();
+  }, []);
 
   React.useEffect(() => {
     activeBookingRef.current = activeBooking;
@@ -197,19 +170,21 @@ function DriverRealtimeOverlay() {
 
   React.useEffect(() => {
     async function checkInitialNotifee() {
-      const initialNotification = await notifee.getInitialNotification();
-      if (initialNotification?.notification?.data?.type === 'new_ride') {
-        const bd = initialNotification.notification.data;
-        // The data payload from the backend only gives { bookingId, type }. 
-        // We'll set a mock visual that forces them to wait for the overlay, or we can fetch.
-        // But if Socket reconnects (which it will on app boot), it'll fire 'newRideRequest' anyway!
-        // We can just set a brief loading state or directly set a fallback until socket catches up.
-        setIncomingRide({
-          bookingId: bd.bookingId,
-          fare: "Fetching...",
-          pickup: "Fetching Location...",
-          drop: "Fetching Location...",
-        });
+      try {
+        if (notifee && typeof notifee.getInitialNotification === 'function') {
+          const initialNotification = await notifee.getInitialNotification();
+          if (initialNotification?.notification?.data?.type === 'new_ride') {
+            const bd = initialNotification.notification.data;
+            setIncomingRide({
+              bookingId: bd.bookingId,
+              fare: "Fetching...",
+              pickup: "Fetching Location...",
+              drop: "Fetching Location...",
+            });
+          }
+        }
+      } catch (e) {
+        console.log("Notifee initial notification error:", e);
       }
     }
     checkInitialNotifee();
@@ -230,7 +205,7 @@ function DriverRealtimeOverlay() {
         socket.emit("join", driverId);
       };
 
-      const onNewRideRequest = (data: any) => {
+      const onNewRideRequest = async (data: any) => {
         setIncomingRide(data);
 
         if (requestTimerRef.current) {
@@ -246,45 +221,50 @@ function DriverRealtimeOverlay() {
         Animated.spring(requestSlide, { toValue: 0, tension: 45, friction: 8, useNativeDriver: true }).start();
         Animated.timing(timerLine, { toValue: 0, duration: 30000, easing: Easing.linear, useNativeDriver: false }).start(({ finished }) => { if (finished) clearRideRequest(); });
 
-        if (AppState.currentState === "active") {
-          try {
-            if (player && typeof player.play === 'function') {
-              player.loop = true;
-              player.volume = 0.5;
-              player.play();
-            }
-          } catch (e) {
-            console.log("Error playing audio:", e);
+        // Play audio regardless of AppState to ensure driver hears the 'Call' sound
+        try {
+          if (player && typeof player.play === 'function') {
+            player.loop = true;
+            player.volume = 0.5;
+            player.play();
           }
-        } else {
-          try {
-            notifee.createChannel({
-              id: 'incoming_rides_fullscreen',
-              name: 'Incoming Rides (Full Screen)',
-              vibration: true,
-              vibrationPattern: [0, 1000, 500, 1000, 500],
-              importance: AndroidImportance.HIGH,
-              visibility: AndroidVisibility.PUBLIC,
-              bypassDnd: true,
-            });
+        } catch (e) {
+          console.log("Error playing audio:", e);
+        }
 
-            notifee.displayNotification({
-              title: '🚕 New Ride Request!',
-              body: `New ride from ${data?.pickup || "Pickup"} to ${data?.drop || "Drop"}`,
-              data: data,
-              android: {
-                channelId: 'incoming_rides_fullscreen',
-                importance: AndroidImportance.HIGH,
-                category: AndroidCategory.CALL,
-                fullScreenAction: {
-                  id: 'default',
+        if (AppState.currentState !== "active") {
+          // Standalone APK: Use Notifee for premium 'Full Screen' & 'Call Style' features
+          try {
+            if (notifee && typeof notifee.createChannel === 'function') {
+              await notifee.createChannel({
+                id: 'incoming_rides_fullscreen',
+                name: 'Incoming Rides (Full Screen)',
+                vibration: true,
+                vibrationPattern: [0, 1000, 500, 1000, 500],
+                importance: AndroidImportance.HIGH || 4,
+                visibility: AndroidVisibility.PUBLIC || 1,
+                bypassDnd: true,
+                sound: 'default',
+              });
+
+              await notifee.displayNotification({
+                title: '🚕 New Ride Request!',
+                body: `New ride from ${data?.pickup || "Pickup"} to ${data?.drop || "Drop"}`,
+                data: data,
+                android: {
+                  channelId: 'incoming_rides_fullscreen',
+                  importance: AndroidImportance.HIGH || 4,
+                  category: AndroidCategory.CALL || 'call',
+                  fullScreenAction: {
+                    id: 'default',
+                  },
+                  pressAction: {
+                    id: 'default',
+                    launchActivity: 'default',
+                  },
                 },
-                pressAction: {
-                  id: 'default',
-                  launchActivity: 'default',
-                },
-              },
-            });
+              });
+            }
           } catch (e) {
             console.error("Foreground Service Notifee Error:", e);
           }

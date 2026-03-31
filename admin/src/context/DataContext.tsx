@@ -80,6 +80,7 @@ export type DriverItem = {
   totalEarnings?: number;
   available?: boolean;
   online?: boolean;
+  isVerified?: boolean;
   latitude?: number;
   longitude?: number;
   documents?: {

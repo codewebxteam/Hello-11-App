@@ -14,6 +14,7 @@ import { getSocket, initSocket } from '../../utils/socket';
 import { userAPI } from '../../utils/api';
 import { showToast } from '../../components/NotificationToast';
 import { sendLocalNotification } from '../../utils/notifications';
+import { getImageUrl } from '../../utils/imagekit';
 import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
@@ -710,7 +711,14 @@ const LiveRideTrackingScreen = () => {
                     <View className="p-3 rounded-2xl mb-4">
                         <View className="flex-row items-center">
                             <View className="w-12 h-12 bg-slate-200 rounded-full items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                                {booking?.driver?.profileImage ? <Image source={{ uri: booking.driver.profileImage }} className="w-full h-full" /> : <Ionicons name="person" size={24} color="#64748B" />}
+                                {booking?.driver?.profileImage ? (
+                                    <Image 
+                                        source={{ uri: getImageUrl(booking.driver.profileImage, { width: 100, height: 100, quality: 80 }) }} 
+                                        className="w-full h-full" 
+                                    />
+                                ) : (
+                                    <Ionicons name="person" size={24} color="#64748B" />
+                                )}
                             </View>
                             <View className="ml-3 flex-1">
                                 <Text className="text-slate-900 text-base font-black">{booking?.driver?.name || 'Driver'}</Text>

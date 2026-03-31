@@ -10,6 +10,7 @@ interface User {
   mobile: string;
   email?: string;
   gender?: string;
+  profileImage?: string;
 }
 
 interface AuthContextType {

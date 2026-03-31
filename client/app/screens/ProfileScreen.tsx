@@ -10,8 +10,10 @@ import {
     Platform, 
     Dimensions,
     ActivityIndicator,
-    BackHandler
+    BackHandler,
+    Image
 } from 'react-native';
+import { getImageUrl } from '../../utils/imagekit';
 import { useRouter } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -242,10 +244,17 @@ const ProfileScreen = () => {
                         <View className="bg-white p-8 rounded-[45px] shadow-2xl shadow-slate-300 border border-slate-50">
                             
                             <View className="mb-10 items-center border-b border-slate-50 pb-8">
-                                <View className="w-24 h-24 bg-[#FFD700] rounded-[35px] justify-center items-center shadow-md border-4 border-white mb-4">
-                                    <Text className="text-4xl font-black text-slate-900">
-                                        {userInfo.name ? userInfo.name.charAt(0).toUpperCase() : "U"}
-                                    </Text>
+                                <View className="w-24 h-24 bg-[#FFD700] rounded-[35px] justify-center items-center shadow-md border-4 border-white mb-4 overflow-hidden">
+                                    {authUser?.profileImage ? (
+                                        <Image 
+                                            source={{ uri: getImageUrl(authUser.profileImage, { width: 200, height: 200, quality: 90 }) }} 
+                                            className="w-full h-full" 
+                                        />
+                                    ) : (
+                                        <Text className="text-4xl font-black text-slate-900">
+                                            {userInfo.name ? userInfo.name.charAt(0).toUpperCase() : "U"}
+                                        </Text>
+                                    )}
                                 </View>
                                 <Text className="text-3xl font-black text-slate-900 tracking-tighter italic text-center">
                                     {userInfo.name || "Hello Guest"}

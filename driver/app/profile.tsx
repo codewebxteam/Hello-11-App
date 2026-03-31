@@ -12,36 +12,33 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+import { getImageUrl } from '../utils/imagekit';
 import * as Haptics from 'expo-haptics';
 import { driverAPI } from '../utils/api';
 import { clearDriverData, getDriverData, setDriverData } from '../utils/storage';
+import { useDriverAuth } from '../context/DriverAuthContext';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function ProfileScreen() {
-    const [driver, setDriver] = React.useState<any>(null);
+    const { driver, setDriver, refreshProfile: contextRefresh, profileVersion } = useDriverAuth();
+
+    const profileImageSource = React.useMemo(() => {
+        if (!driver?.profileImage) return null;
+        const url = getImageUrl(driver.profileImage, { width: 300, height: 300, quality: 90, version: profileVersion });
+        console.log("[Profile] Image URL:", url);
+        return { uri: url };
+    }, [driver?.profileImage, profileVersion]);
+
     const router = useRouter();
 
-    React.useEffect(() => {
-        const loadProfile = async () => {
-            try {
-                // Try to get from storage first for fast response
-                const cachedData = await getDriverData();
-                if (cachedData) setDriver(cachedData);
-
-                // Then fetch fresh data from API
-                const response = await driverAPI.getProfile();
-                if (response.data && response.data.driver) {
-                    setDriver(response.data.driver);
-                    // Update cache with fresh data
-                    await setDriverData(response.data.driver);
-                }
-            } catch (err) {
-                console.log("Profile load error:", err);
-            }
-        };
-        loadProfile();
-    }, []);
+    // Use useFocusEffect from expo-router (or @react-navigation/native)
+    const { useFocusEffect } = require('expo-router');
+    useFocusEffect(
+        React.useCallback(() => {
+            contextRefresh();
+        }, [contextRefresh])
+    );
 
     const handleLogout = async () => {
         try {
@@ -80,7 +77,9 @@ export default function ProfileScreen() {
                             if (res.data) {
                                 const current = await getDriverData();
                                 await setDriverData({ ...current, serviceType: nextServiceType });
-                                setDriver({ ...driver, serviceType: nextServiceType });
+                                if (driver) {
+                                    setDriver({ ...driver, serviceType: nextServiceType });
+                                }
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                             }
                         } catch (e) {
@@ -151,8 +150,11 @@ export default function ProfileScreen() {
                 <View className="items-center mt-8 px-6">
                     <View className="w-28 h-28 bg-[#FFD700] p-1 rounded-full shadow-2xl shadow-yellow-500/40 mb-4 relative">
                         <View className="w-full h-full bg-slate-100 rounded-full items-center justify-center overflow-hidden border-[3px] border-white">
-                            {driver?.profileImage ? (
-                                <Image source={{ uri: driver.profileImage }} style={{ width: '100%', height: '100%' }} />
+                            {profileImageSource ? (
+                                <Image 
+                                    source={profileImageSource} 
+                                    style={{ width: '100%', height: '100%' }} 
+                                />
                             ) : (
                                 <Ionicons name="person" size={48} color="#CBD5E1" />
                             )}
@@ -168,7 +170,7 @@ export default function ProfileScreen() {
                 {/* Stats Row */}
                 <View className="flex-row justify-between mt-8 px-6">
                     <View className="flex-1 bg-[#FFFDE7] p-4 rounded-[24px] items-center border border-yellow-100 shadow-sm mr-2">
-                        <Text className="text-slate-900 text-xl font-black">{driver?.rating || '5.0'}</Text>
+                        <Text className="text-slate-900 text-xl font-black">{driver?.rating?.toFixed(1) || '5.0'}</Text>
                         <View className="flex-row items-center mt-1">
                             <Ionicons name="star" size={12} color="#F59E0B" />
                             <Text className="text-slate-500 text-[9px] font-bold uppercase ml-1">Rating</Text>

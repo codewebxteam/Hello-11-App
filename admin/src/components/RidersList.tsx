@@ -141,6 +141,11 @@ const RidersList: React.FC = () => {
                        }`}>
                           {status}
                        </span>
+                       <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-widest whitespace-nowrap ${
+                          driver.isVerified ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"
+                       }`}>
+                          {driver.isVerified ? "Verified" : "Pending"}
+                       </span>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center text-xs text-gray-400 font-bold gap-x-5 gap-y-1 mt-1.5 uppercase tracking-wide">
