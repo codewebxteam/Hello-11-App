@@ -430,56 +430,7 @@ export default function DriverDashboard() {
           )}
         </MapView>
         
-        {!authDriver?.isVerified && (
-          <SafeAreaView edges={['top']} className="absolute top-24 w-full z-[100] px-6 pointer-events-none">
-            <View className="bg-[#FFFBEB] px-6 py-8 rounded-[32px] border border-amber-200 shadow-2xl pointer-events-auto items-center justify-center">
-              {(() => {
-                const hasDocs = authDriver?.documents && (
-                  authDriver.documents.license || 
-                  authDriver.documents.insurance || 
-                  authDriver.documents.registration
-                );
-                const hasNote = authDriver?.verificationNote && authDriver.verificationNote.trim().length > 0;
 
-                return (
-                  <>
-                    <View className={`w-14 h-14 rounded-full items-center justify-center mb-4 ${hasNote ? 'bg-red-100' : 'bg-amber-100'}`}>
-                      <Ionicons 
-                        name={hasNote ? "alert-circle" : hasDocs ? "sync-circle" : "shield-half"} 
-                        size={32} 
-                        color={hasNote ? "#B91C1C" : "#B45309"} 
-                      />
-                    </View>
-                    
-                    <Text className={`font-black text-sm uppercase tracking-[3px] mb-2 ${hasNote ? 'text-red-700' : 'text-[#92400E]'}`}>
-                      {hasNote ? 'Account Rejected' : hasDocs ? 'Under Review' : 'Account Inactive'}
-                    </Text>
-                    
-                    <View className="items-center mb-6">
-                      <Text className={`${hasNote ? 'text-red-600' : 'text-[#B45309]'} text-[11px] font-bold uppercase text-center leading-5 px-4`}>
-                        {hasNote 
-                          ? `${authDriver.verificationNote}\n\nContact to Admin for more details.` 
-                          : hasDocs 
-                             ? "Document Uploaded. Waiting for Admin Approval." 
-                             : "Verification pending. Verify hone ke baad hi aap ride accept kar sakte ho."}
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity 
-                      onPress={() => router.push("/documents")}
-                      className={`w-full py-4 rounded-2xl shadow-lg items-center flex-row justify-center ${hasNote ? 'bg-red-600' : 'bg-[#92400E]'}`}
-                    >
-                      <Ionicons name={hasDocs ? "document-text" : "cloud-upload"} size={18} color="white" />
-                      <Text className="text-white text-xs font-black uppercase tracking-[2px] ml-2">
-                        {hasNote ? 'Fix Documents' : hasDocs ? 'View Documents' : 'Complete Verification'}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                );
-              })()}
-            </View>
-          </SafeAreaView>
-        )}
 
         {isSearching && (
           <View className="absolute inset-0 items-center justify-center pointer-events-none">
@@ -773,6 +724,62 @@ export default function DriverDashboard() {
           )
         )}
       </View>
+
+      {!authDriver?.isVerified && (
+        <TouchableOpacity 
+          activeOpacity={0.9}
+          onPress={() => {
+            console.log("[Dashboard] Card pressed - Navigating to documents");
+            router.push("/documents");
+          }}
+          style={{ top: (insets?.top || 0) + 80 }}
+          className="absolute left-6 right-6 z-[100] bg-[#FFFBEB] px-6 py-8 rounded-[32px] border border-amber-200 shadow-2xl items-center justify-center"
+        >
+          {(() => {
+            const hasDocs = authDriver?.documents && (
+              authDriver.documents.license || 
+              authDriver.documents.insurance || 
+              authDriver.documents.registration
+            );
+            const hasNote = authDriver?.verificationNote && authDriver.verificationNote.trim().length > 0;
+
+            return (
+              <>
+                <View className={`w-14 h-14 rounded-full items-center justify-center mb-4 ${hasNote ? 'bg-red-100' : 'bg-amber-100'}`}>
+                  <Ionicons 
+                    name={hasNote ? "alert-circle" : hasDocs ? "sync-circle" : "shield-half"} 
+                    size={32} 
+                    color={hasNote ? "#B91C1C" : "#B45309"} 
+                  />
+                </View>
+                
+                <Text className={`font-black text-sm uppercase tracking-[3px] mb-2 ${hasNote ? 'text-red-700' : 'text-[#92400E]'}`}>
+                  {hasNote ? 'Account Rejected' : hasDocs ? 'Under Review' : 'Account Inactive'}
+                </Text>
+                
+                <View className="items-center mb-6">
+                  <Text className={`${hasNote ? 'text-red-600' : 'text-[#B45309]'} text-[11px] font-bold uppercase text-center leading-5 px-4`}>
+                    {hasNote 
+                      ? `${authDriver.verificationNote}\n\nContact to Admin for more details.` 
+                      : hasDocs 
+                         ? "Document Uploaded. Waiting for Admin Approval." 
+                         : "Verification pending. Verify hone ke baad hi aap ride accept kar sakte ho."}
+                  </Text>
+                </View>
+
+                <View 
+                  className={`w-full py-4 rounded-2xl shadow-lg items-center flex-row justify-center ${hasNote ? 'bg-red-600' : 'bg-[#92400E]'}`}
+                >
+                  <Ionicons name={hasDocs ? "document-text" : "cloud-upload"} size={18} color="white" />
+                  <Text className="text-white text-xs font-black uppercase tracking-[2px] ml-2">
+                    {hasNote ? 'Fix Documents' : hasDocs ? 'View Documents' : 'Complete Verification'}
+                  </Text>
+                </View>
+              </>
+            );
+          })()}
+        </TouchableOpacity>
+      )}
 
     </View>
   );

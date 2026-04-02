@@ -137,14 +137,15 @@ export default function DocumentsScreen() {
             const response = await driverAPI.updateDocuments({ [key]: value });
             console.log("[Documents] Backend raw response:", response.data);
 
-            if (response.data && response.data.driver) {
-                const updatedDriver = response.data.driver;
-                console.log("[Documents] Updated driver docs from server:", updatedDriver.documents);
+            const resData = response.data;
+            if (resData && (resData.driver || resData.documents || resData.license)) {
+                const updatedDocs = resData.driver?.documents || resData.documents || resData;
+                console.log("[Documents] Successfully extracted docs:", updatedDocs);
 
                 const newDocs = {
-                    license: updatedDriver.documents?.license || '',
-                    insurance: updatedDriver.documents?.insurance || '',
-                    registration: updatedDriver.documents?.registration || ''
+                    license: updatedDocs?.license || docs.license,
+                    insurance: updatedDocs?.insurance || docs.insurance,
+                    registration: updatedDocs?.registration || docs.registration
                 };
                 setDocs(newDocs);
 
@@ -153,7 +154,8 @@ export default function DocumentsScreen() {
                 
                 await refreshProfile();
             } else {
-                throw new Error("Server did not return updated profile data.");
+                console.error("[Documents] Structure mismatch. Available keys:", Object.keys(resData || {}));
+                throw new Error(`Invalid server response structure. Received keys: ${Object.keys(resData || {}).join(', ')}`);
             }
         } catch (error: any) {
             console.error("[Documents] Upload error detail:", error);
