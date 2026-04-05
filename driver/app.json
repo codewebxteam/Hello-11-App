@@ -61,8 +61,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b2d2d095-0b69-41f8-932f-32bcbfe98354"
+        "projectId": "7f51ecb6-7bac-4324-9a3b-8745ede5f805"
       }
-    }
+    },
+    "owner": "savita1111"
   }
 }
