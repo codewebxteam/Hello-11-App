@@ -456,7 +456,7 @@ const OutstationBookingScreen = () => {
           {suggestions.length > 0 && activeInput && (
             <View className="bg-white rounded-2xl mt-3 border border-slate-100 shadow-xl max-h-[200px]">
               <FlatList
-                data={suggestions.slice(0, 5)}
+                data={suggestions.slice(0, 12)}
                 keyExtractor={(_, i) => i.toString()}
                 renderItem={({ item }) => (
                   <TouchableOpacity

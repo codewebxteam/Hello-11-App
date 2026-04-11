@@ -1,6 +1,36 @@
 import User from "../models/User.js";
 import Driver from "../models/Driver.js";
 import Booking from "../models/Booking.js";
+import Transaction from "../models/Transaction.js";
+
+const getOneWayFare = (booking) => {
+  const fare = Number(booking?.fare || 0);
+  const baseFare = Number(booking?.baseFare || 0);
+  const nightSurcharge = Number(booking?.nightSurcharge || 0);
+
+  // Legacy guard: when baseFare was incorrectly saved equal to fare, fare already includes night.
+  if (baseFare > 0 && nightSurcharge > 0 && Math.abs(baseFare - fare) <= 1) {
+    return fare;
+  }
+
+  if (baseFare > 0) return baseFare + nightSurcharge;
+  return fare;
+};
+
+const getBookingTotalFare = (booking) => {
+  const computedTotal =
+    getOneWayFare(booking) +
+    Number(booking?.returnTripFare || 0) +
+    Number(booking?.penaltyApplied || 0) +
+    Number(booking?.tollFee || 0);
+
+  // Prefer computed breakdown when components exist; old stored totalFare can be stale.
+  if (computedTotal > 0) return computedTotal;
+
+  const explicitTotal = Number(booking?.totalFare || 0);
+  if (explicitTotal > 0) return explicitTotal;
+  return 0;
+};
 
 // ================= DASHBOARD STATS =================
 export const getDashboardStats = async (req, res) => {
@@ -13,7 +43,7 @@ export const getDashboardStats = async (req, res) => {
     const completedTrips = await Booking.countDocuments({ status: "completed" });
     const cancelledTrips = await Booking.countDocuments({ status: "cancelled" });
 
-    // Calculate total earnings
+    // Calculate total earnings (Gross)
     const earningsResult = await Booking.aggregate([
       { $match: { status: "completed" } },
       {
@@ -32,6 +62,18 @@ export const getDashboardStats = async (req, res) => {
     ]);
     const totalEarnings = earningsResult.length > 0 ? earningsResult[0].total : 0;
 
+    // Commission stats
+    const commissionResult = await Booking.aggregate([
+      { $match: { status: "completed" } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ["$adminCommission", 0] } } } }
+    ]);
+    const totalAdminCommission = commissionResult.length > 0 ? commissionResult[0].total : 0;
+
+    const pendingResult = await Driver.aggregate([
+      { $group: { _id: null, total: { $sum: { $ifNull: ["$pendingCommission", 0] } } } }
+    ]);
+    const totalPendingCommission = pendingResult.length > 0 ? pendingResult[0].total : 0;
+
     res.json({
       stats: {
         totalUsers,
@@ -41,7 +83,9 @@ export const getDashboardStats = async (req, res) => {
         ongoingTrips,
         completedTrips,
         cancelledTrips,
-        totalEarnings
+        totalEarnings,
+        totalAdminCommission,
+        totalPendingCommission
       }
     });
   } catch (error) {
@@ -169,9 +213,7 @@ export const getAllBookings = async (req, res) => {
 
     const normalizedBookings = bookings.map((b) => {
       const booking = b.toObject();
-      booking.totalFare =
-        (booking.totalFare ?? 0) ||
-        (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+      booking.totalFare = getBookingTotalFare(booking);
       return booking;
     });
 
@@ -182,6 +224,31 @@ export const getAllBookings = async (req, res) => {
       error: error.message
     });
   }
+};
+
+// ================= MANUAL PAYMENT RESET =================
+export const manualPaymentReset = async (req, res) => {
+    try {
+        const driver = await Driver.findById(req.params.id);
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+        driver.pendingCommission = 0;
+        driver.unpaidRideCount = 0;
+        await driver.save();
+
+        res.json({
+            success: true,
+            message: `Cleared dues for driver ${driver.name} successfully.`,
+            driver
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Failed to reset driver commission",
+            error: error.message
+        });
+    }
 };
 
 // ================= DELETE USER =================
@@ -269,6 +336,44 @@ export const verifyDriver = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Failed to verify driver",
+      error: error.message
+    });
+  }
+};
+// ================= GET FINANCIAL REPORTS =================
+export const getFinancialReports = async (req, res) => {
+  try {
+    const transactions = await Transaction.find()
+      .populate("driver", "name mobile vehicleNumber")
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const rideCommissionsRaw = await Booking.find({ status: "completed" })
+      .populate("driver", "name")
+      .populate("user", "name")
+      .select('pickupLocation dropLocation totalFare fare baseFare nightSurcharge returnTripFare penaltyApplied tollFee adminCommission driverEarnings createdAt')
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const rideCommissions = rideCommissionsRaw.map((rideDoc) => {
+      const ride = rideDoc.toObject();
+      const totalFare = getBookingTotalFare(ride);
+      const adminCommission = Math.round(totalFare * 0.12);
+      return {
+        ...ride,
+        totalFare,
+        adminCommission,
+        driverEarnings: Number(ride.driverEarnings ?? (totalFare - adminCommission))
+      };
+    });
+
+    res.json({
+      transactions,
+      rideCommissions
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch financial reports",
       error: error.message
     });
   }

@@ -140,12 +140,24 @@ export default function RideSummaryScreen() {
 
                         <View className="h-[1px] bg-slate-700 w-full my-4" />
 
+                        <View className="flex-row justify-between mb-2">
+                             <Text className="text-slate-500 text-[11px] font-bold uppercase">Admin Commission (12%)</Text>
+                             <Text className="text-red-400 text-sm font-bold">- ₹{Math.round((Number(fare) + Number(returnFare) + Number(penalty) + Number(toll)) * 0.12)}</Text>
+                        </View>
+                        <View className="flex-row justify-between mb-4">
+                             <Text className="text-slate-500 text-[11px] font-bold uppercase">Net Earnings</Text>
+                             <Text className="text-white text-sm font-bold">₹{(Number(fare) + Number(returnFare) + Number(penalty) + Number(toll)) - Math.round((Number(fare) + Number(returnFare) + Number(penalty) + Number(toll)) * 0.12)}</Text>
+                        </View>
+
+                        <View className="h-[1px] bg-slate-700 w-full mb-4" />
+
                         <View className="flex-row justify-between items-center">
                             <View>
                                 <Text className="text-white text-lg font-black">Total Earned</Text>
                             </View>
                             <View className="items-end">
                                 <Text className="text-[#FFD700] text-3xl font-black">₹{Number(fare) + Number(returnFare) + Number(penalty) + Number(toll)}</Text>
+                                <Text className="text-slate-400 text-[10px] font-bold mt-1 text-right">Added to Pending: ₹{Math.round((Number(fare) + Number(returnFare) + Number(penalty) + Number(toll)) * 0.12)}</Text>
                                 {params.firstLegPaid === 'true' && <Text className="text-slate-400 text-xs font-bold mt-1">Collected Now: ₹{totalAmount}</Text>}
                             </View>
                         </View>

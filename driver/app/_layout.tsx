@@ -1,9 +1,9 @@
 import React from "react";
 import "../global.css";
-import { Stack, usePathname, useRouter } from "expo-router";
+import { Stack, usePathname, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { View, ActivityIndicator, Text, TouchableOpacity, Vibration, AppState, Animated, Easing, Dimensions, Alert } from "react-native";
+import { View, ActivityIndicator, Text, TouchableOpacity, Vibration, AppState, Animated, Easing, Dimensions, Alert, Modal } from "react-native";
 import Constants from 'expo-constants';
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
@@ -13,6 +13,7 @@ import { driverAPI } from "../utils/api";
 import { Audio as ExpoAudio } from 'expo-av';
 import { initSocket } from "../utils/socket";
 import { registerForPushNotificationsAsync } from "../utils/notifications";
+import * as Haptics from "expo-haptics";
 
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
@@ -45,8 +46,6 @@ const { height } = Dimensions.get('window');
 
 function DriverRealtimeOverlay() {
   const { isAuthenticated } = useDriverAuth();
-  const pathname = usePathname();
-  const router = useRouter();
 
   const [isOnline, setIsOnline] = React.useState(false);
   const [driverId, setDriverId] = React.useState<string | null>(null);
@@ -58,6 +57,15 @@ function DriverRealtimeOverlay() {
   const player = useAudioPlayer("https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1MB_MP3.mp3");
   const requestTimerRef = React.useRef<any>(null);
   const [isAccepting, setIsAccepting] = React.useState(false);
+  const [paymentBlockPopup, setPaymentBlockPopup] = React.useState<{
+    visible: boolean;
+    message: string;
+    pendingCommission: number;
+  }>({
+    visible: false,
+    message: "",
+    pendingCommission: 0,
+  });
   const requestSlide = React.useRef(new Animated.Value(height)).current;
   const timerLine = React.useRef(new Animated.Value(1)).current;
 
@@ -313,7 +321,7 @@ function DriverRealtimeOverlay() {
       if (cleanup) cleanup();
       clearRideRequest();
     };
-  }, [isAuthenticated, isOnline, driverId, pathname, player, clearRideRequest]);
+  }, [isAuthenticated, isOnline, driverId, player, clearRideRequest]);
 
   const onAcceptRide = async () => {
     if (isAccepting) return;
@@ -331,7 +339,30 @@ function DriverRealtimeOverlay() {
     } catch (error: any) {
       setIsAccepting(false);
       console.error("Accept ride error:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to accept ride.");
+      let parsedFromString: any = null;
+      if (typeof error === "string") {
+        try {
+          parsedFromString = JSON.parse(error);
+        } catch {
+          parsedFromString = null;
+        }
+      }
+      const apiError =
+        error?.response?.data ||
+        error?.data ||
+        parsedFromString ||
+        (typeof error === "object" ? error : {});
+      if (apiError?.requiresPayment) {
+        clearRideRequest();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setPaymentBlockPopup({
+          visible: true,
+          message: apiError?.message || "Commission payment pending hai. Wallet me settlement karein.",
+          pendingCommission: Number(apiError?.pendingCommission || 0),
+        });
+        return;
+      }
+      Alert.alert("Error", apiError?.message || error?.message || "Failed to accept ride.");
     }
   };
 
@@ -345,12 +376,70 @@ function DriverRealtimeOverlay() {
 
   return (
     <>
+      <Modal
+        visible={paymentBlockPopup.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPaymentBlockPopup((prev) => ({ ...prev, visible: false }))}
+      >
+        <View className="flex-1 bg-black/55 justify-center px-6">
+          <TouchableOpacity
+            activeOpacity={0.95}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setPaymentBlockPopup((prev) => ({ ...prev, visible: false }));
+              router.push("/wallet");
+            }}
+            className="bg-white rounded-[30px] p-6 border border-amber-200 shadow-2xl"
+          >
+            <View className="flex-row items-center mb-4">
+              <View className="w-14 h-14 rounded-2xl bg-amber-100 items-center justify-center">
+                <Ionicons name="wallet-outline" size={28} color="#B45309" />
+              </View>
+              <View className="ml-3 flex-1">
+                <Text className="text-slate-900 font-black text-base uppercase tracking-wide">Payment Required</Text>
+                <Text className="text-slate-500 text-[11px] font-semibold">Tap card to open wallet</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color="#B45309" />
+            </View>
+
+            <Text className="text-slate-700 text-sm leading-5 mb-4">
+              {paymentBlockPopup.message}
+            </Text>
+
+            <View className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 flex-row justify-between items-center">
+              <Text className="text-amber-700 text-xs font-black uppercase tracking-widest">Pending Commission</Text>
+              <Text className="text-amber-700 text-xl font-black">₹{paymentBlockPopup.pendingCommission}</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {incomingRide && (
         <Animated.View
-          style={{ transform: [{ translateY: requestSlide }], paddingBottom: 20 }}
-          className="absolute bottom-0 w-full z-[100] px-4"
+          style={{ 
+            transform: [{ translateY: requestSlide }], 
+            paddingBottom: 20,
+            position: 'absolute',
+            bottom: 0,
+            width: '100%',
+            zIndex: 100,
+            paddingHorizontal: 16
+          }}
         >
-          <View className="bg-[#0F172A] rounded-[32px] p-6 shadow-2xl border border-slate-700/50 overflow-hidden">
+          <View style={{
+            backgroundColor: '#0F172A',
+            borderRadius: 32,
+            padding: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.5,
+            shadowRadius: 20,
+            elevation: 10,
+            borderWidth: 1,
+            borderColor: 'rgba(51, 65, 85, 0.5)',
+            overflow: 'hidden'
+          }}>
             <View className="absolute top-0 left-0 right-0 h-1.5 bg-slate-800">
               <Animated.View
                 style={{
@@ -482,6 +571,7 @@ function RootLayoutNav() {
           <Stack.Screen name="ride-summary" />
           <Stack.Screen name="start-ride" />
           <Stack.Screen name="waiting-for-return" />
+          <Stack.Screen name="wallet" />
         </Stack>
         <DriverRealtimeOverlay />
         <StatusBar style="dark" />

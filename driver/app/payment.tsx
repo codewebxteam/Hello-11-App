@@ -24,11 +24,12 @@ export default function PaymentScreen() {
     const penalty = params.penalty ? Number(params.penalty) : 0;
     const toll = params.toll ? Number(params.toll) : 0;
     const nightSurcharge = params.nightSurcharge ? Number(params.nightSurcharge) : 0;
+    const oneWayFare = Math.max(0, baseFare) + Math.max(0, nightSurcharge);
 
     // Total Amount: If final payment and first leg already paid, only collect return + penalty + toll
-    const totalAmount = isPartialPayment 
-        ? baseFare 
-        : (firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll));
+    const totalAmount = isPartialPayment
+        ? oneWayFare
+        : (firstLegPaid ? (returnFare + penalty + toll) : (oneWayFare + returnFare + penalty + toll));
 
     useEffect(() => {
         if (params.bookingId) {
@@ -100,7 +101,7 @@ export default function PaymentScreen() {
                     params: {
                         bookingId,
                         totalAmount: totalAmount.toString(),
-                        fare: baseFare.toString(),
+                        fare: oneWayFare.toString(),
                         returnFare: returnFare.toString(),
                         penalty: penalty.toString(),
                         toll: toll.toString(),
@@ -201,7 +202,7 @@ export default function PaymentScreen() {
                                     <>
                                         <View className="flex-row justify-between mb-1 opacity-70">
                                             <Text className="text-slate-400 text-[9px] uppercase font-bold">Total Trip Cost</Text>
-                                            <Text className="text-white text-[10px] font-bold">₹{baseFare + returnFare + penalty + toll}</Text>
+                                            <Text className="text-white text-[10px] font-bold">₹{oneWayFare + returnFare + penalty + toll}</Text>
                                         </View>
                                         <View className="flex-row justify-between mb-1 opacity-70">
                                             <Text className="text-green-500 text-[9px] uppercase font-bold">Already Paid (Leg 1)</Text>

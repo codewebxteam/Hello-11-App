@@ -24,11 +24,16 @@ export const adminAPI = {
   deleteDriver: (id: string) => api.delete(`/api/admin/drivers/${id}`),
   verifyDriver: (id: string, isVerified: boolean, verificationNote?: string) => 
     api.put(`/api/admin/drivers/${id}/verify`, { isVerified, verificationNote }),
+  resetCommission: (id: string) =>
+    api.put(`/api/admin/drivers/${id}/reset-commission`),
 
   // Bookings
   getBookings: () => api.get('/api/admin/bookings'),
   updateBookingStatus: (id: string, status: string) =>
     api.put(`/api/admin/bookings/${id}/status`, { status }),
+
+  // Financials
+  getFinancials: () => api.get('/api/admin/financials'),
 };
 
 export default api;

@@ -11,7 +11,8 @@ import {
     Star,
     BarChart3,
     ListRestart,
-    ChevronLeft
+    ChevronLeft,
+    Wallet
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
     const menuItems: MenuItem[] = [
         { path: '/', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
         { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={20} /> },
+        { path: '/finance', label: 'Finance', icon: <Wallet size={20} /> },
         { path: '/live-map', label: 'Live Map', icon: <MapPin size={20} /> },
         { path: '/users', label: 'Users', icon: <Users size={20} /> },
         { path: '/riders', label: 'Drivers', icon: <Truck size={20} /> },

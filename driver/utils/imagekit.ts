@@ -8,6 +8,7 @@ export interface ImageKitOptions {
   format?: 'auto' | 'webp' | 'jpg' | 'png';
   crop?: 'maintain_ratio' | 'force' | 'at_least';
   version?: string | number;
+  pg?: number;
 }
 
 /**
@@ -45,6 +46,7 @@ export const getImageUrl = (url: string | null | undefined, options: ImageKitOpt
     if (options.quality) transforms.push(`q-${options.quality}`);
     if (options.blur) transforms.push(`bl-${options.blur}`);
     if (options.format) transforms.push(`f-${options.format === 'auto' ? 'auto' : options.format}`);
+    if (options.pg) transforms.push(`pg-${options.pg}`);
 
     if (transforms.length > 0) {
       ikUrl += `?tr=${transforms.join(',')}`;

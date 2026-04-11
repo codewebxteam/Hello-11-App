@@ -6,11 +6,32 @@ import { createNotification } from "./notificationController.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import Payout from "../models/Payout.js";
+import Transaction from "../models/Transaction.js";
 import { serverLog } from "../utils/logger.js";
 import { getIO } from "../utils/socketLogic.js";
 
 import { sendPushNotification } from "../utils/notifications.js";
 import { uploadToImageKit } from "../utils/imagekit.js";
+
+const getOneWayFare = (booking) => {
+  const fare = Number(booking?.fare || 0);
+  const baseFare = Number(booking?.baseFare || 0);
+  const nightSurcharge = Number(booking?.nightSurcharge || 0);
+
+  // Legacy-bug guard: if baseFare was copied from fare and night exists, avoid double-count.
+  if (baseFare > 0 && nightSurcharge > 0 && Math.abs(baseFare - fare) <= 1) {
+    return fare;
+  }
+
+  if (baseFare > 0) return baseFare + nightSurcharge;
+  return fare;
+};
+
+const getBookingTotalFare = (booking) =>
+  getOneWayFare(booking) +
+  Number(booking?.returnTripFare || 0) +
+  Number(booking?.penaltyApplied || 0) +
+  Number(booking?.tollFee || 0);
 
 // ================= GENERATE JWT TOKEN FOR DRIVER =================
 const generateDriverToken = (driverId) => {
@@ -849,6 +870,17 @@ export const acceptBooking = async (req, res) => {
       });
     }
 
+    if (driver.unpaidRideCount >= 3 && driver.pendingCommission > 0) {
+      serverLog(
+        `ACCEPT BLOCKED: driver=${req.driverId} booking=${req.params.id} reason=pending_commission unpaidRideCount=${driver.unpaidRideCount} pendingCommission=${driver.pendingCommission}`
+      );
+      return res.status(403).json({
+        message: "Aapka 3 rides ka commission pending hai. Kripya pahle payment karein.",
+        pendingCommission: driver.pendingCommission,
+        requiresPayment: true
+      });
+    }
+
     if (driver.currentBooking) {
       const activeCheck = await Booking.findById(driver.currentBooking);
       if (activeCheck && !["completed", "cancelled"].includes(activeCheck.status)) {
@@ -964,8 +996,12 @@ export const rejectBooking = async (req, res) => {
       booking.status = "pending";
       await booking.save();
 
-      // Make driver available again
-      await Driver.findByIdAndUpdate(req.driverId, { available: true });
+      // Make driver available again and clear active booking marker
+      await Driver.findByIdAndUpdate(req.driverId, {
+        available: true,
+        online: true,
+        currentBooking: null
+      });
     }
 
     res.json({
@@ -1025,7 +1061,7 @@ export const updateBookingStatus = async (req, res) => {
       if (!booking.fare || booking.fare === 0) {
         booking.fare = fare || 0;
       }
-      booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+      booking.totalFare = getBookingTotalFare(booking);
       booking.distance = distance || booking.distance || 0;
       booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
 
@@ -1179,14 +1215,16 @@ export const getDriverHistory = async (req, res) => {
         tollFee: booking.tollFee || 0,
         penaltyApplied: booking.penaltyApplied || 0,
         returnTripFare: booking.returnTripFare || 0,
+        baseFare: booking.baseFare || 0,
+        nightSurcharge: booking.nightSurcharge || 0,
         hasReturnTrip: !!booking.hasReturnTrip,
-        totalFare: (booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0),
+        totalFare: getBookingTotalFare(booking),
         distance: booking.distance,
         paymentStatus: booking.paymentStatus,
         paymentMethod: booking.paymentMethod || "cash",
-        nightFareAmount: booking.nightFareAmount || booking.nightFare || booking.nightCharge || 0,
-        isNightFare: !!booking.isNightFare,
-        nightFareApplied: !!booking.nightFareApplied,
+        nightFareAmount: Number(booking.nightSurcharge || booking.nightFareAmount || booking.nightFare || booking.nightCharge || 0),
+        isNightFare: Number(booking.nightSurcharge || 0) > 0,
+        nightFareApplied: Number(booking.nightSurcharge || 0) > 0,
         scheduledDate: booking.scheduledDate || null,
         user: booking.user,
         rating: booking.rating || 0,
@@ -1219,78 +1257,143 @@ export const getDriverHistory = async (req, res) => {
 // ================= GET DRIVER EARNINGS =================
 export const getDriverEarnings = async (req, res) => {
   try {
-    const { period = "week" } = req.query; // day, week, month, all
+    const { 
+      period = "week", 
+      dateFrom, 
+      dateTo,
+      txPage = 1,
+      txLimit = 20,
+      commPage = 1,
+      commLimit = 20
+    } = req.query;
+
     let startDate = new Date();
     startDate.setHours(0, 0, 0, 0);
+    let endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
 
     const now = new Date();
     
-    switch (period) {
-      case "day":
-        // Already at today 00:00
-        break;
-      case "week":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "month":
-        startDate.setMonth(now.getMonth() - 1);
-        break;
-      case "all":
-        startDate = new Date(0);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 7);
+    if (period === "custom" && dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      switch (period) {
+        case "day":
+          // Today 00:00 to 23:59
+          break;
+        case "week":
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case "month":
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case "all":
+          startDate = new Date(0);
+          break;
+        default:
+          startDate.setDate(now.getDate() - 7);
+      }
     }
 
-    // Filtered bookings for the selected period
-    const query = {
-      driver: req.driverId,
-      status: "completed"
+    const bookingFare = (booking) => getBookingTotalFare(booking);
+
+    const commonFilter = { driver: req.driverId };
+    const periodFilter = { ...commonFilter, status: "completed" };
+    if (period !== "all") {
+      periodFilter.createdAt = { $gte: startDate, $lte: endDate };
+    }
+
+    const txPageNum = Math.max(parseInt(txPage) || 1, 1);
+    const txLimitNum = Math.min(Math.max(parseInt(txLimit) || 20, 1), 50);
+    const commPageNum = Math.max(parseInt(commPage) || 1, 1);
+    const commLimitNum = Math.min(Math.max(parseInt(commLimit) || 20, 1), 50);
+
+    const txFilter = { driver: req.driverId };
+    if (period !== "all") {
+      txFilter.createdAt = { $gte: startDate, $lte: endDate };
+    }
+
+    const commFilterObj = { 
+      driver: req.driverId, 
+      status: "completed",
+      adminCommission: { $gt: 0 }
     };
     if (period !== "all") {
-      query.createdAt = { $gte: startDate };
+      commFilterObj.createdAt = { $gte: startDate, $lte: endDate };
     }
 
-    const periodBookings = await Booking.find(query);
+    // Parallel execution of all data requirements
+    const [
+      periodBookings,
+      calendarBookings,
+      driver,
+      payouts,
+      transactions,
+      txTotal,
+      rideCommissions,
+      commTotal
+    ] = await Promise.all([
+      Booking.find(periodFilter).sort({ createdAt: 1 }),
+      Booking.find({ driver: req.driverId, status: "completed" }).select('createdAt fare totalFare nightSurcharge returnTripFare penaltyApplied tollFee'),
+      Driver.findById(req.driverId),
+      Payout.find({ driver: req.driverId, createdAt: { $gte: startDate, $lte: endDate } }).sort({ createdAt: -1 }),
+      Transaction.find(txFilter).sort({ createdAt: -1 }).limit(txLimitNum).skip((txPageNum - 1) * txLimitNum),
+      Transaction.countDocuments(txFilter),
+      Booking.find(commFilterObj)
+        .select('pickupLocation dropLocation totalFare fare baseFare nightSurcharge returnTripFare penaltyApplied tollFee hasReturnTrip adminCommission createdAt')
+        .sort({ createdAt: -1 })
+        .limit(commLimitNum)
+        .skip((commPageNum - 1) * commLimitNum),
+      Booking.countDocuments(commFilterObj)
+    ]);
 
-    const bookingFare = (booking) => {
-      // Use totalFare if already calculated, otherwise sum components
-      if (booking.totalFare && booking.totalFare > 0) return booking.totalFare;
-      return (Number(booking.fare) || 0) + 
-             (Number(booking.nightSurcharge) || 0) + 
-             (Number(booking.returnTripFare) || 0) + 
-             (Number(booking.penaltyApplied) || 0) + 
-             (Number(booking.tollFee) || 0);
-    };
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    // Process daily stats for calendar dots
+    const dailyStats = {};
+    calendarBookings.forEach(booking => {
+      const dateKey = booking.createdAt.toISOString().split('T')[0];
+      dailyStats[dateKey] = (dailyStats[dateKey] || 0) + bookingFare(booking);
+    });
 
     const periodEarnings = periodBookings.reduce((sum, booking) => sum + bookingFare(booking), 0);
     const periodTrips = periodBookings.length;
     const periodAvgFare = periodTrips > 0 ? (periodEarnings / periodTrips).toFixed(0) : 0;
     
-    // Get driver for lifetime balance and online time
-    const driver = await Driver.findById(req.driverId);
-    if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
-    }
-
-    const lifetimeEarnings = driver.totalEarnings || 0;
-
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    
-    // Calculate today's earnings from periodBookings if possible (more efficient if period is week/month)
     const todayEarnings = periodBookings
       .filter(b => b.createdAt >= todayStart)
       .reduce((sum, booking) => sum + bookingFare(booking), 0);
 
-
-    // Filter payouts
-    const payouts = await Payout.find({
-      driver: req.driverId,
-      createdAt: { $gte: startDate }
-    }).sort({ createdAt: -1 });
-
     const onlineHours = Math.round(((driver.onlineTime || 0) / 60) * 10) / 10;
+
+    const commissionRows = rideCommissions.map((booking) => {
+      const normalizedTotalFare = getBookingTotalFare(booking);
+      const normalizedAdminCommission = Math.round(normalizedTotalFare * 0.12);
+
+      return {
+        _id: booking._id,
+        pickupLocation: booking.pickupLocation,
+        dropLocation: booking.dropLocation,
+        createdAt: booking.createdAt,
+        // Always derive from normalized total fare to avoid legacy mismatches in UI.
+        adminCommission: normalizedAdminCommission,
+        fare: getOneWayFare(booking),
+        baseFare: booking.baseFare || 0,
+        nightSurcharge: booking.nightSurcharge || 0,
+        returnTripFare: booking.returnTripFare || 0,
+        penaltyApplied: booking.penaltyApplied || 0,
+        tollFee: booking.tollFee || 0,
+        hasReturnTrip: !!booking.hasReturnTrip,
+        totalFare: normalizedTotalFare
+      };
+    });
 
     res.json({
       earnings: {
@@ -1298,9 +1401,24 @@ export const getDriverEarnings = async (req, res) => {
         totalTrips: periodTrips,
         averageFare: periodAvgFare,
         todayEarnings,
-        lifetimeBalance: lifetimeEarnings,
+        lifetimeBalance: driver.totalEarnings || 0,
+        pendingCommission: driver.pendingCommission || 0,
+        unpaidRideCount: driver.unpaidRideCount || 0,
         onlineHours,
         period,
+        dailyStats,
+        transactions,
+        txPagination: {
+          total: txTotal,
+          page: txPageNum,
+          pages: Math.ceil(txTotal / txLimitNum)
+        },
+        rideCommissions: commissionRows,
+        commPagination: {
+          total: commTotal,
+          page: commPageNum,
+          pages: Math.ceil(commTotal / commLimitNum)
+        },
         activities: payouts.map(p => ({
           id: p._id,
           type: "payout",
@@ -1494,7 +1612,7 @@ export const completeRide = async (req, res) => {
     if (!booking.fare || booking.fare === 0) {
       booking.fare = fare || 0;
     }
-    booking.totalFare = (booking.fare || 0) + (booking.nightSurcharge || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = getBookingTotalFare(booking);
     booking.distance = distance || booking.distance || 0;
     booking.paymentStatus = booking.paymentStatus === "paid" ? "paid" : "pending";
     booking.rideCompletedAt = new Date();
@@ -1503,7 +1621,8 @@ export const completeRide = async (req, res) => {
     // Clear driver's active booking
     await Driver.findByIdAndUpdate(req.driverId, {
       currentBooking: null,
-      available: true
+      available: true,
+      online: true
     });
 
     // Notify User via Socket
@@ -1531,12 +1650,25 @@ export const completeRide = async (req, res) => {
       serverLog(`Socket notification error: ${socketError.message}`);
     }
 
-    // Make driver available again and update statistics
+    // Calculate 12% commission
+    const commissionRate = 0.12;
+    const adminCommission = Math.round((booking.totalFare || 0) * commissionRate);
+    const driverEarnings = (booking.totalFare || 0) - adminCommission;
+
+    booking.adminCommission = adminCommission;
+    booking.driverEarnings = driverEarnings;
+    await booking.save();
+
+    // Make driver available again and update statistics/debt
     await Driver.findByIdAndUpdate(req.driverId, {
       available: true,
+      online: true,
+      currentBooking: null,
       $inc: {
         totalTrips: 1,
-        totalEarnings: booking.totalFare || 0
+        totalEarnings: driverEarnings,
+        pendingCommission: adminCommission,
+        unpaidRideCount: 1
       }
     });
 

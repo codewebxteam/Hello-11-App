@@ -333,6 +333,19 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
+                        onPress={() => router.push("/wallet")}
+                        className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm mb-3"
+                    >
+                        <View className="flex-row items-center">
+                            <View className="w-10 h-10 bg-amber-50 rounded-full items-center justify-center">
+                                <Ionicons name="wallet" size={20} color="#EAB308" />
+                            </View>
+                            <Text className="text-slate-900 font-bold text-base ml-4">My Wallet</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
                         onPress={() => router.push("/documents")}
                         className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm"
                     >

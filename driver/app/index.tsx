@@ -14,7 +14,8 @@ import {
   ToastAndroid,
   Image,
   AppState,
-  ActivityIndicator
+  ActivityIndicator,
+  NativeModules
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +36,9 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync, sendLocalNotification } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';
+import RazorpayCheckout from 'react-native-razorpay';
+
+import { Modal } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -56,6 +60,7 @@ export default function DriverDashboard() {
   const [isTogglingOnline, setIsTogglingOnline] = useState(false);
   const isTogglingAvailabilityRef = useRef(false);
   const isTogglingOnlineRef = useRef(false);
+  const [isPayNowLoading, setIsPayNowLoading] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -63,6 +68,7 @@ export default function DriverDashboard() {
   const requestSlide = useRef(new Animated.Value(height)).current;
   const timerLine = useRef(new Animated.Value(1)).current;
   const hasNavigatedRef = useRef(false);
+  const isAutoEnablingSearchRef = useRef(false);
 
   // --- NEW EXPO-AUDIO PLAYER ---
   const player = useAudioPlayer('https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1MB_MP3.mp3'); // Using a stable test audio URL
@@ -345,62 +351,176 @@ export default function DriverDashboard() {
     } catch (e) { console.log("Audio logic error:", e); }
   }
 
-  const handleRadarPress = async () => {
-    if (isTogglingAvailabilityRef.current) return;
-    
-    // Safety check: Cannot find rides if not verified
-    if (!authDriver?.isVerified) {
-      Alert.alert(
-        "Verification Required", 
-        "Verify hone ke baad hi aap ride accept kar sakte ho. Please complete your documents.",
-        [{ text: "Complete Now", onPress: () => router.push("/documents") }]
-      );
-      return;
-    }
-    
-    try {
-      isTogglingAvailabilityRef.current = true;
-      setIsTogglingAvailability(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      // 1. We no longer do an optimistic update here because the API is a toggle.
-      // Doing so can cause out-of-sync issues requiring a second click.
-      // Instead, we show "SEARCHING..." via setIsTogglingAvailability(true).
-      
-      // 2. API Call
-      try {
-        const res = await driverAPI.toggleAvailability();
-        const newState = res.data.available;
-        
-        // 3. Backend Sync: Update based on official server response
-        setIsSearching(newState);
-        
-        if (newState) {
-          Animated.loop(
-            Animated.sequence([
-              Animated.timing(radarPulse, { toValue: 1, duration: 2000, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-              Animated.timing(radarPulse, { toValue: 0, duration: 0, useNativeDriver: true })
-            ])
-          ).start();
-        } else {
-          radarPulse.setValue(0);
-          radarPulse.stopAnimation();
-        }
-      } catch (apiErr) {
-        console.log("Toggle availability API error:", apiErr);
-      }
-    } catch (err) {
-      console.log("Toggle availability logic error:", err);
-    } finally {
-      setIsTogglingAvailability(false);
-      isTogglingAvailabilityRef.current = false;
+  const applySearchState = (enabled: boolean) => {
+    setIsSearching(enabled);
+    if (enabled) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(radarPulse, { toValue: 1, duration: 2000, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+          Animated.timing(radarPulse, { toValue: 0, duration: 0, useNativeDriver: true })
+        ])
+      ).start();
+    } else {
+      radarPulse.setValue(0);
+      radarPulse.stopAnimation();
     }
   };
 
+  const ensureSearchingEnabled = async () => {
+    if (isAutoEnablingSearchRef.current || isTogglingAvailabilityRef.current) return;
+    if (!isOnline || isSearching) return;
+    try {
+      isAutoEnablingSearchRef.current = true;
+      isTogglingAvailabilityRef.current = true;
+      setIsTogglingAvailability(true);
+      const res = await driverAPI.toggleAvailability();
+      const enabled = Boolean(res?.data?.available);
+      applySearchState(enabled);
+      if (!enabled) {
+        console.log("Auto-search enable returned disabled state from backend.");
+      }
+    } catch (err) {
+      console.log("Auto-enable searching error:", err);
+    } finally {
+      setIsTogglingAvailability(false);
+      isTogglingAvailabilityRef.current = false;
+      isAutoEnablingSearchRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (isOnline && !isSearching) {
+      ensureSearchingEnabled();
+    }
+  }, [isOnline, isSearching]);
+
+
+  const handlePayment = async () => {
+    try {
+      setIsPayNowLoading(true);
+      const razorpayNative =
+        (NativeModules as any)?.RNRazorpayCheckout ||
+        (NativeModules as any)?.RazorpayCheckout;
+      const razorpayEmitter = (NativeModules as any)?.RazorpayEventEmitter;
+      if (
+        !razorpayEmitter ||
+        !razorpayNative ||
+        !RazorpayCheckout ||
+        typeof (RazorpayCheckout as any).open !== "function"
+      ) {
+        Alert.alert(
+          "Razorpay Unavailable",
+          "Payment SDK is not loaded in this build. Use a Dev Build / APK (not Expo Go) and rebuild the app."
+        );
+        return;
+      }
+      const res = await driverAPI.createPaymentOrder();
+      
+      if (res.data.success) {
+        const { order, key_id } = res.data;
+        
+        const options = {
+          description: 'Hello-11 Pending Commission Payment',
+          image: 'https://i.imgur.com/39go7K2.png', // Replace with your logo
+          currency: order.currency,
+          key: key_id,
+          amount: order.amount,
+          name: 'Hello-11 Driver',
+          order_id: order.id,
+          prefill: {
+            contact: authDriver?.mobile || '',
+            name: authDriver?.name || '',
+          },
+          theme: { color: '#FFD700' }
+        };
+
+        RazorpayCheckout.open(options).then(async (data: any) => {
+          // Success
+          const verifyRes = await driverAPI.verifyPaymentVerify({
+            razorpay_order_id: data.razorpay_order_id,
+            razorpay_payment_id: data.razorpay_payment_id,
+            razorpay_signature: data.razorpay_signature
+          });
+          
+          if (verifyRes.data.success) {
+            Alert.alert("Success", "Payment successful! You are now unblocked.");
+            refreshProfile();
+          } else {
+            Alert.alert("Error", "Payment verification failed. Please contact support.");
+          }
+        }).catch((error: any) => {
+          // Error
+          console.log("Razorpay Error:", error);
+          Alert.alert(`Payment failed`, error.description || "Payment cancelled");
+        });
+      }
+    } catch (err: any) {
+      console.log("Create Order Error:", err);
+      Alert.alert("Error", err.message || "Failed to start payment process");
+    } finally {
+      setIsPayNowLoading(false);
+    }
+  };
+
+  const isBlocked = (authDriver?.unpaidRideCount || 0) >= 3 && (authDriver?.pendingCommission || 0) > 0;
 
   return (
     <View className="flex-1 bg-slate-100">
       <StatusBar style="dark" />
+
+      {/* Payment Blocking Modal */}
+      <Modal
+        visible={isBlocked}
+        transparent={true}
+        animationType="slide"
+      >
+        <View className="flex-1 bg-black/60 justify-center px-6">
+          <View className="bg-white rounded-[40px] p-8 items-center shadow-2xl">
+            <View className="w-20 h-20 bg-amber-100 rounded-full items-center justify-center mb-6">
+              <Ionicons name="wallet-outline" size={40} color="#B45309" />
+            </View>
+            
+            <Text className="text-2xl font-black text-slate-900 text-center mb-2 italic">Payment Blocked!</Text>
+            <Text className="text-slate-500 text-center mb-8 px-4 font-medium leading-5">
+              Aapne 3 rides ka commission pay nahi kiya hai. Agli ride lene ke liye kripya pending amount pay karein.
+            </Text>
+
+            <View className="bg-slate-50 w-full p-6 rounded-3xl mb-8 border border-slate-100">
+              <View className="flex-row justify-between items-center mb-4">
+                <Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Unpaid Rides</Text>
+                <Text className="text-slate-900 font-black text-lg">{authDriver?.unpaidRideCount}</Text>
+              </View>
+              <View className="h-[1px] bg-slate-200 w-full mb-4" />
+              <View className="flex-row justify-between items-center">
+                <Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Total Pending</Text>
+                <Text className="text-amber-600 font-black text-2xl">₹{authDriver?.pendingCommission}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={handlePayment}
+              disabled={isPayNowLoading}
+              className="w-full h-16 bg-[#1E293B] rounded-2xl flex-row items-center justify-center shadow-lg"
+            >
+              {isPayNowLoading ? (
+                <ActivityIndicator color="#FFD700" />
+              ) : (
+                <>
+                  <Ionicons name="card-outline" size={20} color="#FFD700" />
+                  <Text className="text-[#FFD700] font-black text-base ml-3 tracking-[2px] uppercase">Pay Full Amount</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => router.push("/profile")}
+              className="mt-6 py-2"
+            >
+              <Text className="text-slate-400 font-bold text-xs uppercase tracking-widest underline">Go to Profile</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <View className="absolute inset-0 bg-slate-200">
         <MapView
@@ -515,10 +635,13 @@ export default function DriverDashboard() {
                     const res = await driverAPI.toggleOnline();
                     setIsOnline(res.data.online);
                     if (!res.data.online) {
-                      setIsSearching(false);
+                      applySearchState(false);
                     } else {
-                      // 1. Auto-start Searching (Radar) immediately once online
-                      handleRadarPress();
+                      const shouldSearch = Boolean(res.data.available);
+                      applySearchState(shouldSearch);
+                      if (!shouldSearch) {
+                        await ensureSearchingEnabled();
+                      }
                       
                       // 2. Force a full stats sync in the background
                       loadStats(true);
@@ -599,8 +722,11 @@ export default function DriverDashboard() {
                   if (res.data.online) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     
-                    // 1. Auto-start Searching (Radar) immediately once online
-                    handleRadarPress();
+                    const shouldSearch = Boolean(res.data.available);
+                    applySearchState(shouldSearch);
+                    if (!shouldSearch) {
+                      await ensureSearchingEnabled();
+                    }
                     
                     // 2. Force a sync in the background
                     loadStats(true);
@@ -619,25 +745,22 @@ export default function DriverDashboard() {
               }}
               activeOpacity={0.8}
               disabled={isTogglingOnline}
-              className="w-full h-[64px] rounded-[22px] overflow-hidden shadow-xl"
+              style={{ width: '100%', height: 64, marginTop: 10 }}
             >
-              <LinearGradient
-                colors={isTogglingOnline ? ['#334155', '#1e293b'] : ['#FFD700', '#F59E0B']} // Yellow to Amber
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="w-full h-full flex-row items-center justify-center"
+              <View
+                style={{ width: '100%', height: '100%', backgroundColor: isTogglingOnline ? '#334155' : '#FFD700', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 22 }}
               >
-                <View className={`${isTogglingOnline ? 'bg-slate-600' : 'bg-slate-900'} p-1.5 rounded-full mr-3`}>
+                <View style={{ backgroundColor: isTogglingOnline ? '#475569' : '#0F172A', padding: 6, borderRadius: 20, marginRight: 12 }}>
                   {isTogglingOnline ? (
                     <ActivityIndicator size="small" color="#FFF" />
                   ) : (
                     <Ionicons name="power" size={16} color="#FFD700" />
                   )}
                 </View>
-                <Text className={`${isTogglingOnline ? 'text-slate-400' : 'text-slate-900'} font-black text-lg tracking-[3px]`}>
+                <Text style={{ color: isTogglingOnline ? '#94A3B8' : '#0F172A', fontWeight: '900', fontSize: 18, letterSpacing: 3, textTransform: 'uppercase' }}>
                   {isTogglingOnline ? 'CONNECTING...' : 'GO ONLINE'}
                 </Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </LinearGradient>
         ) : (
@@ -649,37 +772,60 @@ export default function DriverDashboard() {
               style={{ borderTopLeftRadius: 40, borderTopRightRadius: 40 }}
               className={`px-6 pt-6 pb-10 shadow-2xl ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}
             >
-              <View className="self-center w-12 h-1.5 bg-white/10 rounded-full mb-8" />
+              <View className="self-center w-12 h-1.5 bg-white/10 rounded-full mb-6" />
+
+              {/* Vehicle Status Card */}
+              <View className="mb-6 bg-white/5 border border-white/10 rounded-[28px] p-4 flex-row items-center">
+                <View className="w-12 h-12 bg-[#FFD700] rounded-2xl items-center justify-center shadow-lg shadow-yellow-500/20">
+                  <Ionicons name="car-sport" size={24} color="#0F172A" />
+                </View>
+                <View className="ml-4 flex-1">
+                  <Text className="text-white font-black text-sm uppercase tracking-wider">{authDriver?.vehicleModel || 'No Model'}</Text>
+                  <View className="flex-row items-center mt-0.5">
+                    <View className="bg-white/10 px-2 py-0.5 rounded-md">
+                      <Text className="text-slate-400 text-[10px] font-black">{authDriver?.vehicleNumber || 'No Plate'}</Text>
+                    </View>
+                    <View className="ml-3 bg-green-500/20 px-2 py-0.5 rounded-md border border-green-500/30">
+                      <Text className="text-green-400 text-[8px] font-black uppercase tracking-widest">
+                        {authDriver?.vehicleType === '5seater' ? 'Standard' : 'Premium'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                   onPress={() => router.push("/edit-vehicle")}
+                   className="w-10 h-10 bg-white/10 rounded-full items-center justify-center active:bg-white/20"
+                >
+                  <Ionicons name="settings-outline" size={18} color="white" />
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
-                onPress={handleRadarPress}
+                onPress={() => {}}
                 activeOpacity={0.7}
-                disabled={isTogglingAvailability || isTogglingOnline}
-                className="w-full h-[72px] rounded-[24px] overflow-hidden mb-6 shadow-lg"
+                disabled
+                style={{ width: '100%', height: 72, marginBottom: 24 }}
               >
-                <LinearGradient
-                   colors={isSearching ? ['#334155', '#1e293b'] : ['#FFD700', '#F59E0B']}
-                   start={{ x: 0, y: 0 }}
-                   end={{ x: 1, y: 0 }}
-                   className="w-full h-full p-5 flex-row items-center justify-between"
+                <View
+                   style={{ width: '100%', height: '100%', padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: isSearching ? '#334155' : '#FFD700', borderRadius: 24 }}
                 >
-                  <View className="flex-row items-center">
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {isTogglingAvailability ? (
                       <ActivityIndicator color={isSearching ? "white" : "black"} />
                     ) : (
                       <Ionicons name={isSearching ? "sync" : "pulse"} size={22} color={isSearching ? "white" : "black"} />
                     )}
-                    <View className="ml-4">
-                      <Text className={`font-black text-base ${isSearching ? 'text-white' : 'text-slate-900'}`}>
-                        {isTogglingAvailability ? 'SEARCHING...' : (isSearching ? 'Waiting for Riders...' : 'Start Finding Rides')}
+                    <View style={{ marginLeft: 16 }}>
+                      <Text style={{ fontWeight: '900', fontSize: 16, color: isSearching ? 'white' : '#0F172A' }}>
+                        {isTogglingAvailability ? 'ENABLING AUTO SEARCH...' : (isSearching ? 'Waiting for Riders...' : 'Auto-Finding Rides')}
                       </Text>
-                      <Text className={`${isSearching ? 'text-slate-400' : 'text-slate-800'} text-[10px] font-bold uppercase tracking-widest`}>
-                        {isSearching ? 'Searching active area' : 'Tap to scan area'}
+                      <Text style={{ color: isSearching ? '#94A3B8' : '#334155', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 }}>
+                        {isSearching ? 'Searching active area' : 'Auto search will start shortly'}
                       </Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={isSearching ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"} />
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -692,6 +838,8 @@ export default function DriverDashboard() {
                     setIsOnline(res.data.online);
                     if (!res.data.online) {
                       setIsSearching(false);
+                      radarPulse.setValue(0);
+                      radarPulse.stopAnimation();
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                     }
                   } catch (err) {
@@ -702,23 +850,20 @@ export default function DriverDashboard() {
                   }
                 }}
                 disabled={isTogglingOnline}
-                className="w-full h-[56px] rounded-[20px] overflow-hidden border border-red-500/10"
+                style={{ width: '100%', height: 56, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 20 }}
               >
-                <LinearGradient
-                  colors={['rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.05)']} // Subtle Red Action
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  className="w-full h-full items-center flex-row justify-center"
+                <View
+                  style={{ width: '100%', height: '100%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(239, 68, 68, 0.08)', borderRadius: 20 }}
                 >
                   {isTogglingOnline ? (
                     <ActivityIndicator size="small" color="#EF4444" />
                   ) : (
                     <Ionicons name="power-outline" size={18} color="#EF4444" />
                   )}
-                  <Text className="text-red-500 font-black text-xs uppercase tracking-[3px] ml-3">
+                  <Text style={{ color: '#EF4444', fontWeight: '900', fontSize: 12, textTransform: 'uppercase', letterSpacing: 3, marginLeft: 12 }}>
                     {isTogglingOnline ? 'DISCONNECTING...' : 'Go Offline'}
                   </Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </LinearGradient>
           )
@@ -726,59 +871,65 @@ export default function DriverDashboard() {
       </View>
 
       {!authDriver?.isVerified && (
-        <TouchableOpacity 
-          activeOpacity={0.9}
-          onPress={() => {
-            console.log("[Dashboard] Card pressed - Navigating to documents");
-            router.push("/documents");
-          }}
-          style={{ top: (insets?.top || 0) + 80 }}
-          className="absolute left-6 right-6 z-[100] bg-[#FFFBEB] px-6 py-8 rounded-[32px] border border-amber-200 shadow-2xl items-center justify-center"
+        <View 
+          pointerEvents="box-none"
+          className="absolute inset-0 z-[100]"
         >
-          {(() => {
-            const hasDocs = authDriver?.documents && (
-              authDriver.documents.license || 
-              authDriver.documents.insurance || 
-              authDriver.documents.registration
-            );
-            const hasNote = authDriver?.verificationNote && authDriver.verificationNote.trim().length > 0;
+          <TouchableOpacity 
+            activeOpacity={0.95}
+            onPress={() => {
+              console.log("[Dashboard] Card pressed - Navigating to documents");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/documents");
+            }}
+            style={{ top: (insets?.top || 0) + 84 }}
+            className="mx-6 bg-[#FFFBEB] px-6 py-8 rounded-[36px] border border-amber-200 shadow-2xl items-center justify-center elevation-5"
+          >
+            {(() => {
+              const hasDocs = authDriver?.documents && (
+                authDriver.documents.license || 
+                authDriver.documents.insurance || 
+                authDriver.documents.registration
+              );
+              const hasNote = authDriver?.verificationNote && authDriver.verificationNote.trim().length > 0;
 
-            return (
-              <>
-                <View className={`w-14 h-14 rounded-full items-center justify-center mb-4 ${hasNote ? 'bg-red-100' : 'bg-amber-100'}`}>
-                  <Ionicons 
-                    name={hasNote ? "alert-circle" : hasDocs ? "sync-circle" : "shield-half"} 
-                    size={32} 
-                    color={hasNote ? "#B91C1C" : "#B45309"} 
-                  />
-                </View>
-                
-                <Text className={`font-black text-sm uppercase tracking-[3px] mb-2 ${hasNote ? 'text-red-700' : 'text-[#92400E]'}`}>
-                  {hasNote ? 'Account Rejected' : hasDocs ? 'Under Review' : 'Account Inactive'}
-                </Text>
-                
-                <View className="items-center mb-6">
-                  <Text className={`${hasNote ? 'text-red-600' : 'text-[#B45309]'} text-[11px] font-bold uppercase text-center leading-5 px-4`}>
-                    {hasNote 
-                      ? `${authDriver.verificationNote}\n\nContact to Admin for more details.` 
-                      : hasDocs 
-                         ? "Document Uploaded. Waiting for Admin Approval." 
-                         : "Verification pending. Verify hone ke baad hi aap ride accept kar sakte ho."}
+              return (
+                <>
+                  <View className={`w-14 h-14 rounded-full items-center justify-center mb-4 ${hasNote ? 'bg-red-100' : 'bg-amber-100'}`}>
+                    <Ionicons 
+                      name={hasNote ? "alert-circle" : hasDocs ? "sync-circle" : "shield-half"} 
+                      size={32} 
+                      color={hasNote ? "#B91C1C" : "#B45309"} 
+                    />
+                  </View>
+                  
+                  <Text className={`font-black text-sm uppercase tracking-[3px] mb-2 ${hasNote ? 'text-red-700' : 'text-[#92400E]'}`}>
+                    {hasNote ? 'Account Rejected' : hasDocs ? 'Under Review' : 'Account Inactive'}
                   </Text>
-                </View>
+                  
+                  <View className="items-center mb-6">
+                    <Text className={`${hasNote ? 'text-red-600' : 'text-[#B45309]'} text-[11px] font-bold uppercase text-center leading-5 px-4`}>
+                      {hasNote 
+                        ? `${authDriver.verificationNote}\n\nContact to Admin for more details.` 
+                        : hasDocs 
+                           ? "Document Uploaded. Waiting for Admin Approval." 
+                           : "Verification pending. Verify hone ke baad hi aap ride accept kar sakte ho."}
+                    </Text>
+                  </View>
 
-                <View 
-                  className={`w-full py-4 rounded-2xl shadow-lg items-center flex-row justify-center ${hasNote ? 'bg-red-600' : 'bg-[#92400E]'}`}
-                >
-                  <Ionicons name={hasDocs ? "document-text" : "cloud-upload"} size={18} color="white" />
-                  <Text className="text-white text-xs font-black uppercase tracking-[2px] ml-2">
-                    {hasNote ? 'Fix Documents' : hasDocs ? 'View Documents' : 'Complete Verification'}
-                  </Text>
-                </View>
-              </>
-            );
-          })()}
-        </TouchableOpacity>
+                  <View 
+                    className={`w-full py-4 rounded-2xl shadow-lg items-center flex-row justify-center ${hasNote ? 'bg-red-600' : 'bg-[#92400E]'}`}
+                  >
+                    <Ionicons name={hasDocs ? "document-text" : "cloud-upload"} size={18} color="white" />
+                    <Text className="text-white text-xs font-black uppercase tracking-[2px] ml-2">
+                      {hasNote ? 'Fix Documents' : hasDocs ? 'View Documents' : 'Complete Verification'}
+                    </Text>
+                  </View>
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </View>
       )}
 
     </View>

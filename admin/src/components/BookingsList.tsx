@@ -4,6 +4,7 @@ import { useData, type Booking } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
 import BookingDetailModal from "./BookingDetailModal";
+import { getBookingTotalFare } from "../utils/fare";
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
@@ -16,8 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-700",
 };
 
-const getAmount = (b: Booking) =>
-  Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
+const getAmount = (b: Booking) => getBookingTotalFare(b);
 
 const BookingsList: React.FC = () => {
   const { bookings, loading, refreshing, error: contextError, refreshAll } = useData();

@@ -10,6 +10,7 @@ import RatingsPage from './components/RatingsPage';
 import CouponsPage from './components/CouponsPage';
 import AnalyticsPage from './components/AnalyticsPage';
 import SettingsPage from './components/SettingsPage';
+import FinanceReport from './components/FinanceReport';
 import './App.css';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
         <Route path="ratings" element={<RatingsPage />} />
         <Route path="coupons" element={<CouponsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="finance" element={<FinanceReport />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ActivityIndicator, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -15,10 +15,11 @@ const { width } = Dimensions.get('window');
 
 interface SearchingRideOverlayProps {
     isVisible: boolean;
-    onCancel: () => void;
+    onCancel: () => void | Promise<void>;
     pickupLocation?: string;
     dropLocation?: string;
     rideMode?: string;
+    timeoutSeconds?: number;
 }
 
 const SearchingRideOverlay = ({
@@ -26,8 +27,12 @@ const SearchingRideOverlay = ({
     onCancel,
     pickupLocation = "Current Location",
     dropLocation = "Select Destination",
-    rideMode = "Standard"
+    rideMode = "Standard",
+    timeoutSeconds = 120
 }: SearchingRideOverlayProps) => {
+    const [remainingSeconds, setRemainingSeconds] = useState(timeoutSeconds);
+    const [isCancelling, setIsCancelling] = useState(false);
+    const cancelInFlightRef = useRef(false);
 
     // Animation values for Pulse Effect
     const pulseScale = useSharedValue(1);
@@ -37,6 +42,9 @@ const SearchingRideOverlay = ({
         if (isVisible) {
             pulseScale.value = 1;
             pulseOpacity.value = 0.3;
+            setRemainingSeconds(timeoutSeconds);
+            setIsCancelling(false);
+            cancelInFlightRef.current = false;
 
             // Start Animation
             pulseScale.value = withRepeat(
@@ -50,7 +58,39 @@ const SearchingRideOverlay = ({
                 false
             );
         }
-    }, [isVisible]);
+    }, [isVisible, timeoutSeconds]);
+
+    useEffect(() => {
+        if (!isVisible || isCancelling) return;
+
+        const timer = setInterval(() => {
+            setRemainingSeconds((prev) => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [isVisible, isCancelling]);
+
+    const triggerCancel = useCallback(async () => {
+        if (cancelInFlightRef.current) return;
+        cancelInFlightRef.current = true;
+        setIsCancelling(true);
+        try {
+            await onCancel();
+        } finally {
+            setIsCancelling(false);
+        }
+    }, [onCancel]);
+
+    useEffect(() => {
+        if (!isVisible || remainingSeconds > 0 || cancelInFlightRef.current) return;
+        triggerCancel();
+    }, [remainingSeconds, isVisible, triggerCancel]);
 
     const pulseStyle = useAnimatedStyle(() => {
         return {
@@ -58,6 +98,9 @@ const SearchingRideOverlay = ({
             opacity: pulseOpacity.value,
         };
     });
+
+    const mm = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+    const ss = String(remainingSeconds % 60).padStart(2, '0');
 
     return (
         <Modal
@@ -106,6 +149,11 @@ const SearchingRideOverlay = ({
                             <Text className="text-slate-500 font-medium text-center">
                                 Checking {rideMode} rides nearby...
                             </Text>
+                            <View className="mt-3 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
+                                <Text className="text-amber-700 font-black text-xs tracking-widest">
+                                    {mm}:{ss} LEFT
+                                </Text>
+                            </View>
                         </View>
 
                         {/* Ride Details Card */}
@@ -140,11 +188,18 @@ const SearchingRideOverlay = ({
 
                         {/* Cancel Button */}
                         <TouchableOpacity
-                            onPress={onCancel}
+                            onPress={triggerCancel}
+                            disabled={isCancelling}
                             className="bg-slate-100 py-4 rounded-2xl items-center flex-row justify-center border border-slate-200 active:bg-slate-200"
                         >
-                            <Ionicons name="close-circle" size={20} color="#64748B" />
-                            <Text className="font-black text-slate-600 ml-2">CANCEL REQUEST</Text>
+                            {isCancelling ? (
+                                <ActivityIndicator size="small" color="#64748B" />
+                            ) : (
+                                <Ionicons name="close-circle" size={20} color="#64748B" />
+                            )}
+                            <Text className="font-black text-slate-600 ml-2">
+                                {isCancelling ? "CANCELLING..." : "CANCEL REQUEST"}
+                            </Text>
                         </TouchableOpacity>
 
                     </View>

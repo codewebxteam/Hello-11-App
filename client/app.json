@@ -49,8 +49,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b2ff2a5e-3805-4947-b083-aa4e50ae0354"
+        "projectId": "947724fb-760e-4abc-b757-f2832431ea53"
       }
-    }
+    },
+    "owner": "codewebx"
   }
 }

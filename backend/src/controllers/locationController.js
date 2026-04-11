@@ -170,7 +170,7 @@ export const getDirections = async (req, res) => {
 };
 
 // Get autocomplete suggestions for address input fields
-// Uses Google Places Autocomplete API — prefix matching, India-restricted, 50km proximity-biased
+// Uses Google Places Autocomplete API - prefix matching, India-restricted, wider proximity-biased
 export const getAutocomplete = async (req, res) => {
   try {
     const { query, lat, lon } = req.query;
@@ -184,18 +184,18 @@ export const getAutocomplete = async (req, res) => {
     // This is the right API for address input fields:
     //   • Prefix matching: "Bhop" → Bhopal, "Del" → Delhi
     //   • components=country:in restricts to India at the API level
-    //   • location+radius provides soft 50km proximity recommendation
+    //   • location+radius provides soft proximity recommendation
     const autocompleteParams = {
       input: query,
       key: getGoogleApiKey(),
       components: "country:in",  // Hard-restrict to India at API level
       language: "en",
-      types: "geocode",          // Addresses + geographic places (not just businesses)
+      // Keep type open to avoid hiding many valid place names / POIs.
     };
 
     if (hasCoords) {
       autocompleteParams.location = `${userLat},${userLon}`;
-      autocompleteParams.radius = 50000;      // 50km soft proximity bias
+      autocompleteParams.radius = 2000000;      // Wider bias (~2000km), nearby first but pan-India visible
       autocompleteParams.strictbounds = false; // Nearby first, but don't cut off distant places
     }
 
@@ -209,7 +209,7 @@ export const getAutocomplete = async (req, res) => {
 
       // Fetch coordinates for each prediction via Place Details
       const suggestions = await Promise.all(
-        predictions.slice(0, 7).map(async (pred) => {
+        predictions.slice(0, 20).map(async (pred) => {
           try {
             const detailRes = await axios.get(`${GOOGLE_MAPS_API_URL}/place/details/json`, {
               params: {
@@ -246,18 +246,8 @@ export const getAutocomplete = async (req, res) => {
     }
 
     try {
-      // Wide bbox (~250km) so distant cities still appear — Photon ranks centre results higher
-      let photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=15&lang=en`;
-
-      if (hasCoords) {
-        const delta = 2.25; // ≈ 250km wide bounding box
-        photonUrl += `&bbox=${[
-          userLon - delta, // west
-          userLat - delta, // south
-          userLon + delta, // east
-          userLat + delta, // north
-        ].join(",")}`;
-      }
+      // Wide fallback query so distant cities/states still appear
+      let photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=40&lang=en`;
 
       const photonRes = await axios.get(photonUrl);
 
@@ -271,7 +261,7 @@ export const getAutocomplete = async (req, res) => {
           return cc === "in" || country === "india";
         });
 
-        // Sort nearest-first (50km = recommendation, not a hard cut-off)
+        // Sort nearest-first when user coordinates are available
         if (hasCoords) {
           features.sort((a, b) => {
             const dA = calculateDistance(userLat, userLon, a.geometry.coordinates[1], a.geometry.coordinates[0]);

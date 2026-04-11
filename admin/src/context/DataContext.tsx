@@ -10,6 +10,8 @@ export type Stats = {
   completedTrips: number;
   cancelledTrips: number;
   totalEarnings: number;
+  totalAdminCommission: number;
+  totalPendingCommission: number;
 };
 
 export type Booking = {
@@ -31,6 +33,8 @@ export type Booking = {
   rideStartedAt?: string;
   rideCompletedAt?: string;
   fare?: number;
+  baseFare?: number;
+  nightSurcharge?: number;
   totalFare?: number;
   distance?: number;
   duration?: number;
@@ -80,6 +84,8 @@ export type DriverItem = {
   rating?: number;
   totalTrips?: number;
   totalEarnings?: number;
+  pendingCommission?: number;
+  unpaidRideCount?: number;
   available?: boolean;
   online?: boolean;
   isVerified?: boolean;
@@ -117,6 +123,8 @@ const EMPTY_STATS: Stats = {
   completedTrips: 0,
   cancelledTrips: 0,
   totalEarnings: 0,
+  totalAdminCommission: 0,
+  totalPendingCommission: 0,
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);

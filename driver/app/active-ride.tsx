@@ -288,6 +288,7 @@ export default function ActiveRideScreen() {
     };
 
     const handleEndRide = () => {
+        const normalizedBaseFare = booking?.baseFare || Math.max(0, Number(booking?.fare || 0) - Number(booking?.nightSurcharge || 0));
         Alert.alert(
             "End Ride?",
             "Are you sure you have reached the destination?",
@@ -308,7 +309,7 @@ export default function ActiveRideScreen() {
                                 distance: distance.replace(' km', '') || distanceKm.toString(),
                                 outboundDistance: (booking?.distance || 0).toString(),
                                 time: eta.replace(' min', '') || '0',
-                                baseFare: (booking?.fare || 0).toString(),
+                                baseFare: normalizedBaseFare.toString(),
                                 nightSurcharge: (booking?.nightSurcharge || 0).toString(),
                                 returnFare: (booking?.returnTripFare || 0).toString(),
                                 pickup: booking?.pickupLocation || '',
@@ -325,6 +326,7 @@ export default function ActiveRideScreen() {
     };
 
     const handleEndLeg1 = () => {
+        const normalizedBaseFare = booking?.baseFare || Math.max(0, Number(booking?.fare || 0) - Number(booking?.nightSurcharge || 0));
         const isOutstation = booking?.rideType === 'outstation';
         const distanceVal = booking?.distance || 0;
 
@@ -343,7 +345,7 @@ export default function ActiveRideScreen() {
                                     nextRoute: "/waiting-for-return",
                                     isFirstLeg: 'true',
                                     toll: tollAmount || '0',
-                                    baseFare: (booking?.fare || 0).toString(),
+                                    baseFare: normalizedBaseFare.toString(),
                                     nightSurcharge: (booking?.nightSurcharge || 0).toString(),
                                     distance: distance.replace(' km', '') || distanceKm.toString(),
                                     pickup: booking?.pickupLocation || '',
@@ -387,7 +389,7 @@ export default function ActiveRideScreen() {
                                     nextRoute: "/waiting-for-return",
                                     isFirstLeg: 'true',
                                     toll: tollAmount || '0',
-                                    baseFare: (booking?.fare || 0).toString(),
+                                    baseFare: normalizedBaseFare.toString(),
                                     nightSurcharge: (booking?.nightSurcharge || 0).toString(),
                                     distance: distance.replace(' km', '') || distanceKm.toString(),
                                     pickup: booking?.pickupLocation || '',

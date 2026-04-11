@@ -29,11 +29,11 @@ import {
 } from "recharts";
 import { useData } from "../context/DataContext";
 import type { Booking } from "../context/DataContext";
+import { getBookingTotalFare } from "../utils/fare";
 
 const COLORS = ['#FACC15', '#000000', '#71717A', '#E2E8F0', '#FDE047'];
 
-const getAmount = (b: Booking) =>
-  Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
+const getAmount = (b: Booking) => getBookingTotalFare(b);
 
 const AnalyticsPage: React.FC = () => {
   const { stats, bookings, refreshing, error: contextError, refreshAll } = useData();

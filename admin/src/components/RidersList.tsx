@@ -164,6 +164,14 @@ const RidersList: React.FC = () => {
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Total Trips</p>
                 </div>
 
+                <div className="text-right min-w-[80px]">
+                  <div className="flex items-center gap-1 text-red-500 font-black justify-end text-lg leading-none">
+                    <span className="text-xs font-bold">₹</span>
+                    <span>{Number(driver.pendingCommission || 0).toLocaleString()}</span>
+                  </div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Pending</p>
+                </div>
+
                 <div className="text-right">
                   <div className="flex items-center gap-1 text-gray-900 font-black justify-end text-lg leading-none">
                     <span className="text-xs text-green-500 font-bold">₹</span>

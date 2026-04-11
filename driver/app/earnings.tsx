@@ -10,12 +10,23 @@ import {
     Easing,
     Dimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Modal } from 'react-native';
 import { driverAPI } from '../utils/api';
 import { getEarningsData, setEarningsData } from '../utils/storage';
+
+// Calendar Config
+LocaleConfig.locales['en'] = {
+    monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    monthNamesShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    dayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    dayNamesShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+};
+LocaleConfig.defaultLocale = 'en';
 
 const { width } = Dimensions.get('window');
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
@@ -68,22 +79,28 @@ export default function EarningsScreen() {
     const [loading, setLoading] = React.useState(true);
     const [refreshing, setRefreshing] = React.useState(false);
 
-    const loadData = async (period = 'week', isInitial = false) => {
+    // Calendar & Range State
+    const [showCalendar, setShowCalendar] = React.useState(false);
+    const [range, setRange] = React.useState<{ start: string | null; end: string | null }>({ start: null, end: null });
+    const [dailyStats, setDailyStats] = React.useState<any>({});
+
+    const loadData = async (period = 'week', isInitial = false, customStart?: string, customEnd?: string) => {
         try {
             setSelectedPeriod(period);
             setLoading(true);
             
-            if (isInitial) {
+            if (isInitial && !customStart) {
                 const cached = await getEarningsData();
                 if (cached) setEarnings(cached);
             }
 
-            const response = await driverAPI.getEarnings(period);
-            const newData = response.data?.earnings || response.data;
+            const response = await driverAPI.getEarnings(period, customStart, customEnd);
+            const data = response.data?.earnings || response.data;
             
-            if (newData) {
-                setEarnings(newData);
-                if (period === 'week') await setEarningsData(newData);
+            if (data) {
+                setEarnings(data);
+                if (data.dailyStats) setDailyStats(data.dailyStats);
+                if (period === 'week' && !customStart) await setEarningsData(data);
             }
         } catch (error) {
             console.error("Error fetching earnings:", error);
@@ -146,8 +163,11 @@ export default function EarningsScreen() {
                     <Ionicons name="chevron-back" size={24} color="#1E293B" />
                 </TouchableOpacity>
                 <Text style={{ color: '#0f172a', fontWeight: '900', fontSize: 12, textTransform: 'uppercase', letterSpacing: 4 }}>Financial Center</Text>
-                <TouchableOpacity onPress={() => loadData(selectedPeriod)} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
-                    <Ionicons name="sync" size={18} color="#1E293B" />
+                <TouchableOpacity 
+                    onPress={() => loadData(selectedPeriod, false, range.start || undefined, range.end || undefined)} 
+                    className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100"
+                >
+                    <Ionicons name="refresh" size={18} color="#1E293B" />
                 </TouchableOpacity>
             </View>
 
@@ -177,14 +197,23 @@ export default function EarningsScreen() {
                             </View>
                         ) : (
                             <>
-                                <View className="flex-row justify-between items-start mb-6">
+                                <View className="flex-row justify-between items-start mb-2">
                                     <View>
-                                        <Text className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">Total Balance</Text>
-                                        <Text className="text-white text-5xl font-black italic">₹{earnings?.totalEarnings || 0}</Text>
+                                        <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Net Earnings</Text>
+                                        <Text className="text-white text-5xl font-black italic tracking-tighter">
+                                            ₹{earnings?.totalEarnings || 0}
+                                        </Text>
                                     </View>
                                     <View className="bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30">
                                         <Text className="text-amber-400 text-[8px] font-black uppercase">Premium Account</Text>
                                     </View>
+                                </View>
+
+                                <View className="flex-row items-center mb-6">
+                                    <View className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2" />
+                                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                        {earnings?.onlineHours || "0.0"}h Online Today
+                                    </Text>
                                 </View>
 
                                 <View className="flex-row items-center justify-between pt-6 border-t border-white/5">
@@ -204,6 +233,26 @@ export default function EarningsScreen() {
                         )}
                     </LinearGradient>
                 </View>
+
+                {/* Wallet Shortcut Card */}
+                <TouchableOpacity
+                    onPress={() => router.push("/wallet")}
+                    activeOpacity={0.8}
+                    className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex-row items-center justify-between mb-8"
+                >
+                    <View className="flex-row items-center">
+                        <View className="w-12 h-12 bg-yellow-400/10 rounded-2xl items-center justify-center mr-4">
+                            <MaterialCommunityIcons name="wallet-outline" size={24} color="#EAB308" />
+                        </View>
+                        <View>
+                            <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">My Driver Wallet</Text>
+                            <Text className="text-slate-900 font-black text-base italic">₹{earnings?.pendingCommission?.toFixed(2) || "0.00"} <Text className="text-slate-400 text-[10px] font-bold not-italic">PENDING</Text></Text>
+                        </View>
+                    </View>
+                    <View className="bg-slate-50 p-2 rounded-xl">
+                        <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                    </View>
+                </TouchableOpacity>
 
                 {/* Period Selector */}
                 <View className="bg-white p-1 rounded-full border border-slate-100 flex-row mb-8 shadow-sm">
@@ -227,6 +276,19 @@ export default function EarningsScreen() {
                         className="flex-1 py-3 rounded-full items-center"
                     >
                         <Text style={{ color: selectedPeriod === 'month' ? '#FFD700' : '#94A3B8' }} className="text-[9px] font-black uppercase tracking-widest">Monthly</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => {
+                            setShowCalendar(true);
+                            loadData('month', false); // Fetch month data to show dots on calendar
+                        }}
+                        style={{ backgroundColor: selectedPeriod === 'custom' ? '#0F172A' : 'transparent' }}
+                        className="flex-1 py-3 rounded-full items-center"
+                    >
+                        <View className="flex-row items-center">
+                            <Ionicons name="calendar-outline" size={10} color={selectedPeriod === 'custom' ? '#FFD700' : '#94A3B8'} className="mr-1" />
+                            <Text style={{ color: selectedPeriod === 'custom' ? '#FFD700' : '#94A3B8' }} className="text-[9px] font-black uppercase tracking-widest">Range</Text>
+                        </View>
                     </TouchableOpacity>
                 </View>
 
@@ -315,6 +377,121 @@ export default function EarningsScreen() {
                     <Text className="text-slate-300 text-[9px] font-black uppercase tracking-[5px]">Hello-11 Premium</Text>
                 </View>
             </ScrollView>
+
+            {/* Calendar Range Selection Modal */}
+            <Modal
+                visible={showCalendar}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setShowCalendar(false)}
+            >
+                <View className="flex-1 bg-black/60 justify-center px-6">
+                    <View className="bg-[#F8FAFC] rounded-[32px] p-5 pb-6 shadow-2xl relative">
+                        <View className="items-center mb-4">
+                            <View className="w-10 h-1 bg-slate-200 rounded-full mb-4" />
+                            <Text className="text-slate-900 font-black tracking-widest uppercase text-[11px]">Select Earning Period</Text>
+                            {range.start && (
+                                <Text className="text-slate-400 font-bold text-[9px] mt-1 italic">
+                                    {range.start} {range.end ? ` to ${range.end}` : '(Selecting End Date)'}
+                                </Text>
+                            )}
+                        </View>
+
+                        <Calendar
+                            onDayPress={(day) => {
+                                if (!range.start || (range.start && range.end)) {
+                                    setRange({ start: day.dateString, end: null });
+                                } else {
+                                    const start = new Date(range.start);
+                                    const end = new Date(day.dateString);
+                                    if (end < start) {
+                                        setRange({ start: day.dateString, end: null });
+                                    } else {
+                                        setRange({ ...range, end: day.dateString });
+                                    }
+                                }
+                            }}
+                            markedDates={{
+                                // First, add dots for all days with earnings
+                                ...Object.keys(dailyStats).reduce((acc: any, date) => {
+                                    acc[date] = { 
+                                        marked: true, 
+                                        dotColor: '#2563EB',
+                                        customStyles: {
+                                            container: { 
+                                                borderWidth: 1,
+                                                borderColor: '#E2E8F0',
+                                            },
+                                            text: { fontWeight: 'bold' }
+                                        }
+                                    };
+                                    return acc;
+                                }, {}),
+                                // Then overlay the selection range
+                                ...(range.start ? { 
+                                    [range.start]: { 
+                                        customStyles: {
+                                            container: { backgroundColor: '#0F172A', borderRadius: 20 },
+                                            text: { color: '#FFD700', fontWeight: '900' }
+                                        }
+                                    } 
+                                } : {}),
+                                ...(range.end ? { 
+                                    [range.end]: { 
+                                        customStyles: {
+                                            container: { backgroundColor: '#0F172A', borderRadius: 20 },
+                                            text: { color: '#FFD700', fontWeight: '900' }
+                                        }
+                                    } 
+                                } : {}),
+                            }}
+                            markingType={'custom'}
+                            theme={{
+                                calendarBackground: '#F8FAFC',
+                                textSectionTitleColor: '#b6c1cd',
+                                selectedDayBackgroundColor: '#0F172A',
+                                selectedDayTextColor: '#FFD700',
+                                todayTextColor: '#2563EB',
+                                dayTextColor: '#2d4150',
+                                textDisabledColor: '#d9e1e8',
+                                dotColor: '#2563EB',
+                                monthTextColor: '#0F172A',
+                                textDayFontWeight: '800',
+                                textMonthFontWeight: '900',
+                                textDayHeaderFontWeight: '900',
+                                textDayFontSize: 13,
+                                textMonthFontSize: 15,
+                                textDayHeaderFontSize: 11
+                            }}
+                        />
+
+                        <View className="flex-row gap-4 mt-4">
+                            <TouchableOpacity 
+                                onPress={() => {
+                                    setRange({ start: null, end: null });
+                                    setShowCalendar(false);
+                                }}
+                                className="flex-1 py-3.5 bg-white rounded-2xl items-center border border-slate-100"
+                            >
+                                <Text className="text-slate-400 font-black uppercase tracking-widest text-[9px]">Close</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                disabled={!range.start || !range.end}
+                                onPress={() => {
+                                    if (range.start && range.end) {
+                                        loadData('custom', false, range.start, range.end);
+                                        setShowCalendar(false);
+                                    }
+                                }}
+                                style={{ opacity: (!range.start || !range.end) ? 0.5 : 1 }}
+                                className="flex-[2] py-4 bg-slate-900 rounded-2xl items-center shadow-lg shadow-slate-900/10"
+                            >
+                                <Text className="text-amber-400 font-black uppercase tracking-widest text-[10px]">Filter Earnings</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }

@@ -9,13 +9,20 @@ import {
     Alert,
     ActivityIndicator,
     Animated,
-    Easing
+    Easing,
+    Modal,
+    Image,
+    Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+// @ts-ignore
 import * as FileSystem from 'expo-file-system/legacy';
+const cacheDirectory = FileSystem.cacheDirectory;
+const documentDirectory = FileSystem.documentDirectory;
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { driverAPI } from '../utils/api';
 import { getImageUrl } from '../utils/imagekit';
@@ -84,6 +91,11 @@ export default function DocumentsScreen() {
         registration: false
     });
 
+    const [previewImage, setPreviewImage] = React.useState<string | null>(null);
+    const [previewVisible, setPreviewVisible] = React.useState(false);
+    const [imgLoading, setImgLoading] = React.useState(false);
+    const [imgError, setImgError] = React.useState<string | null>(null);
+
     const { refreshProfile } = useDriverAuth();
 
     const loadDocs = async () => {
@@ -111,11 +123,11 @@ export default function DocumentsScreen() {
 
     React.useEffect(() => {
         console.log("[DEBUG_DOCS] DocumentsScreen Mounted");
-        console.log("[DEBUG_DOCS] FileSystem.cacheDirectory:", FileSystem.cacheDirectory);
-        console.log("[DEBUG_DOCS] FileSystem.documentDirectory:", FileSystem.documentDirectory);
+        console.log("[DEBUG_DOCS] cacheDirectory:", cacheDirectory);
+        console.log("[DEBUG_DOCS] documentDirectory:", documentDirectory);
         
-        if (!FileSystem.cacheDirectory) {
-            console.error("[DEBUG_DOCS] CRITICAL: FileSystem.cacheDirectory is NULL!");
+        if (!cacheDirectory) {
+            console.error("[DEBUG_DOCS] CRITICAL: cacheDirectory is NULL!");
             Alert.alert("System Error", "Local storage is not accessible. Please restart the app.");
         }
         
@@ -184,7 +196,20 @@ export default function DocumentsScreen() {
             });
 
             if (!result.canceled && result.assets?.[0]?.uri) {
-                const pdfUri = result.assets[0].uri;
+                const asset = result.assets[0];
+                const fileSize = asset.size || 0;
+                const maxSize = 10 * 1024 * 1024; // 10MB
+
+                if (fileSize > maxSize) {
+                    if (Haptics) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    Alert.alert(
+                        "File Too Large", 
+                        `Selected file is ${(fileSize / (1024 * 1024)).toFixed(1)}MB. Maximum allowed size is 10MB. Please select a smaller file.`
+                    );
+                    return;
+                }
+
+                const pdfUri = asset.uri;
                 const pdfBase64 = await FileSystem.readAsStringAsync(pdfUri, {
                     encoding: 'base64'
                 });
@@ -201,57 +226,55 @@ export default function DocumentsScreen() {
         if (!value) return;
         console.log(`[DEBUG_DOCS] Entry - title: ${title}, key: ${key}, value: ${value.substring(0, 50)}`);
         
-        setViewingDocs(prev => ({ ...prev, [key]: true }));
-        try {
-            if (value.startsWith('data:application/pdf;base64,')) {
-                const base64Content = value.split('base64,')[1];
-                const filename = `${title.replace(/\s+/g, '_')}_PREVIEW.pdf`;
-                const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-                
-                await FileSystem.writeAsStringAsync(fileUri, base64Content, {
-                    encoding: 'base64'
+        // 1. Detect Document Type
+        const isPdf = value.toLowerCase().includes('.pdf') || value.startsWith('data:application/pdf');
+        
+        // 2. Handle Remote Documents (Direct to System Viewer)
+        if (value.startsWith('http')) {
+            console.log(`[DEBUG_DOCS] Opening remote document via Direct System Viewer: ${value}`);
+            setViewingDocs(prev => ({ ...prev, [key]: true }));
+            try {
+                const viewerUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(value)}`;
+                await WebBrowser.openBrowserAsync(viewerUrl, {
+                    toolbarColor: '#1E293B',
+                    showTitle: true,
                 });
-                
-                await Sharing.shareAsync(fileUri, {
-                    mimeType: 'application/pdf',
-                    dialogTitle: 'Preview Document',
-                    UTI: 'com.adobe.pdf'
-                });
-            } else if (value.startsWith('http')) {
-                let extension = '.jpg';
-                let mimeType = 'image/jpeg';
-                
-                const lowerVal = value.toLowerCase();
-                if (lowerVal.includes('.pdf')) {
-                    extension = '.pdf';
-                    mimeType = 'application/pdf';
-                } else if (lowerVal.includes('.png')) {
-                    extension = '.png';
-                    mimeType = 'image/png';
-                }
-                
-                const filename = `${title.replace(/\s+/g, '_')}_VIEW${extension}`;
-                const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-                
-                console.log(`[DEBUG_DOCS] Download URL: ${value} -> Target: ${fileUri}`);
-                const downloadResult = await FileSystem.downloadAsync(value, fileUri);
-                
-                if (downloadResult.status >= 200 && downloadResult.status < 300) {
-                    await Sharing.shareAsync(downloadResult.uri, {
-                        dialogTitle: `View ${title}`,
-                        mimeType: mimeType
-                    });
-                } else {
-                    throw new Error(`Server returned status ${downloadResult.status}`);
-                }
-            } else {
-                await Sharing.shareAsync(value);
+            } catch (error: any) {
+                console.error("[DEBUG_DOCS] WebBrowser error:", error);
+                Alert.alert("Error", "Could not open document viewer.");
+            } finally {
+                setViewingDocs(prev => ({ ...prev, [key]: false }));
             }
-        } catch (error: any) {
-            console.error("[DEBUG_DOCS] View error caught:", error);
-            Alert.alert("Error", `Could not open document preview: ${error.message || 'Unknown error'}`);
-        } finally {
-            setViewingDocs(prev => ({ ...prev, [key]: false }));
+            return;
+        }
+
+        // 3. Handle Local/Base64 Documents (Newly Picked)
+        if (value.startsWith('data:')) {
+            if (value.startsWith('data:image')) {
+                // For local images, still use the direct modal for instant preview
+                setImgError(null);
+                setImgLoading(true);
+                setPreviewImage(value);
+                setPreviewVisible(true);
+            } else if (value.startsWith('data:application/pdf')) {
+                // For local PDFs, use Sharing as it's the only way for local files on Android
+                setViewingDocs(prev => ({ ...prev, [key]: true }));
+                try {
+                    const base64Content = value.split('base64,')[1];
+                    const filename = `${title.replace(/\s+/g, '_')}_PREVIEW.pdf`;
+                    const fileUri = `${cacheDirectory}${filename}`;
+                    await FileSystem.writeAsStringAsync(fileUri, base64Content, { encoding: 'base64' });
+                    await Sharing.shareAsync(fileUri, {
+                        mimeType: 'application/pdf',
+                        dialogTitle: 'Preview Document',
+                        UTI: 'com.adobe.pdf'
+                    });
+                } catch (error: any) {
+                    Alert.alert("Error", "Could not preview local PDF.");
+                } finally {
+                    setViewingDocs(prev => ({ ...prev, [key]: false }));
+                }
+            }
         }
     };
 
@@ -263,12 +286,15 @@ export default function DocumentsScreen() {
 
         return (
             <View className="mb-6">
-                <View className="flex-row justify-between items-center mb-2 ml-1">
-                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</Text>
+                <View className="flex-row justify-between items-center mb-3 ml-1">
+                    <View className="flex-row items-center">
+                        <View className="w-1.5 h-4 bg-[#FFD700] rounded-full mr-2.5 shadow-sm shadow-[#FFD700]/50" />
+                        <Text className="text-slate-900 text-[12px] font-black uppercase tracking-[1.5px]">{title}</Text>
+                    </View>
                     {isUploaded && (
-                        <View className="flex-row items-center bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-                            <Ionicons name="lock-closed" size={10} color="#166534" />
-                            <Text className="text-green-700 text-[8px] font-black uppercase ml-1">LOCKED</Text>
+                        <View className="flex-row items-center bg-green-100/50 px-3 py-1 rounded-full border border-green-200">
+                            <Ionicons name="lock-closed" size={10} color="#15803D" />
+                            <Text className="text-green-800 text-[9px] font-black uppercase ml-1 tracking-wider">LOCKED</Text>
                         </View>
                     )}
                 </View>
@@ -396,7 +422,7 @@ export default function DocumentsScreen() {
                     <View className="ml-4 flex-1">
                         <Text className="text-amber-800 text-[12px] font-black uppercase tracking-tighter">Important Notice</Text>
                         <Text className="text-amber-700/70 text-[10px] font-bold leading-4 mt-0.5">
-                            Documents can only be uploaded <Text className="text-amber-900 font-black">ONE TIME</Text>. Please ensure your PDF is clear and correct before saving.
+                            Documents can only be uploaded <Text className="text-amber-900 font-black">ONE TIME</Text>. Maximum file size is <Text className="text-red-700 font-black">10MB</Text>. Please ensure your PDF is clear.
                         </Text>
                     </View>
                 </View>
@@ -419,6 +445,102 @@ export default function DocumentsScreen() {
                     <Text className="text-slate-300 text-[9px] font-black uppercase tracking-widest">Hello-11 Verification Protocol</Text>
                 </View>
             </ScrollView>
+
+            {/* Image Preview Modal */}
+            <Modal
+                visible={previewVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setPreviewVisible(false)}
+            >
+                <View className="flex-1 bg-black items-center justify-center">
+                    <TouchableOpacity 
+                        onPress={() => {
+                            setPreviewVisible(false);
+                            setImgError(null);
+                        }}
+                        className="absolute top-12 right-6 z-20 w-12 h-12 bg-white/20 rounded-full items-center justify-center border border-white/20 shadow-lg"
+                    >
+                        <Ionicons name="close" size={28} color="white" />
+                    </TouchableOpacity>
+
+                    {previewImage && !imgError ? (
+                        <View className="w-full h-full items-center justify-center">
+                            {imgLoading && (
+                                <View className="absolute z-10 items-center">
+                                    <ActivityIndicator color="#FFD700" size="large" />
+                                    <Text className="text-white/60 mt-4 font-bold text-[12px] tracking-widest uppercase">Fetching Document...</Text>
+                                </View>
+                            )}
+                            <Image 
+                                source={{ uri: getImageUrl(previewImage, { width: 1200, quality: 90, format: 'jpg', pg: 1 }) }}
+                                style={{ 
+                                    width: Dimensions.get('window').width, 
+                                    height: Dimensions.get('window').height * 0.85,
+                                    resizeMode: 'contain' 
+                                }}
+                                onLoadStart={() => {
+                                    console.log("[DEBUG_DOCS] Image loading started...");
+                                    setImgLoading(true);
+                                }}
+                                onLoadEnd={() => {
+                                    console.log("[DEBUG_DOCS] Image loading finished.");
+                                    setImgLoading(false);
+                                }}
+                                onError={(e) => {
+                                    console.error("[DEBUG_DOCS] Image loading error:", e.nativeEvent.error);
+                                    setImgError(e.nativeEvent.error);
+                                    setImgLoading(false);
+                                }}
+                            />
+                        </View>
+                    ) : (imgError || previewImage) ? (
+                        <View className="items-center px-10">
+                            <View className="w-20 h-20 bg-amber-500/10 rounded-full items-center justify-center mb-6">
+                                <Ionicons name="eye-off" size={48} color="#F59E0B" />
+                            </View>
+                            <Text className="text-white text-xl font-black mb-2 text-center">Format Not Supported</Text>
+                            <Text className="text-white/40 text-center text-[12px] leading-5">
+                                This document cannot be previewed as an image. Click below to open it in the secure system viewer.
+                            </Text>
+                            
+                            <TouchableOpacity 
+                                onPress={async () => {
+                                    if (previewImage) {
+                                        const viewerUrl = previewImage.startsWith('http') 
+                                            ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(previewImage)}`
+                                            : previewImage;
+                                            
+                                        await WebBrowser.openBrowserAsync(viewerUrl, {
+                                            toolbarColor: '#1E293B',
+                                            showTitle: true,
+                                        });
+                                        setPreviewVisible(false);
+                                    }
+                                }}
+                                className="mt-8 bg-blue-600 px-10 py-4 rounded-2xl shadow-xl shadow-blue-900/40"
+                            >
+                                <Text className="text-white font-black uppercase tracking-widest text-[12px]">Open in System Viewer</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity 
+                                onPress={() => setPreviewVisible(false)}
+                                className="mt-4 px-8 py-3"
+                            >
+                                <Text className="text-white/40 font-bold text-[12px]">Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View className="items-center">
+                            <ActivityIndicator color="#FFD700" size="large" />
+                        </View>
+                    )}
+
+                    <View className="absolute bottom-12 px-8 py-3 bg-white/5 rounded-full border border-white/5">
+                        <Text className="text-white/30 text-[9px] font-black uppercase tracking-[3px]">Secure Viewer Mode</Text>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }

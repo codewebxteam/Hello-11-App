@@ -4,7 +4,6 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
-    ActivityIndicator,
     Dimensions,
     Platform,
     StatusBar as RNStatusBar
@@ -14,6 +13,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { driverAPI } from '../utils/api';
+import Shimmer from '../components/Shimmer';
 
 const { width } = Dimensions.get('window');
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
@@ -69,8 +69,32 @@ export default function RideDetailsScreen() {
 
     if (loading) {
         return (
-            <View className="flex-1 bg-slate-50 justify-center items-center">
-                <ActivityIndicator size="large" color="#FFD700" />
+            <View className="flex-1 bg-slate-50" style={{ paddingTop: STATUSBAR_HEIGHT }}>
+                <View className="bg-white px-6 py-4 border-b border-slate-100">
+                    <Shimmer width={140} height={20} borderRadius={8} />
+                </View>
+                <ScrollView contentContainerStyle={{ padding: 24 }}>
+                    <View className="bg-white rounded-[30px] p-6 border border-slate-100 mb-5">
+                        <Shimmer width={90} height={22} borderRadius={999} />
+                        <Shimmer width={180} height={42} borderRadius={10} style={{ marginTop: 14 }} />
+                        <Shimmer width={120} height={12} borderRadius={6} style={{ marginTop: 10 }} />
+                    </View>
+                    <View className="bg-white rounded-[30px] p-6 border border-slate-100 mb-5">
+                        <Shimmer width={110} height={12} borderRadius={6} />
+                        <Shimmer width="100%" height={16} borderRadius={8} style={{ marginTop: 16 }} />
+                        <Shimmer width="85%" height={16} borderRadius={8} style={{ marginTop: 10 }} />
+                    </View>
+                    <View className="flex-row justify-between">
+                        <View className="bg-white rounded-[24px] p-5 border border-slate-100 w-[48%]">
+                            <Shimmer width={70} height={10} borderRadius={6} />
+                            <Shimmer width={90} height={14} borderRadius={6} style={{ marginTop: 12 }} />
+                        </View>
+                        <View className="bg-white rounded-[24px] p-5 border border-slate-100 w-[48%]">
+                            <Shimmer width={70} height={10} borderRadius={6} />
+                            <Shimmer width={90} height={14} borderRadius={6} style={{ marginTop: 12 }} />
+                        </View>
+                    </View>
+                </ScrollView>
             </View>
         );
     }

@@ -31,6 +31,7 @@ const DashboardLayout: React.FC = () => {
             case '/ratings': return 'Ratings';
             case '/coupons': return 'Coupons';
             case '/analytics': return 'Analytics';
+            case '/finance': return 'Finance & Commissions';
             case '/settings': return 'Settings';
             default: return path.replace('/', '').charAt(0).toUpperCase() + path.slice(2);
         }

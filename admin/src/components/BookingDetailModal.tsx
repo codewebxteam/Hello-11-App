@@ -1,5 +1,5 @@
 import React from "react";
-import { 
+import {
     X, 
     User, 
     Truck, 
@@ -13,6 +13,7 @@ import {
     Info,
     ShieldCheck
 } from "lucide-react";
+import { getBookingTotalFare, getOneWayFare } from "../utils/fare";
 
 type BookingItem = {
   _id: string;
@@ -33,6 +34,8 @@ type BookingItem = {
   tollFee?: number;
   penaltyApplied?: number;
   returnTripFare?: number;
+  baseFare?: number;
+  nightSurcharge?: number;
   rating?: number;
   feedback?: string;
   user?: {
@@ -68,7 +71,10 @@ const BookingDetailModal: React.FC<Props> = ({ booking, onClose }) => {
 
   const status = STATUS_CONFIG[booking.status] || { label: booking.status, color: "bg-gray-100 text-gray-700", icon: AlertCircle };
 
-  const totalFare = booking.totalFare ?? ((booking.fare || 0) + (booking.returnTripFare || 0) + (booking.penaltyApplied || 0) + (booking.tollFee || 0));
+  const totalFare = getBookingTotalFare(booking);
+  const oneWayFare = getOneWayFare(booking);
+  const nightSurcharge = Number(booking.nightSurcharge || 0);
+  const baseFare = Number(booking.baseFare || Math.max(0, oneWayFare - nightSurcharge));
 
   return (
     <div 
@@ -169,8 +175,14 @@ const BookingDetailModal: React.FC<Props> = ({ booking, onClose }) => {
                         <div className="space-y-2.5">
                             <div className="flex justify-between text-xs">
                                 <span className="text-gray-500 font-medium">Base Fare</span>
-                                <span className="font-bold text-gray-900">{formatAmount(booking.fare)}</span>
+                                <span className="font-bold text-gray-900">{formatAmount(baseFare)}</span>
                             </div>
+                            {nightSurcharge > 0 && (
+                                <div className="flex justify-between text-xs text-indigo-600">
+                                    <span className="font-medium tracking-tight flex items-center gap-1"><ArrowRight size={12} /> Night Surcharge</span>
+                                    <span className="font-bold">+{formatAmount(nightSurcharge)}</span>
+                                </div>
+                            )}
                             {(booking.tollFee || 0) > 0 && (
                                 <div className="flex justify-between text-xs text-blue-600">
                                     <span className="font-medium tracking-tight flex items-center gap-1"><ArrowRight size={12} /> Toll & Parking</span>

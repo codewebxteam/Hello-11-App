@@ -84,6 +84,10 @@ export const API_ENDPOINTS = {
   // Account
   CHANGE_PASSWORD: "/api/drivers/password",
   LOGOUT: "/api/drivers/logout",
+
+  // Commission Payments
+  CREATE_PAYMENT_ORDER: "/api/payments/create-order",
+  VERIFY_PAYMENT_VERIFY: "/api/payments/verify-payment",
 };
 
 // Create axios instance
@@ -215,9 +219,38 @@ export const driverAPI = {
     api.post(API_ENDPOINTS.SEND_CHAT_MESSAGE, data),
 
   // Earnings & Stats
-  getEarnings: (period?: string) => api.get(`${API_ENDPOINTS.GET_EARNINGS}${period ? '?period=' + period : ''}`),
+  getEarnings: (
+    period?: string,
+    startDate?: string,
+    endDate?: string,
+    pagination?: {
+      txPage?: number;
+      txLimit?: number;
+      commPage?: number;
+      commLimit?: number;
+    }
+  ) => {
+    const params: Record<string, string | number> = {};
+    if (period) params.period = period;
+    if (startDate) params.dateFrom = startDate;
+    if (endDate) params.dateTo = endDate;
+    if (pagination?.txPage) params.txPage = pagination.txPage;
+    if (pagination?.txLimit) params.txLimit = pagination.txLimit;
+    if (pagination?.commPage) params.commPage = pagination.commPage;
+    if (pagination?.commLimit) params.commLimit = pagination.commLimit;
+
+    return api.get(API_ENDPOINTS.GET_EARNINGS, { params });
+  },
   getReviews: () => api.get(API_ENDPOINTS.REVIEWS),
   getDashboard: () => api.get(API_ENDPOINTS.DASHBOARD),
+
+  // Payments
+  createPaymentOrder: () => api.post(API_ENDPOINTS.CREATE_PAYMENT_ORDER),
+  verifyPaymentVerify: (data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) => api.post(API_ENDPOINTS.VERIFY_PAYMENT_VERIFY, data),
 };
 
 // ================= LOCATION API =================

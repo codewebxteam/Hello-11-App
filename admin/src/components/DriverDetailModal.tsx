@@ -1,7 +1,8 @@
 import React from "react";
-import { X, Car, Phone, Calendar, History, Wallet, Star, FileText, ExternalLink } from "lucide-react";
+import { X, Car, Phone, Calendar, History, Wallet, Star, FileText, ExternalLink, CreditCard } from "lucide-react";
 import { useData, type DriverItem } from "../context/DataContext";
 import { adminAPI } from "../services/api";
+import { getBookingTotalFare } from "../utils/fare";
 
 interface DriverDetailModalProps {
   isOpen: boolean;
@@ -155,13 +156,42 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ isOpen, onClose, 
                      </p>
                      <p className="text-3xl font-bold text-gray-900">{driver.totalTrips || 0}</p>
                   </div>
-                  <div className="p-6 bg-green-50/50 rounded-2xl border border-green-100">
-                     <p className="text-[10px] font-black text-green-600 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-                        <Wallet size={12} /> Lifetime Earnings
-                     </p>
-                     <p className="text-3xl font-bold text-gray-900">₹{Number(driver.totalEarnings || 0).toLocaleString()}</p>
-                  </div>
-               </div>
+                   <div className="p-4 bg-green-50/50 rounded-2xl border border-green-100">
+                      <p className="text-[10px] font-black text-green-600 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                         <Wallet size={12} /> Lifetime Earnings
+                      </p>
+                      <p className="text-xl font-bold text-gray-900">₹{Number(driver.totalEarnings || 0).toLocaleString()}</p>
+                   </div>
+                </div>
+
+                {/* Commission Details Card */}
+                <div className="p-6 bg-red-50/30 rounded-3xl border border-red-100/50 flex items-center justify-between">
+                   <div>
+                      <p className="text-[10px] font-black text-red-600 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                         <CreditCard size={12} /> Pending Commission
+                      </p>
+                      <p className="text-3xl font-black text-red-600">₹{Number(driver.pendingCommission || 0).toLocaleString()}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mt-1">{driver.unpaidRideCount || 0} Unpaid Rides</p>
+                   </div>
+                   {(driver.pendingCommission || 0) > 0 && (
+                      <button 
+                         onClick={async () => {
+                            if(window.confirm(`Are you sure you want to manually clear dues (₹${driver.pendingCommission}) for ${driver.name}?`)) {
+                               try {
+                                  await adminAPI.resetCommission(driver._id);
+                                  await refreshDrivers();
+                                  alert("Dues cleared successfully!");
+                               } catch (err) {
+                                  alert("Failed to clear dues");
+                                }
+                            }
+                         }}
+                         className="px-6 py-3 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-100 hover:scale-105 transition-all active:scale-95"
+                      >
+                         Clear Dues Manually
+                      </button>
+                   )}
+                </div>
 
                {/* Document Previews */}
                <div className="space-y-4">
@@ -236,7 +266,7 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ isOpen, onClose, 
                               </div>
                            </div>
                            <div className="text-right flex-shrink-0">
-                              <p className="text-sm font-bold text-gray-900">₹{ride.fare || 0}</p>
+                              <p className="text-sm font-bold text-gray-900">₹{Math.round(getBookingTotalFare(ride)).toLocaleString()}</p>
                               <p className="text-[10px] font-medium text-gray-400">{new Date(ride.createdAt).toLocaleDateString()}</p>
                            </div>
                         </div>
@@ -377,3 +407,4 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ isOpen, onClose, 
 };
 
 export default DriverDetailModal;
+

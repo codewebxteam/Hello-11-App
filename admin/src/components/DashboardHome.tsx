@@ -1,15 +1,15 @@
 import { useMemo, useState } from "react";
-import { Car, CreditCard, Navigation, Users, Map, XCircle, ArrowRight, RefreshCw } from "lucide-react";
+import { Car, CreditCard, Navigation, Users, ArrowRight, RefreshCw } from "lucide-react";
 import { useData } from "../context/DataContext";
 import Pagination from "./Pagination";
 import { useNavigate } from "react-router-dom";
 import BookingDetailModal from "./BookingDetailModal";
 import type { Booking } from "../context/DataContext";
+import { getBookingTotalFare } from "../utils/fare";
 
 const formatAmount = (value: number) => `Rs ${Math.round(value).toLocaleString()}`;
 
-const getBookingAmount = (b: Booking) =>
-  Number(b.totalFare ?? ((b.fare || 0) + (b.returnTripFare || 0) + (b.penaltyApplied || 0) + (b.tollFee || 0)));
+const getBookingAmount = (b: Booking) => getBookingTotalFare(b);
 
 const DashboardHome: React.FC = () => {
   const { stats, bookings: recentBookings, loading, refreshing, error: contextError, refreshAll } = useData();
@@ -30,11 +30,11 @@ const DashboardHome: React.FC = () => {
   const cards = useMemo(
     () => [
       { title: "Total Bookings", value: stats.totalBookings, icon: Car, color: "bg-yellow-400 text-black shadow-yellow-100", link: "/bookings" },
-      { title: "Total Users", value: stats.totalUsers, icon: Users, color: "bg-green-100 text-green-700 shadow-green-50", link: "/users" },
+      { title: "Admin Revenue", value: formatAmount(stats.totalAdminCommission || 0), icon: CreditCard, color: "bg-green-100 text-green-700 shadow-green-50", link: "/analytics" },
+      { title: "Commission Pending", value: formatAmount(stats.totalPendingCommission || 0), icon: CreditCard, color: "bg-red-100 text-red-700 shadow-red-50", link: "/riders" },
+      { title: "Gross Earnings", value: formatAmount(stats.totalEarnings), icon: CreditCard, color: "bg-yellow-100 text-yellow-700 shadow-yellow-50", link: "/analytics" },
       { title: "Active Drivers", value: stats.activeDrivers, icon: Navigation, color: "bg-blue-100 text-blue-700 shadow-blue-50", link: "/riders" },
-      { title: "Total Earnings", value: formatAmount(stats.totalEarnings), icon: CreditCard, color: "bg-yellow-100 text-yellow-700 shadow-yellow-50", link: "/analytics" },
-      { title: "Ongoing Trips", value: stats.ongoingTrips, icon: Map, color: "bg-purple-100 text-purple-700 shadow-purple-50", link: "/bookings?status=ongoing" },
-      { title: "Cancelled Trips", value: stats.cancelledTrips, icon: XCircle, color: "bg-red-100 text-red-700 shadow-red-50", link: "/bookings?status=cancelled" },
+      { title: "Total Users", value: stats.totalUsers, icon: Users, color: "bg-purple-100 text-purple-700 shadow-purple-50", link: "/users" },
     ],
     [stats]
   );

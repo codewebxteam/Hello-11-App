@@ -370,7 +370,7 @@ const BookingScreen = () => {
           {suggestions.length > 0 && activeInput && (
             <View className="mt-3 border-t border-slate-100 max-h-[220px]">
               <FlatList
-                data={suggestions.slice(0, 5)}
+                data={suggestions.slice(0, 12)}
                 keyExtractor={(_, i) => i.toString()}
                 renderItem={({ item }) => (
                   <TouchableOpacity

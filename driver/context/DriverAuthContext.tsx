@@ -20,6 +20,8 @@ interface Driver {
   experienceYears?: number;
   isVerified?: boolean;
   verificationNote?: string;
+  pendingCommission?: number;
+  unpaidRideCount?: number;
   stats?: {
     completedBookings: number;
     totalEarnings?: number;
@@ -137,6 +139,12 @@ export const DriverAuthProvider = ({ children }: { children: ReactNode }) => {
         currentDriver.isOnline !== driverData.isOnline ||
         currentDriver.isAvailable !== driverData.isAvailable ||
         currentDriver.rating !== driverData.rating ||
+        currentDriver.pendingCommission !== driverData.pendingCommission ||
+        currentDriver.unpaidRideCount !== driverData.unpaidRideCount ||
+        currentDriver.vehicleModel !== driverData.vehicleModel ||
+        currentDriver.vehicleNumber !== driverData.vehicleNumber ||
+        currentDriver.vehicleType !== driverData.vehicleType ||
+        currentDriver.vehicleColor !== driverData.vehicleColor ||
         JSON.stringify(currentDriver.stats) !== JSON.stringify(driverData.stats);
 
       if (hasChanged) {
