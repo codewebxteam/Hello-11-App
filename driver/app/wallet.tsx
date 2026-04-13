@@ -168,9 +168,7 @@ export default function WalletScreen() {
       const razorpayNative =
         (NativeModules as any)?.RNRazorpayCheckout ||
         (NativeModules as any)?.RazorpayCheckout;
-      const razorpayEmitter = (NativeModules as any)?.RazorpayEventEmitter;
       if (
-        !razorpayEmitter ||
         !razorpayNative ||
         !RazorpayCheckout ||
         typeof (RazorpayCheckout as any).open !== "function"
