@@ -210,6 +210,31 @@ export const getAutocomplete = async (req, res) => {
       // Fetch coordinates for each prediction via Place Details
       const suggestions = await Promise.all(
         predictions.slice(0, 20).map(async (pred) => {
+          const geocodePredictionFallback = async () => {
+            try {
+              const geoRes = await axios.get(`${GOOGLE_MAPS_API_URL}/geocode/json`, {
+                params: {
+                  address: pred.description,
+                  key: getGoogleApiKey(),
+                  region: "in",
+                  components: "country:IN",
+                },
+              });
+              const geo = geoRes.data?.results?.[0]?.geometry?.location;
+              if (geo?.lat !== undefined && geo?.lng !== undefined) {
+                return {
+                  place_id: pred.place_id,
+                  display_name: pred.description,
+                  lat: geo.lat.toString(),
+                  lon: geo.lng.toString(),
+                };
+              }
+            } catch {
+              // Ignore per-item fallback failure.
+            }
+            return { place_id: pred.place_id, display_name: pred.description, lat: "", lon: "" };
+          };
+
           try {
             const detailRes = await axios.get(`${GOOGLE_MAPS_API_URL}/place/details/json`, {
               params: {
@@ -219,28 +244,43 @@ export const getAutocomplete = async (req, res) => {
               },
             });
             const result = detailRes.data.result;
+            const detailLat = result?.geometry?.location?.lat;
+            const detailLon = result?.geometry?.location?.lng;
+
+            // Some predictions do not return geometry in Details due data/permission limits.
+            // Fallback to Geocoding by description so suggestions are still usable.
+            if (detailLat === undefined || detailLon === undefined) {
+              return geocodePredictionFallback();
+            }
+
             return {
               place_id: pred.place_id,
               display_name: pred.description,
-              lat: result?.geometry?.location?.lat?.toString() || "",
-              lon: result?.geometry?.location?.lng?.toString() || "",
+              lat: detailLat?.toString() || "",
+              lon: detailLon?.toString() || "",
             };
           } catch {
-            return { place_id: pred.place_id, display_name: pred.description, lat: "", lon: "" };
+            // If Place Details API fails (disabled/quota/restriction), still try geocode fallback.
+            return geocodePredictionFallback();
           }
         })
       );
 
       const valid = suggestions.filter((s) => s.lat && s.lon);
-      serverLog(`Google Autocomplete: ${valid.length} results for "${query}"`);
-      return res.json({ success: true, data: valid });
+      if (valid.length > 0) {
+        serverLog(`Google Autocomplete: ${valid.length} results for "${query}"`);
+        return res.json({ success: true, data: valid });
+      }
+
+      // If predictions exist but details did not provide coordinates, continue to Photon fallback.
+      serverLog(`Google Autocomplete had predictions but 0 coordinate-resolved results for "${query}". Falling back to Photon.`);
     }
 
     // ── Fallback: Photon (OSM) ──────────────────────────────────────────────
     const status = acResponse.data ? acResponse.data.status : "UNKNOWN";
     const errMsg = acResponse.data ? acResponse.data.error_message : "";
 
-    if (status !== "ZERO_RESULTS") {
+    if (status !== "ZERO_RESULTS" && status !== "OK") {
       serverLog(`GOOGLE Autocomplete ERROR: Status: ${status}, Message: ${errMsg}`);
       serverLog("Falling back to Photon (OSM)...");
     }
@@ -280,11 +320,40 @@ export const getAutocomplete = async (req, res) => {
           };
         });
 
-        serverLog(`Photon fallback: ${suggestions.length} India results for "${query}"`);
-        return res.json({ success: true, data: suggestions });
+        if (suggestions.length > 0) {
+          serverLog(`Photon fallback: ${suggestions.length} India results for "${query}"`);
+          return res.json({ success: true, data: suggestions });
+        }
       }
     } catch (photonErr) {
       serverLog(`Photon fallback failed: ${photonErr.message}`);
+    }
+
+    // Final fallback: direct geocode for the full query to at least return one usable result.
+    try {
+      const geoFinal = await axios.get(`${GOOGLE_MAPS_API_URL}/geocode/json`, {
+        params: {
+          address: query,
+          key: getGoogleApiKey(),
+          region: "in",
+          components: "country:IN",
+        },
+      });
+      const r = geoFinal.data?.results?.[0];
+      const g = r?.geometry?.location;
+      if (g?.lat !== undefined && g?.lng !== undefined) {
+        return res.json({
+          success: true,
+          data: [{
+            place_id: r.place_id || `geo_${Date.now()}`,
+            display_name: r.formatted_address || query,
+            lat: g.lat.toString(),
+            lon: g.lng.toString(),
+          }]
+        });
+      }
+    } catch (geoErr) {
+      serverLog(`Final geocode fallback failed: ${geoErr.message}`);
     }
 
     res.json({ success: true, data: [], google_status: status, message: errMsg });

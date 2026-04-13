@@ -279,6 +279,52 @@ const ProfileScreen = () => {
                             </View>
                         </View>
 
+                        {/* Legal Section */}
+                        <View className="mt-8 px-2">
+                            <Text className="text-[12px] font-black text-slate-400 mb-4 tracking-[2px] uppercase italic">
+                                Legal Information
+                            </Text>
+                            
+                            <TouchableOpacity
+                                onPress={() => router.push("/screens/TermsScreen")}
+                                className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm mb-3"
+                            >
+                                <View className="flex-row items-center">
+                                    <View className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center">
+                                        <Ionicons name="document-text-outline" size={20} color="#64748B" />
+                                    </View>
+                                    <Text className="text-slate-900 font-bold text-base ml-4">Terms & Conditions</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => router.push("/screens/PrivacyScreen")}
+                                className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm mb-3"
+                            >
+                                <View className="flex-row items-center">
+                                    <View className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center">
+                                        <Ionicons name="shield-checkmark-outline" size={20} color="#64748B" />
+                                    </View>
+                                    <Text className="text-slate-900 font-bold text-base ml-4">Privacy Policy</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => router.push("/screens/RefundScreen")}
+                                className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm"
+                            >
+                                <View className="flex-row items-center">
+                                    <View className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center">
+                                        <Ionicons name="cash-outline" size={20} color="#64748B" />
+                                    </View>
+                                    <Text className="text-slate-900 font-bold text-base ml-4">Refund Policy</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                            </TouchableOpacity>
+                        </View>
+
                         <TouchableOpacity
                             onPress={confirmLogout}
                             activeOpacity={0.8}

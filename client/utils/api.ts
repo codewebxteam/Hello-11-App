@@ -158,6 +158,9 @@ export const bookingAPI = {
   acceptReturnOffer: (id: string) =>
     api.put(API_ENDPOINTS.ACCEPT_RETURN(id)),
 
+  confirmReturnStart: (id: string) =>
+    api.put(`/api/bookings/${id}/confirm-return-start`),
+
   verifyPayment: (id: string, paymentMethod: string, isFirstLeg?: boolean) =>
     api.put(API_ENDPOINTS.VERIFY_PAYMENT(id), { paymentMethod, isFirstLeg }),
 

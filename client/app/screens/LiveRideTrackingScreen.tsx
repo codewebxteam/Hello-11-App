@@ -52,6 +52,7 @@ const LiveRideTrackingScreen = () => {
     const [distance, setDistance] = useState<string>("---");
     const [eta, setEta] = useState<string>("---");
     const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
+    const returnStartPromptOpenRef = useRef(false);
 
     // Waiting State
     const [waitingSecondsElapsed, setWaitingSecondsElapsed] = useState(0);
@@ -446,6 +447,42 @@ const LiveRideTrackingScreen = () => {
             }
         };
 
+        const onReturnRideStartRequested = (data: any) => {
+            if (String(data.bookingId) !== String(bookingId)) return;
+            if (returnStartPromptOpenRef.current) return;
+            returnStartPromptOpenRef.current = true;
+
+            Alert.alert(
+                "Confirm Return Ride",
+                "Driver return trip start karna chahta hai. Kya aap confirm karte ho?",
+                [
+                    {
+                        text: "No",
+                        style: "cancel",
+                        onPress: () => {
+                            returnStartPromptOpenRef.current = false;
+                            showToast("Not Confirmed", "Return ride tab start hogi jab aap confirm karoge.", "info");
+                        }
+                    },
+                    {
+                        text: "Yes, Start",
+                        onPress: async () => {
+                            try {
+                                await bookingAPI.confirmReturnStart(String(bookingId));
+                                showToast("Confirmed", "Return ride started.", "success");
+                            } catch (error) {
+                                console.error("Return start confirmation failed:", error);
+                                showToast("Error", "Return ride start confirm nahi hua. Dobara try karein.", "error");
+                            } finally {
+                                returnStartPromptOpenRef.current = false;
+                            }
+                        }
+                    }
+                ],
+                { cancelable: false }
+            );
+        };
+
         socket.on("waitingStarted", onWaitingStarted);
         socket.on("penaltyApplied", onPenaltyApplied);
         socket.on("tollFeeUpdated", onTollUpdated);
@@ -455,6 +492,7 @@ const LiveRideTrackingScreen = () => {
         socket.on("driverArrived", onDriverArrived);
         socket.on("paymentRequested", onPaymentRequested);
         socket.on("paymentResolved", onPaymentResolved);
+        socket.on("returnRideStartRequested", onReturnRideStartRequested);
 
         return () => {
             console.log(`[Socket] Cleaning up tracking listeners for booking: ${bookingId}`);
@@ -467,6 +505,7 @@ const LiveRideTrackingScreen = () => {
             socket.off("driverArrived", onDriverArrived);
             socket.off("paymentRequested", onPaymentRequested);
             socket.off("paymentResolved", onPaymentResolved);
+            socket.off("returnRideStartRequested", onReturnRideStartRequested);
         };
     }, [socketReady, bookingId, fetchInitialData]);
 

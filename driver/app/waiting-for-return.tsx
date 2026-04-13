@@ -19,6 +19,7 @@ export default function WaitingForReturnScreen() {
     const [loading, setLoading] = useState(true);
     const [booking, setBooking] = useState<any>(null);
     const [secondsElapsed, setSecondsElapsed] = useState(0);
+    const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -66,6 +67,20 @@ export default function WaitingForReturnScreen() {
                         }));
                     }
                 });
+                socket.on("rideStatusUpdate", (data: any) => {
+                    if (String(data.bookingId) === String(bookingId) && data.status === "return_ride_started") {
+                        setAwaitingConfirmation(false);
+                        router.replace({
+                            pathname: "/active-ride",
+                            params: {
+                                mode: 'return',
+                                penalty: booking?.penaltyApplied || '0',
+                                toll: booking?.tollFee || '0',
+                                bookingId: bookingId
+                            }
+                        });
+                    }
+                });
             }
         };
         initSocket();
@@ -77,6 +92,7 @@ export default function WaitingForReturnScreen() {
             clearInterval(poll);
             if (socket) socket.off("penaltyApplied");
             if (socket) socket.off("tollFeeUpdated");
+            if (socket) socket.off("rideStatusUpdate");
         };
     }, [bookingId]);
 
@@ -126,7 +142,13 @@ export default function WaitingForReturnScreen() {
                     text: "Yes, Start",
                     onPress: async () => {
                         try {
-                            await driverAPI.updateBookingStatus(bookingId, 'return_ride_started');
+                            const res = await driverAPI.updateBookingStatus(bookingId, 'return_ride_started');
+                            if (res?.data?.requiresUserConfirmation) {
+                                setAwaitingConfirmation(true);
+                                Alert.alert("Request Sent", "User confirmation pending. Jaise hi user Yes karega return ride start ho jayegi.");
+                                return;
+                            }
+
                             router.replace({
                                 pathname: "/active-ride",
                                 params: {
@@ -221,12 +243,20 @@ export default function WaitingForReturnScreen() {
             </View>
 
             <View className="px-6 pb-6">
+                {awaitingConfirmation && (
+                    <View className="mb-3 bg-blue-500/20 border border-blue-400/40 rounded-2xl px-4 py-3">
+                        <Text className="text-blue-300 text-xs font-bold uppercase tracking-widest text-center">
+                            Waiting For User Confirmation
+                        </Text>
+                    </View>
+                )}
                 <TouchableOpacity
                     onPress={handleStartReturnRide}
-                    className="w-full bg-[#FFD700] py-5 rounded-2xl items-center shadow-lg active:bg-[#F0C000]"
+                    disabled={awaitingConfirmation}
+                    className={`w-full py-5 rounded-2xl items-center shadow-lg ${awaitingConfirmation ? 'bg-slate-500' : 'bg-[#FFD700] active:bg-[#F0C000]'}`}
                 >
                     <Text className="text-slate-900 font-black text-lg uppercase tracking-widest">
-                        Start Return Ride
+                        {awaitingConfirmation ? "Awaiting Confirmation..." : "Start Return Ride"}
                     </Text>
                 </TouchableOpacity>
             </View>

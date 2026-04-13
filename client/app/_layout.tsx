@@ -37,6 +37,10 @@ function RootLayoutNav() {
             <Stack.Screen name="screens/HistoryScreen" />
             <Stack.Screen name="screens/ThankYouScreen" />
             <Stack.Screen name="screens/WaitingTimerScreen" />
+            
+            <Stack.Screen name="screens/TermsScreen" />
+            <Stack.Screen name="screens/PrivacyScreen" />
+            <Stack.Screen name="screens/RefundScreen" />
           </>
         ) : (
           <>

@@ -46,6 +46,7 @@ const { height } = Dimensions.get('window');
 
 function DriverRealtimeOverlay() {
   const { isAuthenticated } = useDriverAuth();
+  const pathname = usePathname();
 
   const [isOnline, setIsOnline] = React.useState(false);
   const [driverId, setDriverId] = React.useState<string | null>(null);
@@ -281,10 +282,26 @@ function DriverRealtimeOverlay() {
 
       const onRideRequestCancelled = (data: any) => {
         const currentIncoming = incomingRideRef.current;
-        if (!currentIncoming) return;
-        const incomingId = currentIncoming.bookingId || currentIncoming._id || currentIncoming.id;
-        if (String(incomingId) === String(data.bookingId)) {
+        const currentActive = activeBookingRef.current;
+        const incomingId = currentIncoming?.bookingId || currentIncoming?._id || currentIncoming?.id;
+        const activeId = currentActive?.bookingId || currentActive?._id || currentActive?.id;
+        const isIncomingMatch = incomingId && String(incomingId) === String(data.bookingId);
+        const isActiveMatch = activeId && String(activeId) === String(data.bookingId);
+
+        if (!isIncomingMatch && !isActiveMatch) return;
+
+        if (isIncomingMatch) {
           clearRideRequest();
+        }
+        if (isActiveMatch) {
+          setActiveBooking(null);
+          if (pathname === "/pickup" || pathname === "/active-ride" || pathname === "/start-ride") {
+            router.replace("/");
+          }
+        }
+
+        if (data?.reason) {
+          Alert.alert("Ride Reassigned", data.reason);
         }
       };
 
@@ -296,17 +313,70 @@ function DriverRealtimeOverlay() {
         }
       };
 
+      const onScheduledRideReminder = async (data: any) => {
+        const pickup = data?.pickup || "Pickup";
+        const drop = data?.drop || "Drop";
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+        if (AppState.currentState === "active") {
+          Alert.alert(
+            "Scheduled Ride Reminder",
+            `Ride time ho gaya hai.\n${pickup} -> ${drop}`
+          );
+          return;
+        }
+
+        try {
+          if (notifee && typeof notifee.createChannel === "function") {
+            await notifee.createChannel({
+              id: "scheduled_ride_reminders",
+              name: "Scheduled Ride Reminders",
+              vibration: true,
+              importance: AndroidImportance.HIGH || 4,
+              sound: "default",
+            });
+
+            await notifee.displayNotification({
+              title: "Scheduled Ride Reminder",
+              body: `Ride time started: ${pickup} -> ${drop}`,
+              data,
+              android: {
+                channelId: "scheduled_ride_reminders",
+                importance: AndroidImportance.HIGH || 4,
+                pressAction: {
+                  id: "default",
+                  launchActivity: "default",
+                },
+              },
+            });
+          } else {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: "Scheduled Ride Reminder",
+                body: `Ride time started: ${pickup} -> ${drop}`,
+                data,
+              },
+              trigger: null,
+            });
+          }
+        } catch (e) {
+          console.log("Scheduled ride reminder notification error:", e);
+        }
+      };
+
       socket.on("connect", onConnect);
       if (socket.connected) onConnect();
       socket.on("newRideRequest", onNewRideRequest);
       socket.on("rideRequestCancelled", onRideRequestCancelled);
       socket.on("bookingCancelledByUser", onBookingCancelledByUser);
+      socket.on("scheduledRideReminder", onScheduledRideReminder);
 
       return () => {
         socket.off("connect", onConnect);
         socket.off("newRideRequest", onNewRideRequest);
         socket.off("rideRequestCancelled", onRideRequestCancelled);
         socket.off("bookingCancelledByUser", onBookingCancelledByUser);
+        socket.off("scheduledRideReminder", onScheduledRideReminder);
       };
     };
 
@@ -321,7 +391,7 @@ function DriverRealtimeOverlay() {
       if (cleanup) cleanup();
       clearRideRequest();
     };
-  }, [isAuthenticated, isOnline, driverId, player, clearRideRequest]);
+  }, [isAuthenticated, isOnline, driverId, player, clearRideRequest, pathname]);
 
   const onAcceptRide = async () => {
     if (isAccepting) return;
@@ -572,6 +642,9 @@ function RootLayoutNav() {
           <Stack.Screen name="start-ride" />
           <Stack.Screen name="waiting-for-return" />
           <Stack.Screen name="wallet" />
+          <Stack.Screen name="terms" />
+          <Stack.Screen name="privacy" />
+          <Stack.Screen name="refund" />
         </Stack>
         <DriverRealtimeOverlay />
         <StatusBar style="dark" />

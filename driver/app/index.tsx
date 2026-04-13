@@ -32,7 +32,7 @@ import { getImageUrl } from '../utils/imagekit';
 import { initSocket, disconnectSocket } from '../utils/socket';
 import { driverAPI } from '../utils/api';
 import { getDriverToken } from '../utils/storage';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync, sendLocalNotification } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';

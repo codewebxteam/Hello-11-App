@@ -358,6 +358,46 @@ export default function ProfileScreen() {
                         <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
                     </TouchableOpacity>
 
+                    <Text className="text-slate-400 text-xs font-black uppercase tracking-widest mb-2 mt-4 ml-2">Legal</Text>
+
+                    <TouchableOpacity
+                        onPress={() => router.push("/terms")}
+                        className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm mb-3"
+                    >
+                        <View className="flex-row items-center">
+                            <View className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center">
+                                <Ionicons name="document-text-outline" size={20} color="#64748B" />
+                            </View>
+                            <Text className="text-slate-900 font-bold text-base ml-4">Terms & Conditions</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => router.push("/privacy")}
+                        className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm mb-3"
+                    >
+                        <View className="flex-row items-center">
+                            <View className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center">
+                                <Ionicons name="shield-checkmark-outline" size={20} color="#64748B" />
+                            </View>
+                            <Text className="text-slate-900 font-bold text-base ml-4">Privacy Policy</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => router.push("/refund")}
+                        className="bg-white p-5 rounded-[24px] flex-row items-center justify-between border border-slate-100 shadow-sm"
+                    >
+                        <View className="flex-row items-center">
+                            <View className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center">
+                                <Ionicons name="cash-outline" size={20} color="#64748B" />
+                            </View>
+                            <Text className="text-slate-900 font-bold text-base ml-4">Refund Policy</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+                    </TouchableOpacity>
 
                 </View>
 

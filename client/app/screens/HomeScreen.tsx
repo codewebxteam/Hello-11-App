@@ -337,7 +337,7 @@ const HomeScreen = () => {
   // Debounced search logic
   useEffect(() => {
     const query = activeInput === 'source' ? source : destination;
-    if (!query || query.length < 3) {
+    if (!query || query.length < 2) {
       setSuggestions([]);
       return;
     }

@@ -101,7 +101,7 @@ const BookingScreen = () => {
   // --- AUTOCOMPLETE LOGIC ---
   useEffect(() => {
     const query = activeInput === 'pickup' ? pickup : drop;
-    if (!query || query.length < 3) { setSuggestions([]); return; }
+    if (!query || query.length < 2) { setSuggestions([]); return; }
 
     const timer = setTimeout(async () => {
       try {
