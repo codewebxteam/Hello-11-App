@@ -173,7 +173,9 @@ export const getDirections = async (req, res) => {
 // Uses Google Places Autocomplete API - prefix matching, India-restricted, wider proximity-biased
 export const getAutocomplete = async (req, res) => {
   try {
-    const { query, lat, lon } = req.query;
+    const rawQuery = req.query.query;
+    const { lat, lon } = req.query;
+    const query = String(rawQuery || "").trim().replace(/\s+/g, " ");
     if (!query) return res.status(400).json({ error: "Query is required" });
 
     const userLat = lat ? parseFloat(lat) : null;
@@ -212,6 +214,23 @@ export const getAutocomplete = async (req, res) => {
         predictions.slice(0, 20).map(async (pred) => {
           const geocodePredictionFallback = async () => {
             try {
+              // First try geocode by place_id (more accurate than free-text address).
+              const geoByPlaceId = await axios.get(`${GOOGLE_MAPS_API_URL}/geocode/json`, {
+                params: {
+                  place_id: pred.place_id,
+                  key: getGoogleApiKey(),
+                },
+              });
+              const geoById = geoByPlaceId.data?.results?.[0]?.geometry?.location;
+              if (geoById?.lat !== undefined && geoById?.lng !== undefined) {
+                return {
+                  place_id: pred.place_id,
+                  display_name: pred.description,
+                  lat: geoById.lat.toString(),
+                  lon: geoById.lng.toString(),
+                };
+              }
+
               const geoRes = await axios.get(`${GOOGLE_MAPS_API_URL}/geocode/json`, {
                 params: {
                   address: pred.description,
