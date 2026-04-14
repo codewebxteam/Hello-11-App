@@ -8,13 +8,16 @@ import {
     StatusBar as RNStatusBar,
     TextInput,
     ScrollView,
-    Animated
+    Animated,
+    useWindowDimensions
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-import Shimmer from '../components/Shimmer';
 import { driverAPI } from '../utils/api';
+
+import Header from '../components/Header';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
@@ -61,8 +64,22 @@ const rideTypeTabs = [
     { label: 'Normal', value: 'normal' },
 ];
 
+const bookingTypeTabs = [
+    { label: 'All Bookings', value: 'all' },
+    { label: 'Ride Now', value: 'now' },
+    { label: 'Scheduled', value: 'schedule' },
+];
+
+const scheduleViewTabs = [
+    { label: 'Upcoming', value: 'upcoming' },
+    { label: 'History', value: 'history' },
+];
+
 export default function RideHistoryScreen() {
+    const { width } = useWindowDimensions();
+    const compact = width < 380;
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const hasLoadedOnceRef = React.useRef(false);
 
     const [history, setHistory] = React.useState<RideItem[]>([]);
@@ -75,6 +92,8 @@ export default function RideHistoryScreen() {
 
     const [statusFilter, setStatusFilter] = React.useState('all');
     const [rideTypeFilter, setRideTypeFilter] = React.useState('all');
+    const [bookingTypeFilter, setBookingTypeFilter] = React.useState('all');
+    const [scheduleViewFilter, setScheduleViewFilter] = React.useState('upcoming');
 
     const [search, setSearch] = React.useState('');
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -159,18 +178,35 @@ export default function RideHistoryScreen() {
                 limit: 10,
                 status: statusFilter,
                 rideType: rideTypeFilter,
+                bookingType: bookingTypeFilter,
                 search: searchQuery || undefined,
             });
 
             const rawBookings = (response.data?.bookings || []).map(mapBookingToRide);
             const bookings = rawBookings.filter((item: RideItem) => {
+                const now = Date.now();
+                const isScheduled = item.bookingType === 'schedule';
+                const scheduledAt = item.scheduledDate ? new Date(item.scheduledDate).getTime() : 0;
+                const isUpcomingScheduled =
+                    isScheduled &&
+                    !!item.scheduledDate &&
+                    scheduledAt >= now &&
+                    !['completed', 'cancelled'].includes(item.rawStatus);
+
                 const matchesStatus = statusFilter === 'all' || item.rawStatus === statusFilter;
                 const matchesRideType =
                     rideTypeFilter === 'all' ||
                     (rideTypeFilter === 'outstation' ? item.rideType === 'outstation' : item.rideType !== 'outstation');
+                const matchesBookingType =
+                    bookingTypeFilter === 'all' ||
+                    (bookingTypeFilter === 'now' && item.bookingType !== 'schedule') ||
+                    (bookingTypeFilter === 'schedule' && item.bookingType === 'schedule');
+                const matchesScheduleView =
+                    bookingTypeFilter !== 'schedule' ||
+                    (scheduleViewFilter === 'upcoming' ? isUpcomingScheduled : !isUpcomingScheduled);
                 const q = searchQuery.toLowerCase();
                 const matchesSearch = !q || item.pickup.toLowerCase().includes(q) || item.drop.toLowerCase().includes(q);
-                return matchesStatus && matchesRideType && matchesSearch;
+                return matchesStatus && matchesRideType && matchesBookingType && matchesScheduleView && matchesSearch;
             });
             const pages = Number(response.data?.pagination?.pages || 1);
 
@@ -185,7 +221,7 @@ export default function RideHistoryScreen() {
             setRefreshing(false);
             setLoadingMore(false);
         }
-    }, [statusFilter, rideTypeFilter, searchQuery, mapBookingToRide]);
+    }, [statusFilter, rideTypeFilter, bookingTypeFilter, scheduleViewFilter, searchQuery, mapBookingToRide]);
 
     React.useEffect(() => {
         fetchHistory(1, false, hasLoadedOnceRef.current ? 'silent' : 'initial');
@@ -205,15 +241,16 @@ export default function RideHistoryScreen() {
         onSelect: (value: string) => void
     ) => (
         <View className="mb-3">
-            <Text className="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-2">{title}</Text>
+            <Text className="text-slate-400 font-black uppercase tracking-wider mb-2" style={{ fontSize: compact ? 9 : 10 }}>{title}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {tabs.map((tab) => (
                     <TouchableOpacity
                         key={`${title}-${tab.value}`}
                         onPress={() => onSelect(tab.value)}
-                        className={`mr-2 px-4 py-2 rounded-full border ${selected === tab.value ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'}`}
+                        className={`mr-2 rounded-full border ${selected === tab.value ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-200'}`}
+                        style={{ paddingHorizontal: compact ? 12 : 16, paddingVertical: compact ? 7 : 8 }}
                     >
-                        <Text className={`text-[10px] font-black uppercase ${selected === tab.value ? 'text-[#FFD700]' : 'text-slate-500'}`}>{tab.label}</Text>
+                        <Text className={`font-black uppercase ${selected === tab.value ? 'text-[#FFD700]' : 'text-slate-500'}`} style={{ fontSize: compact ? 9 : 10 }}>{tab.label}</Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -339,21 +376,13 @@ export default function RideHistoryScreen() {
         <View className="flex-1 bg-slate-50">
             <StatusBar style="dark" />
 
-            <View className="bg-white shadow-sm z-10" style={{ paddingTop: STATUSBAR_HEIGHT }}>
-                <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Ride History</Text>
-                    <View className="w-10" />
-                </View>
-            </View>
+            <Header title="Ride History" />
 
             <FlatList
                 data={history}
                 renderItem={renderRideItem}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
+                contentContainerStyle={{ paddingHorizontal: compact ? 12 : 24, paddingTop: compact ? 14 : 24, paddingBottom: Math.max(100, insets.bottom + 40) }}
                 showsVerticalScrollIndicator={false}
                 refreshing={refreshing}
                 onRefresh={() => fetchHistory(1, false, 'refresh')}
@@ -381,6 +410,8 @@ export default function RideHistoryScreen() {
 
                         {renderFilterRow('Ride Status', statusTabs, statusFilter, setStatusFilter)}
                         {renderFilterRow('Ride Type', rideTypeTabs, rideTypeFilter, setRideTypeFilter)}
+                        {renderFilterRow('Booking Type', bookingTypeTabs, bookingTypeFilter, setBookingTypeFilter)}
+                        {bookingTypeFilter === 'schedule' && renderFilterRow('Scheduled', scheduleViewTabs, scheduleViewFilter, setScheduleViewFilter)}
                     </View>
                 }
                 ListEmptyComponent={

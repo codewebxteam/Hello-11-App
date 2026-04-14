@@ -12,7 +12,9 @@ import {
     Easing,
     Modal,
     Image,
-    Dimensions
+    Dimensions,
+    useSafeAreaInsets,
+    useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
@@ -29,6 +31,7 @@ import { getImageUrl } from '../utils/imagekit';
 import { useDriverAuth } from '../context/DriverAuthContext';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
+import Header from '../components/Header';
 
 // Shimmer Component
 const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
@@ -45,9 +48,10 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
         ).start();
     }, []);
 
+    const { width } = useWindowDimensions();
     const translateX = shimmerAnim.interpolate({
         inputRange: [-1, 1],
-        outputRange: [-200, 200],
+        outputRange: [-width, width],
     });
 
     return (
@@ -73,6 +77,7 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 
 export default function DocumentsScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [loading, setLoading] = React.useState(true);
     const [individualLoading, setIndividualLoading] = React.useState<Record<string, boolean>>({
         license: false,
@@ -404,17 +409,13 @@ export default function DocumentsScreen() {
         <View className="flex-1 bg-slate-50">
             <StatusBar style="dark" />
 
-            <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm">
-                <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">KYC Documents</Text>
-                    <View className="w-10" />
-                </View>
-            </View>
+            <Header title="KYC Documents" />
 
-            <ScrollView className="flex-1 px-6 mt-8" showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                className="flex-1 px-6 mt-8" 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20) }}
+            >
                 <View className="bg-amber-50 p-6 rounded-[24px] mb-8 border border-amber-100 flex-row items-center shadow-sm">
                     <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center">
                         <Ionicons name="alert-circle" size={24} color="#D97706" />

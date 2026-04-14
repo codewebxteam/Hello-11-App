@@ -36,9 +36,14 @@ const getBookingTotalFare = (booking) =>
 // ================= GET ACTIVE BOOKING (Persistence) =================
 export const getActiveBooking = async (req, res) => {
   try {
+    const now = new Date();
     const booking = await Booking.findOne({
       user: req.userId,
-      status: { $in: ["accepted", "driver_assigned", "arrived", "started", "waiting", "return_ride_started"] }
+      status: { $in: ["accepted", "driver_assigned", "arrived", "started", "waiting", "return_ride_started"] },
+      $or: [
+        { bookingType: { $ne: "schedule" } },
+        { scheduledDate: { $lte: now } }
+      ]
     })
       .populate("user", "name mobile profileImage")
       .populate("driver", "name vehicleModel vehicleNumber rating profileImage mobile latitude longitude");
@@ -325,7 +330,7 @@ export const getUserBookings = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
-    const { bookingType, status, rideType, paymentStatus, startDate, endDate } = req.query;
+    const { bookingType, scheduleView, status, rideType, paymentStatus, startDate, endDate } = req.query;
 
     console.log('[getUserBookings] Input params:', { bookingType, status, rideType, paymentStatus });
 
@@ -333,9 +338,22 @@ export const getUserBookings = async (req, res) => {
     const query = { user: req.userId };
 
     // Handle bookingType filtering with automatic status filtering
+    const now = new Date();
+
     if (bookingType === "schedule") {
       query.bookingType = "schedule";
-      query.status = "scheduled";  // Scheduled rides must have status "scheduled"
+      // Keep user-side schedule split aligned with driver-side behavior:
+      // upcoming: scheduledDate >= now && status not in completed/cancelled
+      // history: everything else from scheduled bookings
+      if (scheduleView === "upcoming") {
+        query.scheduledDate = { $gte: now };
+        query.status = { $nin: ["completed", "cancelled"] };
+      } else if (scheduleView === "history") {
+        query.$or = [
+          { scheduledDate: { $lt: now } },
+          { status: { $in: ["completed", "cancelled"] } }
+        ];
+      }
     } else if (bookingType === "now") {
       query.bookingType = "now";
       // For "now" rides, exclude the "scheduled" status - show only completed, cancelled, accepted, etc.
@@ -346,6 +364,7 @@ export const getUserBookings = async (req, res) => {
 
     // Override with explicit status if provided in query
     if (status) {
+      delete query.$or;
       query.status = status;
     }
 
@@ -369,8 +388,18 @@ export const getUserBookings = async (req, res) => {
     console.log('[getUserBookings] Final query filter:', JSON.stringify(query));
 
     // Parallelize count and data fetch for speed
-    // Sort by scheduledDate for scheduled rides, createdAt for now rides
-    const sortOrder = bookingType === "schedule" ? { scheduledDate: 1 } : { createdAt: -1 };
+    // Sorting:
+    // - schedule/upcoming => nearest scheduled first
+    // - schedule/history  => newest activity first
+    // - now/all           => newest created first
+    let sortOrder = { createdAt: -1 };
+    if (bookingType === "schedule" && scheduleView === "upcoming") {
+      sortOrder = { scheduledDate: 1 };
+    } else if (bookingType === "schedule" && scheduleView === "history") {
+      sortOrder = { updatedAt: -1, createdAt: -1 };
+    } else if (bookingType === "schedule") {
+      sortOrder = { scheduledDate: 1 };
+    }
 
     const [bookings, total] = await Promise.all([
       Booking.find(query)
@@ -403,7 +432,9 @@ export const getScheduledBookings = async (req, res) => {
     console.log('[getScheduledBookings] userId:', req.userId);
     const bookings = await Booking.find({
       user: req.userId,
-      status: "scheduled"
+      bookingType: "schedule",
+      scheduledDate: { $gte: new Date() },
+      status: { $nin: ["completed", "cancelled"] }
       // No date filter — show all scheduled regardless of time
     })
       .select('pickupLocation dropLocation fare status rideType vehicleType scheduledDate distance')
@@ -429,14 +460,19 @@ export const getScheduledHistory = async (req, res) => {
     const skip = (page - 1) * limit;
     const { status, rideType, paymentStatus, startDate, endDate } = req.query;
 
+    const now = new Date();
     const query = {
       user: req.userId,
       bookingType: "schedule",
-      status: { $nin: ["scheduled"] }
+      $or: [
+        { status: { $nin: ["scheduled"] } },
+        { status: "scheduled", scheduledDate: { $lt: now } }
+      ]
     };
 
     // Add optional filters
     if (status && status !== "all") {
+      delete query.$or;
       query.status = status;
     }
     if (rideType && rideType !== "all") {
@@ -547,10 +583,20 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
+    // Safety guard: prevent cancellation once trip has started/waiting phase.
+    if (["started", "waiting", "return_ride_started"].includes(String(booking.status))) {
+      return res.status(400).json({
+        message: "Ride has already started. Cancellation is not allowed at this stage."
+      });
+    }
+
     const previousStatus = booking.status;
     booking.status = "cancelled";
     booking.cancelledBy = "user";
     await booking.save();
+    serverLog(
+      `[Cancel][User] booking=${booking._id} user=${req.userId} previousStatus=${previousStatus} newStatus=${booking.status}`
+    );
 
     // Notify both user and driver
     try {

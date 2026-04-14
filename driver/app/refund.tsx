@@ -1,13 +1,16 @@
 import React, { useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar as RNStatusBar, BackHandler } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
+import Header from '../components/Header';
 
 export default function RefundScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         const backAction = () => {
@@ -22,17 +25,9 @@ export default function RefundScreen() {
         <View className="flex-1 bg-slate-50 relative">
             <StatusBar style="dark" />
 
-            <View className="bg-white shadow-sm z-10" style={{ paddingTop: STATUSBAR_HEIGHT }}>
-                <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Refund Policy</Text>
-                    <View className="w-10" />
-                </View>
-            </View>
+            <Header title="Refund Policy" />
 
-            <ScrollView className="flex-1 pt-6" contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 60 }}>
+            <ScrollView className="flex-1 pt-6" contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: Math.max(60, insets.bottom + 20) }}>
                 <Text className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-6 text-center">
                     Payment & Cancellation
                 </Text>

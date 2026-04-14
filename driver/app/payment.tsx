@@ -125,7 +125,7 @@ export default function PaymentScreen() {
         <View className="flex-1 bg-slate-900">
             <StatusBar style="light" />
             <SafeAreaView className="flex-1">
-                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 100, flexGrow: 1, justifyContent: 'center' }}>
+                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(100, insets.bottom + 60), flexGrow: 1, justifyContent: 'center' }}>
 
                     {/* Header Icon & Text */}
                     <View className="items-center mb-12">

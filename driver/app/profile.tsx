@@ -7,20 +7,26 @@ import {
     ScrollView,
     Platform,
     StatusBar as RNStatusBar,
-    Alert
+    Alert,
+    useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getImageUrl } from '../utils/imagekit';
 import * as Haptics from 'expo-haptics';
 import { driverAPI } from '../utils/api';
 import { clearDriverData, getDriverData, setDriverData } from '../utils/storage';
 import { useDriverAuth } from '../context/DriverAuthContext';
 
+import Header from '../components/Header';
+
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function ProfileScreen() {
+    const { width } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
     const { driver, setDriver, refreshProfile: contextRefresh, profileVersion } = useDriverAuth();
 
     const profileImageSource = React.useMemo(() => {
@@ -96,7 +102,6 @@ export default function ProfileScreen() {
             <StatusBar style="dark" />
 
             {/* --- YELLOW BACKGROUND BLOBS --- */}
-            {/* --- YELLOW BACKGROUND BLOBS --- */}
             <View
                 style={{
                     position: 'absolute',
@@ -123,28 +128,18 @@ export default function ProfileScreen() {
             />
 
             {/* Header */}
-            <View
-                className="z-10"
-                style={{ paddingTop: STATUSBAR_HEIGHT }}
-            >
-                <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        className="w-10 h-10 bg-white rounded-full items-center justify-center border border-slate-100 shadow-sm"
-                    >
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">My Profile</Text>
-                    <TouchableOpacity
-                        onPress={() => router.push("/edit-profile")}
-                        className="w-10 h-10 bg-white rounded-full items-center justify-center border border-slate-100 shadow-sm"
-                    >
-                        <Ionicons name="pencil" size={20} color="#1E293B" />
-                    </TouchableOpacity>
-                </View>
-            </View>
+            <Header 
+                title="My Profile" 
+                transparent={true}
+                rightIcon="pencil"
+                onRightPress={() => router.push("/edit-profile")}
+            />
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+            <ScrollView 
+                style={{ flex: 1 }} 
+                contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+                showsVerticalScrollIndicator={false}
+            >
 
                 {/* Profile Card */}
                 <View className="items-center mt-8 px-6">

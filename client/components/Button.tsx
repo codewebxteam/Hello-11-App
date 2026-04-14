@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useResponsive } from '../utils/responsive';
 
 interface ButtonProps {
     title: string;
@@ -19,7 +20,8 @@ const Button = ({
     icon = <Ionicons name="chevron-forward" size={18} color="#FFF" style={{ marginLeft: 6 }} />,
     className
 }: ButtonProps) => {
-    const baseClasses = "flex-row items-center justify-center py-4 rounded-3xl h-[60px]";
+    const { controlHeight, isSmallPhone } = useResponsive();
+    const baseClasses = "flex-row items-center justify-center rounded-3xl";
     const variantClasses = {
         primary: "bg-slate-800",
         secondary: "bg-orange-500",
@@ -36,13 +38,14 @@ const Button = ({
             onPress={onPress}
             activeOpacity={0.85}
             className={`${baseClasses} ${variantClasses[variant]} ${className}`}
+            style={{ minHeight: controlHeight, paddingVertical: isSmallPhone ? 12 : 14, paddingHorizontal: 16 }}
             disabled={isLoading}
         >
             {isLoading ? (
                 <ActivityIndicator color="white" />
             ) : (
                 <>
-                    <Text className={`text-lg font-extrabold ${textClasses[variant]}`}>{title}</Text>
+                    <Text className={`font-extrabold ${textClasses[variant]}`} style={{ fontSize: isSmallPhone ? 16 : 18 }}>{title}</Text>
                     {icon}
                 </>
             )}

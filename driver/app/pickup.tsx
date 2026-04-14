@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate, runOnUI } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
 import { getSocket, initSocket } from '../utils/socket';
@@ -21,12 +21,14 @@ export default function PickupScreen() {
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
     const { bookingId } = params;
+    const resolvedBookingId = Array.isArray(bookingId) ? bookingId[0] : bookingId;
     const [booking, setBooking] = useState<any>(null);
     const [driverLoc, setDriverLoc] = useState<any>(null);
     const [routeCoords, setRouteCoords] = useState<any[]>([]);
     const [region, setRegion] = useState<any>(null);
     const [distance, setDistance] = useState<string>("---");
     const [eta, setEta] = useState<string>("---");
+    const [sheetMeasuredHeight, setSheetMeasuredHeight] = useState<number>(SHEET_MAX_HEIGHT);
     const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
 
     // Animation Shared Values
@@ -73,6 +75,17 @@ export default function PickupScreen() {
     });
 
     useEffect(() => {
+        runOnUI((nextHeight: number, peekHeight: number) => {
+            'worklet';
+            sheetHeight.value = nextHeight;
+            const maxDrag = Math.max(0, nextHeight - peekHeight);
+            if (translateY.value > maxDrag) {
+                translateY.value = maxDrag;
+            }
+        })(sheetMeasuredHeight, PEEK_HEIGHT);
+    }, [sheetMeasuredHeight]);
+
+    useEffect(() => {
         const fetchBookingAndRoute = async () => {
             try {
                 // 1. Get initial location
@@ -93,9 +106,37 @@ export default function PickupScreen() {
                     }
                 }
 
-                const response = await driverAPI.getCurrentBooking();
-                if (response.data && response.data.booking) {
-                    const b = response.data.booking;
+                let b: any = null;
+
+                // Primary: use explicit bookingId passed from previous screen/event.
+                if (resolvedBookingId) {
+                    try {
+                        const byIdRes = await driverAPI.getBookingStatus(String(resolvedBookingId));
+                        if (byIdRes?.data?.booking) {
+                            b = byIdRes.data.booking;
+                        }
+                    } catch (err) {
+                        console.log("Pickup: getBookingStatus failed, trying current booking fallback");
+                    }
+                }
+
+                // Fallback: legacy current booking endpoint.
+                if (!b) {
+                    try {
+                        const currentRes = await driverAPI.getCurrentBooking();
+                        if (currentRes?.data?.booking) {
+                            b = currentRes.data.booking;
+                        }
+                    } catch (err: any) {
+                        const msg = err?.message || "";
+                        // Suppress noisy known case when booking is not yet marked as active.
+                        if (!msg.includes("No active booking found")) {
+                            throw err;
+                        }
+                    }
+                }
+
+                if (b) {
                     setBooking(b);
 
                     if (status === 'granted' && currentLat && currentLon) {
@@ -121,6 +162,8 @@ export default function PickupScreen() {
                             }
                         }
                     }
+                } else {
+                    console.log("Pickup: booking not found from both bookingId and current endpoints.");
                 }
             } catch (error) {
                 console.error("Error fetching booking or route:", error);
@@ -137,7 +180,7 @@ export default function PickupScreen() {
                 }
 
                 s.on("bookingCancelledByUser", (data: any) => {
-                    if (String(data.bookingId) === String(bookingId)) {
+                    if (String(data.bookingId) === String(resolvedBookingId || bookingId)) {
                         Alert.alert("Ride Cancelled", "The user has cancelled the ride.");
                         router.replace("/");
                     }
@@ -156,7 +199,7 @@ export default function PickupScreen() {
                 s.off("bookingCancelledByUser");
             }
         };
-    }, [bookingId]);
+    }, [resolvedBookingId]);
 
     useEffect(() => {
         if (!booking) return;
@@ -277,7 +320,7 @@ export default function PickupScreen() {
             </View>
 
             {/* --- TOP BAR --- */}
-            <SafeAreaView edges={['top']} className="absolute top-0 w-full z-10 px-4 pt-2">
+            <SafeAreaView edges={['top']} className="absolute top-0 w-full z-10 px-4" style={{ paddingTop: insets.top + 8 }}>
                 <View className="bg-[#0F172A] rounded-2xl p-4 shadow-2xl flex-row items-center border border-slate-700/50">
                     <TouchableOpacity
                         onPress={() => router.back()}
@@ -305,8 +348,8 @@ export default function PickupScreen() {
                     <View
                         onLayout={(e) => {
                             const { height: h } = e.nativeEvent.layout;
-                            if (h > 0 && Math.abs(sheetHeight.value - h) > 1) {
-                                sheetHeight.value = h;
+                            if (h > 0 && Math.abs(sheetMeasuredHeight - h) > 1) {
+                                setSheetMeasuredHeight(h);
                             }
                         }}
                         style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT }}
@@ -322,7 +365,7 @@ export default function PickupScreen() {
                                     {booking?.user?.profileImage ? (
                                         <Image source={{ uri: booking.user.profileImage }} className="w-full h-full" />
                                     ) : (
-                                        <Text className="text-lg">👤</Text>
+                                        <Ionicons name="person" size={20} color="#CBD5E1" />
                                     )}
                                 </View>
                                 <View className="ml-3">

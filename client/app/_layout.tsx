@@ -4,6 +4,8 @@ import { Stack, Redirect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, Text } from "react-native";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import CustomAlertModal from "../components/CustomAlertModal";
+import { setupCustomAlert } from "../utils/alert-override";
 
 function RootLayoutNav() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -57,9 +59,14 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  React.useEffect(() => {
+    setupCustomAlert();
+  }, []);
+
   return (
     <AuthProvider>
       <RootLayoutNav />
+      <CustomAlertModal />
     </AuthProvider>
   );
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TextInput, Text, TextInputProps } from 'react-native';
+import { useResponsive } from '../utils/responsive';
 
 
 interface InputProps extends TextInputProps {
@@ -20,11 +21,13 @@ const Input = ({
     onRightIconPress,
     ...props
 }: InputProps) => {
+    const { controlHeight, isSmallPhone } = useResponsive();
     return (
         <View className="mb-3">
             <View
-                className={`flex-row items-center border-[1.5px] rounded-[18px] bg-slate-50 px-4 h-[60px] ${isFocused ? 'border-[#FFD700] bg-white' : 'border-slate-100'
+                className={`flex-row items-center border-[1.5px] rounded-[18px] bg-slate-50 px-4 ${isFocused ? 'border-[#FFD700] bg-white' : 'border-slate-100'
                     } ${error ? 'border-red-500' : ''}`}
+                style={{ minHeight: controlHeight }}
             >
                 {icon && (
                     <View className="mr-3">
@@ -33,7 +36,8 @@ const Input = ({
                 )}
 
                 <TextInput
-                    className="flex-1 text-base text-slate-800 font-semibold h-full"
+                    className="flex-1 text-slate-800 font-semibold h-full"
+                    style={{ fontSize: isSmallPhone ? 15 : 16 }}
                     placeholderTextColor="#94A3B8"
                     {...props}
                 />

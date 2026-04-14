@@ -9,6 +9,8 @@ import {
     Animated,
     Easing,
     Dimensions,
+    useSafeAreaInsets,
+    useWindowDimensions,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
@@ -18,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Modal } from 'react-native';
 import { driverAPI } from '../utils/api';
 import { getEarningsData, setEarningsData } from '../utils/storage';
+import Header from '../components/Header';
 
 // Calendar Config
 LocaleConfig.locales['en'] = {
@@ -28,11 +31,12 @@ LocaleConfig.locales['en'] = {
 };
 LocaleConfig.defaultLocale = 'en';
 
-const { width } = Dimensions.get('window');
+
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 // Shimmer Component
 const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
+    const { width } = useWindowDimensions();
     const shimmerAnim = React.useRef(new Animated.Value(-1)).current;
 
     React.useEffect(() => {
@@ -74,6 +78,7 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 
 export default function EarningsScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [earnings, setEarnings] = React.useState<any>(null);
     const [selectedPeriod, setSelectedPeriod] = React.useState('week');
     const [loading, setLoading] = React.useState(true);
@@ -158,20 +163,17 @@ export default function EarningsScreen() {
             <StatusBar style="dark" />
 
             {/* Premium Header */}
-            <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white px-6 py-4 flex-row items-center justify-between border-b border-slate-50 shadow-sm">
-                <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
-                    <Ionicons name="chevron-back" size={24} color="#1E293B" />
-                </TouchableOpacity>
-                <Text style={{ color: '#0f172a', fontWeight: '900', fontSize: 12, textTransform: 'uppercase', letterSpacing: 4 }}>Financial Center</Text>
-                <TouchableOpacity 
-                    onPress={() => loadData(selectedPeriod, false, range.start || undefined, range.end || undefined)} 
-                    className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100"
-                >
-                    <Ionicons name="refresh" size={18} color="#1E293B" />
-                </TouchableOpacity>
-            </View>
+            <Header 
+                title="Financial Center" 
+                rightIcon="refresh"
+                onRightPress={() => loadData(selectedPeriod, false, range.start || undefined, range.end || undefined)}
+            />
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+            <ScrollView 
+                className="flex-1" 
+                showsVerticalScrollIndicator={false} 
+                contentContainerStyle={{ padding: 24, paddingBottom: Math.max(40, insets.bottom + 20) }}
+            >
                 {/* Main Glassmorphism Card */}
                 <View className="rounded-[32px] overflow-hidden shadow-2xl shadow-slate-900/10 mb-8">
                     <LinearGradient

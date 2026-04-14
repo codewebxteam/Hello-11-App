@@ -305,7 +305,7 @@ export default function DriverDashboard() {
         distanceInterval: 10,
         timeInterval: 10000,
         foregroundService: {
-          notificationTitle: "Driver is Online 🚕",
+          notificationTitle: "Driver is Online",
           notificationBody: "Waiting for new ride requests...",
           notificationColor: "#FFD700",
         },
@@ -671,8 +671,8 @@ export default function DriverDashboard() {
             colors={['#1E293B', '#0F172A']} // Premium Slate to Deep Navy
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ borderTopLeftRadius: 40, borderTopRightRadius: 40 }}
-            className={`px-8 pt-10 pb-12 shadow-2xl ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}
+            style={{ borderTopLeftRadius: 40, borderTopRightRadius: 40, paddingBottom: (insets?.bottom || 0) + 40 }}
+            className={`px-8 pt-10 shadow-2xl ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}
           >
             <View className="self-center w-12 h-1.5 bg-white/10 rounded-full mb-8" />
             <Text className="text-white text-3xl font-black mb-3 text-center italic tracking-tighter">You are Offline</Text>
@@ -767,8 +767,8 @@ export default function DriverDashboard() {
               colors={['#1E293B', '#0F172A']} // Premium Slate to Deep Navy (Consistent with Offline)
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{ borderTopLeftRadius: 40, borderTopRightRadius: 40 }}
-              className={`px-6 pt-6 pb-10 shadow-2xl ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}
+              style={{ borderTopLeftRadius: 40, borderTopRightRadius: 40, paddingBottom: (insets?.bottom || 0) + 32 }}
+              className={`px-6 pt-6 shadow-2xl ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}
             >
               <View className="self-center w-12 h-1.5 bg-white/10 rounded-full mb-6" />
 

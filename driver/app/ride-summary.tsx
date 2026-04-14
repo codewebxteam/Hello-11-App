@@ -31,7 +31,7 @@ export default function RideSummaryScreen() {
         <View className="flex-1 bg-slate-900">
             <StatusBar style="light" />
             <SafeAreaView className="flex-1">
-                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 160 }}>
+                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(160, insets.bottom + 120) }}>
 
                     {/* Success Animation Placeholder */}
                     <View className="items-center mb-8 mt-4 w-full">

@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate, runOnUI } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
 
@@ -47,6 +47,7 @@ export default function ActiveRideScreen() {
 
     const [distance, setDistance] = React.useState<string>("---");
     const [eta, setEta] = React.useState<string>("---");
+    const [sheetMeasuredHeight, setSheetMeasuredHeight] = React.useState<number>(SHEET_MAX_HEIGHT);
     const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
 
     // Animation Shared Values
@@ -91,6 +92,17 @@ export default function ActiveRideScreen() {
         );
         return { opacity };
     });
+
+    useEffect(() => {
+        runOnUI((nextHeight: number, peekHeight: number) => {
+            'worklet';
+            sheetHeight.value = nextHeight;
+            const maxDrag = Math.max(0, nextHeight - peekHeight);
+            if (translateY.value > maxDrag) {
+                translateY.value = maxDrag;
+            }
+        })(sheetMeasuredHeight, PEEK_HEIGHT);
+    }, [sheetMeasuredHeight]);
 
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
@@ -378,7 +390,6 @@ export default function ActiveRideScreen() {
                 "Start Waiting?",
                 "Finish first leg? (Mandatory half-fare collection for local rides)",
                 [
-                    { text: "Cancel", style: "cancel" },
                     {
                         text: "Collect Fare & Wait",
                         onPress: () => {
@@ -397,7 +408,8 @@ export default function ActiveRideScreen() {
                                 }
                             });
                         }
-                    }
+                    },
+                    { text: "Cancel", style: "cancel" }
                 ]
             );
         }
@@ -476,7 +488,7 @@ export default function ActiveRideScreen() {
             </View>
 
             {/* --- TOP BAR (NAVIGATION) --- */}
-            <View className="absolute top-0 w-full z-10 pt-12 px-4">
+            <View className="absolute top-0 w-full z-10 px-4" style={{ paddingTop: insets.top + 8 }}>
                 <View className="bg-[#0F172A] p-4 rounded-2xl shadow-2xl border border-slate-700/50 flex-row">
                     <View className="mr-4 bg-slate-800 p-3 rounded-xl items-center justify-center border border-slate-700">
                         <Ionicons name="arrow-redo" size={32} color="#FFF" />
@@ -514,8 +526,8 @@ export default function ActiveRideScreen() {
                     <View
                         onLayout={(e) => {
                             const { height: h } = e.nativeEvent.layout;
-                            if (h > 0 && Math.abs(sheetHeight.value - h) > 1) {
-                                sheetHeight.value = h;
+                            if (h > 0 && Math.abs(sheetMeasuredHeight - h) > 1) {
+                                setSheetMeasuredHeight(h);
                             }
                         }}
                         style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT }}
@@ -531,7 +543,7 @@ export default function ActiveRideScreen() {
                                     {booking?.user?.profileImage ? (
                                         <Image source={{ uri: booking.user.profileImage }} className="w-full h-full" />
                                     ) : (
-                                        <Text className="text-lg">👤</Text>
+                                        <Ionicons name="person" size={20} color="#CBD5E1" />
                                     )}
                                 </View>
                                 <View className="ml-3">

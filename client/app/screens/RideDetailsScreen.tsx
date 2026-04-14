@@ -581,12 +581,20 @@ export default function RideDetailsScreen() {
                         >
                             Booking
                         </Text>
-                        <Text 
-                            className={`font-bold ${isScheduled ? 'text-sky-700' : 'text-slate-800'}`}
-                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
-                        >
-                            {isScheduled ? '🗓️ Scheduled' : '⚡ Ride Now'}
-                        </Text>
+                        <View className="flex-row items-center">
+                            <Ionicons 
+                                name={isScheduled ? 'calendar-outline' : 'flash-outline'} 
+                                size={14} 
+                                color={isScheduled ? '#0369a1' : '#f59e0b'} 
+                                style={{ marginRight: 4 }}
+                            />
+                            <Text 
+                                className={`font-bold ${isScheduled ? 'text-sky-700' : 'text-slate-800'}`}
+                                style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                            >
+                                {isScheduled ? 'Scheduled' : 'Ride Now'}
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Return Trip */}
@@ -605,12 +613,20 @@ export default function RideDetailsScreen() {
                         >
                             Return Trip
                         </Text>
-                        <Text 
-                            className={`font-bold ${hasReturn ? 'text-amber-700' : 'text-slate-400'}`}
-                            style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
-                        >
-                            {hasReturn ? `✅ Yes  ₹${booking.returnTripFare || 0}` : '❌ No'}
-                        </Text>
+                        <View className="flex-row items-center">
+                            <Ionicons 
+                                name={hasReturn ? 'checkmark-circle' : 'close-circle'} 
+                                size={14} 
+                                color={hasReturn ? '#047857' : '#ef4444'} 
+                                style={{ marginRight: 4 }}
+                            />
+                            <Text 
+                                className={`font-bold ${hasReturn ? 'text-amber-700' : 'text-slate-400'}`}
+                                style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
+                            >
+                                {hasReturn ? `Yes  ₹${booking.returnTripFare || 0}` : 'No'}
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Penalty */}

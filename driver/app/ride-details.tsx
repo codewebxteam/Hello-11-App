@@ -14,12 +14,15 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { driverAPI } from '../utils/api';
 import Shimmer from '../components/Shimmer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
+import Header from '../components/Header';
 
 export default function RideDetailsScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { bookingId, prefill } = useLocalSearchParams();
 
     const initialPrefill = useMemo(() => {
@@ -113,19 +116,9 @@ export default function RideDetailsScreen() {
     return (
         <View className="flex-1 bg-slate-50">
             <StatusBar style="dark" />
-            <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm z-10">
-                <View className="px-6 py-4 flex-row items-center">
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100 mr-4"
-                    >
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Ride Details</Text>
-                </View>
-            </View>
+            <Header title="Ride Details" />
 
-            <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(48, insets.bottom + 24) }} showsVerticalScrollIndicator={false}>
 
                 {/* ─── Status + Earnings Card ─── */}
                 <View className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100 mb-5 items-center">
@@ -281,18 +274,34 @@ export default function RideDetailsScreen() {
                     <View className={`rounded-[24px] p-5 shadow-sm border w-[48%] mb-4 ${booking.bookingType === 'schedule' ? 'bg-sky-50 border-sky-100' : 'bg-white border-slate-100'}`}>
                         <Ionicons name={booking.bookingType === 'schedule' ? 'calendar' : 'flash'} size={20} color={booking.bookingType === 'schedule' ? '#0284c7' : '#f59e0b'} />
                         <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Booking</Text>
-                        <Text className={`font-bold text-xs ${booking.bookingType === 'schedule' ? 'text-sky-700' : 'text-slate-800'}`}>
-                            {booking.bookingType === 'schedule' ? '🗓️ Scheduled' : '⚡ Ride Now'}
-                        </Text>
+                        <View className="flex-row items-center">
+                            <Ionicons 
+                                name={booking.bookingType === 'schedule' ? 'calendar-outline' : 'flash-outline'} 
+                                size={14} 
+                                color={booking.bookingType === 'schedule' ? '#0369a1' : '#1e293b'} 
+                                style={{ marginRight: 4 }}
+                            />
+                            <Text className={`font-bold text-xs ${booking.bookingType === 'schedule' ? 'text-sky-700' : 'text-slate-800'}`}>
+                                {booking.bookingType === 'schedule' ? 'Scheduled' : 'Ride Now'}
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Return Trip */}
                     <View className={`rounded-[24px] p-5 shadow-sm border w-[48%] mb-4 ${!!booking.hasReturnTrip ? 'bg-amber-50 border-amber-100' : 'bg-white border-slate-100'}`}>
                         <Ionicons name="return-down-back" size={20} color={!!booking.hasReturnTrip ? '#b45309' : '#94A3B8'} />
                         <Text className="text-slate-400 text-[10px] font-bold uppercase mb-1 mt-2">Return Trip</Text>
-                        <Text className={`font-bold text-xs ${!!booking.hasReturnTrip ? 'text-amber-700' : 'text-slate-400'}`}>
-                            {!!booking.hasReturnTrip ? `✅ Yes  ₹${booking.returnTripFare || 0}` : '❌ No'}
-                        </Text>
+                        <View className="flex-row items-center">
+                            <Ionicons 
+                                name={!!booking.hasReturnTrip ? 'checkmark-circle' : 'close-circle'} 
+                                size={14} 
+                                color={!!booking.hasReturnTrip ? '#047857' : '#ef4444'} 
+                                style={{ marginRight: 4 }}
+                            />
+                            <Text className={`font-bold text-xs ${!!booking.hasReturnTrip ? 'text-amber-700' : 'text-slate-400'}`}>
+                                {!!booking.hasReturnTrip ? `Yes  ₹${booking.returnTripFare || 0}` : 'No'}
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Penalty */}

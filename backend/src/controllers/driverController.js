@@ -943,6 +943,8 @@ export const acceptBooking = async (req, res) => {
       .populate("user", "name mobile profileImage")
       .populate("driver", "name mobile vehicleModel vehicleNumber rating vehicleType profileImage latitude longitude location");
 
+    const isFutureScheduled = isFutureScheduledBooking(populatedBooking);
+
     // NOTIFY USER via Socket
     const { getIO: ioGetter } = await import("../utils/socketLogic.js");
     const io = ioGetter();
@@ -950,6 +952,13 @@ export const acceptBooking = async (req, res) => {
       booking: {
         id: populatedBooking._id,
         status: populatedBooking.status,
+        bookingType: populatedBooking.bookingType,
+        scheduledDate: populatedBooking.scheduledDate,
+        scheduledRideReady: !isFutureScheduled,
+        pickupLatitude: populatedBooking.pickupLatitude,
+        pickupLongitude: populatedBooking.pickupLongitude,
+        dropLatitude: populatedBooking.dropLatitude,
+        dropLongitude: populatedBooking.dropLongitude,
         driver: {
           name: populatedBooking.driver.name,
           mobile: populatedBooking.driver.mobile,
@@ -971,7 +980,9 @@ export const acceptBooking = async (req, res) => {
     await createNotification({
       userId: populatedBooking.user._id,
       title: "Ride Accepted",
-      body: `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
+      body: isFutureScheduled
+        ? `Driver ${populatedBooking.driver.name} assigned for your scheduled ride at ${new Date(populatedBooking.scheduledDate).toLocaleString("en-IN")}.`
+        : `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
       type: "ride_accepted",
       bookingId: populatedBooking._id
     });
@@ -981,7 +992,9 @@ export const acceptBooking = async (req, res) => {
       sendPushNotification(
         populatedBooking.user.pushToken,
         "Ride Accepted",
-        `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
+        isFutureScheduled
+          ? `Driver ${populatedBooking.driver.name} assigned for your scheduled ride at ${new Date(populatedBooking.scheduledDate).toLocaleString("en-IN")}.`
+          : `Driver ${populatedBooking.driver.name} has accepted your ride. They are on their way!`,
         { bookingId: populatedBooking._id.toString(), type: 'ride_accepted' }
       );
     }
@@ -1787,9 +1800,21 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
+    // Safety guard: prevent cancellation once trip has started/waiting phase.
+    if (["started", "waiting", "return_ride_started"].includes(String(booking.status))) {
+      return res.status(400).json({
+        message: "Ride has already started. Cancellation is not allowed at this stage."
+      });
+    }
+
+    const previousStatus = booking.status;
     booking.status = "cancelled";
     booking.cancellationReason = reason || "Cancelled by driver";
+    booking.cancelledBy = "driver";
     await booking.save();
+    serverLog(
+      `[Cancel][Driver] booking=${booking._id} driver=${req.driverId} previousStatus=${previousStatus} newStatus=${booking.status} reason="${booking.cancellationReason}"`
+    );
 
     // Make driver available again and clear current ride
     await Driver.findByIdAndUpdate(req.driverId, {

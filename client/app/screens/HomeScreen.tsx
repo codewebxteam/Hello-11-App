@@ -78,24 +78,37 @@ const HomeScreen = () => {
 
         socket.on("rideAccepted", (data: any) => {
           console.log("RIDE ACCEPTED:", data);
-          setAssignedDriver(data.booking.driver);
-          setActiveBookingId(data.booking.id);
+          const booking = data?.booking || {};
+          const isScheduled = booking.bookingType === "schedule";
+          const scheduledTime = booking.scheduledDate ? new Date(booking.scheduledDate).getTime() : null;
+          const isFutureScheduled = isScheduled && !!scheduledTime && scheduledTime > Date.now();
+          const isRideReadyNow = booking.scheduledRideReady === true || !isFutureScheduled;
+
+          setAssignedDriver(booking.driver || null);
+          setActiveBookingId(booking.id || null);
           setIsSearching(false);
+
+          if (!isRideReadyNow) {
+            sendLocalNotification(
+              "Driver Assigned For Scheduled Ride",
+              `Driver ${booking?.driver?.name || ""} assigned. Ride will start at scheduled time.`
+            );
+            return;
+          }
 
           sendLocalNotification(
             "Ride Accepted",
-            `${data.booking.driver.name} is on the way in a ${data.booking.driver.vehicleModel}`
+            `${booking?.driver?.name || "Driver"} is on the way in a ${booking?.driver?.vehicleModel || "car"}`
           );
 
-          // Auto-redirect to tracking screen immediately
           router.push({
             pathname: "/screens/LiveRideTrackingScreen",
             params: {
-              bookingId: data.booking.id,
-              pLat: data.booking.pickupLatitude,
-              pLon: data.booking.pickupLongitude,
-              dLat: data.booking.dropLatitude,
-              dLon: data.booking.dropLongitude
+              bookingId: booking.id,
+              pLat: booking.pickupLatitude,
+              pLon: booking.pickupLongitude,
+              dLat: booking.dropLatitude,
+              dLon: booking.dropLongitude
             }
           });
         });

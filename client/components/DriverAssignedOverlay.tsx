@@ -1,9 +1,8 @@
-import { View, Text, TouchableOpacity, Modal, Dimensions, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { SlideInDown, FadeIn } from 'react-native-reanimated';
 import { getImageUrl } from '../utils/imagekit';
-
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../utils/responsive';
 
 interface DriverAssignedOverlayProps {
     isVisible: boolean;
@@ -34,6 +33,7 @@ const DriverAssignedOverlay = ({
     eta = "4 mins",
     profileImage
 }: DriverAssignedOverlayProps) => {
+    const { isSmallPhone, isTablet, height } = useResponsive();
 
     if (!isVisible) return null;
 
@@ -52,7 +52,8 @@ const DriverAssignedOverlay = ({
                 {/* Overlay Content with Smooth Slide */}
                 <Animated.View
                     entering={SlideInDown.springify().damping(20).mass(0.8).stiffness(90)}
-                    className="bg-white rounded-t-[35px] shadow-2xl overflow-hidden h-[85%]"
+                    className="bg-white rounded-t-[35px] shadow-2xl overflow-hidden"
+                    style={{ height: Math.min(height * 0.9, isTablet ? 820 : 760) }}
                 >
                     {/* Map Placeholder (Top Half) */}
                     <View className="flex-1 bg-slate-100 relative overflow-hidden">
@@ -89,14 +90,14 @@ const DriverAssignedOverlay = ({
                     </View>
 
                     {/* Driver & Ride Info (Bottom Sheet) */}
-                    <View className="bg-white px-6 pt-6 pb-8 rounded-t-[35px] -mt-6 shadow-top shadow-xl">
+                    <View className="bg-white rounded-t-[35px] -mt-6 shadow-top shadow-xl" style={{ paddingHorizontal: isSmallPhone ? 16 : 24, paddingTop: isSmallPhone ? 16 : 24, paddingBottom: isSmallPhone ? 18 : 28 }}>
                         {/* Handle Bar */}
                         <View className="items-center mb-6">
                             <View className="w-12 h-1 bg-slate-200 rounded-full" />
                         </View>
 
                         {/* Driver Profile */}
-                        <View className="flex-row items-center mb-8">
+                        <View className="flex-row items-center mb-6">
                             <View className="relative">
                                 <View className="w-16 h-16 bg-slate-200 rounded-full border-2 border-white shadow-md items-center justify-center overflow-hidden">
                                     {profileImage ? (

@@ -3,6 +3,9 @@
     "name": "driverSection",
     "slug": "driverSection",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "driversection",
@@ -64,6 +67,12 @@
         "projectId": "8b8bd287-1c0a-4adb-a5e6-d339248a8d40"
       }
     },
-    "owner": "codewebx"
+    "owner": "codewebx",
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/8b8bd287-1c0a-4adb-a5e6-d339248a8d40"
+    }
   }
 }

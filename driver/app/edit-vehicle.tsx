@@ -11,6 +11,7 @@ import {
     ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
@@ -18,10 +19,13 @@ import { driverAPI } from '../utils/api';
 import { getDriverData, setDriverData } from '../utils/storage';
 import { useDriverAuth } from '../context/DriverAuthContext';
 
+import Header from '../components/Header';
+
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function EditVehicleScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { refreshProfile } = useDriverAuth();
     const [loading, setLoading] = React.useState(false);
     const [form, setForm] = React.useState({
@@ -80,20 +84,9 @@ export default function EditVehicleScreen() {
         <View className="flex-1 bg-[#F8FAFC]">
             <StatusBar style="dark" />
 
-            <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm">
-                <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity 
-                        onPress={() => router.back()} 
-                        className="w-12 h-12 bg-slate-50 rounded-2xl items-center justify-center border border-slate-100 active:bg-slate-100"
-                    >
-                        <Ionicons name="chevron-back" size={24} color="#0F172A" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-widest uppercase italic">Vehicle Details</Text>
-                    <View className="w-12" />
-                </View>
-            </View>
+            <Header title="Vehicle Details" />
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20) }}>
                 <View className="px-6 py-8">
                     {/* Primary Info - LOCKED */}
                     <View className="mb-8">

@@ -7,7 +7,8 @@ import {
   Keyboard,
   Image,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -149,6 +150,9 @@ export default function StartRideScreen() {
     );
   }
 
+  const { width: screenWidth } = useWindowDimensions();
+  const inputWidth = (screenWidth - 48 - 48) / 4; // screenWidth - padding - gap approx
+
   return (
     <View
       className="flex-1 bg-slate-900"
@@ -181,7 +185,8 @@ export default function StartRideScreen() {
               ref={(ref) => {
                 inputs.current[index] = ref;
               }}
-              className={`w-[70px] h-[70px] bg-slate-800 rounded-2xl text-center text-white text-3xl font-black border-2 ${otp[index] ? "border-[#FFD700]" : "border-slate-700"
+              style={{ width: Math.min(70, inputWidth), height: Math.min(70, inputWidth) }}
+              className={`bg-slate-800 rounded-2xl text-center text-white text-3xl font-black border-2 ${otp[index] ? "border-[#FFD700]" : "border-slate-700"
                 }`}
               keyboardType="number-pad"
               maxLength={1}
@@ -201,7 +206,7 @@ export default function StartRideScreen() {
               {booking?.user?.profileImage ? (
                 <Image source={{ uri: booking.user.profileImage }} className="w-full h-full" />
               ) : (
-                <Text className="text-2xl">👤</Text>
+                <Ionicons name="person" size={24} color="#CBD5E1" />
               )}
             </View>
 

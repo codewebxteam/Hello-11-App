@@ -13,6 +13,7 @@ import {
   Modal,
   NativeModules,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -21,12 +22,14 @@ import { Calendar, LocaleConfig } from 'react-native-calendars';
 import * as Haptics from "expo-haptics";
 import RazorpayCheckout from "react-native-razorpay";
 import { driverAPI } from "../utils/api";
+import Header from "../components/Header";
 
-const { width, height } = Dimensions.get("window");
+
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 // Shimmer Component
 const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
+  const { width } = useWindowDimensions();
   const shimmerAnim = useRef(new Animated.Value(-1)).current;
 
   useEffect(() => {
@@ -67,6 +70,7 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 };
 
 export default function WalletScreen() {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<"history" | "commissions">("history");
@@ -488,21 +492,11 @@ export default function WalletScreen() {
 
   return (
     <View className="flex-1 bg-[#F8FAFC]">
-      <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white px-6 py-4 flex-row items-center justify-between border-b border-slate-50 shadow-sm">
-        <TouchableOpacity 
-          onPress={() => router.back()}
-          className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100 shadow-sm"
-        >
-          <Ionicons name="chevron-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
-        <Text style={{ color: '#0f172a', fontWeight: '900', fontSize: 13, textTransform: 'uppercase', letterSpacing: 3 }}>Driver Wallet</Text>
-        <TouchableOpacity 
-          onPress={onRefresh}
-          className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100 shadow-sm"
-        >
-          <Ionicons name="refresh" size={18} color="#0F172A" />
-        </TouchableOpacity>
-      </View>
+      <Header 
+        title="Driver Wallet" 
+        rightIcon="refresh"
+        onRightPress={onRefresh}
+      />
 
       <FlatList
         data={activeTab === "history" ? txs : comms}
@@ -522,6 +516,7 @@ export default function WalletScreen() {
         refreshing={refreshing}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 10) }}
         ListFooterComponent={loadingMore ? <FooterShimmer /> : <View className="h-10" />}
       />
 

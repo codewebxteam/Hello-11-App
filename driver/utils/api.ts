@@ -182,6 +182,8 @@ export const driverAPI = {
     limit?: number;
     status?: string;
     rideType?: string;
+    bookingType?: string;
+    scheduleView?: string;
     paymentStatus?: string;
     dateFrom?: string;
     dateTo?: string;

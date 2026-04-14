@@ -89,12 +89,13 @@ export const userAPI = {
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.put(API_ENDPOINTS.CHANGE_PASSWORD, data),
 
-  getHistory: (page = 1, limit = 10, filters?: { bookingType?: string; rideType?: string; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) => 
+  getHistory: (page = 1, limit = 10, filters?: { bookingType?: string; scheduleView?: string; rideType?: string; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) => 
     api.get(API_ENDPOINTS.USER_HISTORY, { 
       params: { 
         page, 
         limit,
         ...(filters?.bookingType && { bookingType: filters.bookingType }),
+        ...(filters?.scheduleView && { scheduleView: filters.scheduleView }),
         ...(filters?.rideType && { rideType: filters.rideType }),
         ...(filters?.status && { status: filters.status }),
         ...(filters?.paymentStatus && { paymentStatus: filters.paymentStatus }),

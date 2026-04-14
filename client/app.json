@@ -3,6 +3,9 @@
     "name": "hello-11",
     "slug": "hello-11",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "hello11",
@@ -52,6 +55,12 @@
         "projectId": "947724fb-760e-4abc-b757-f2832431ea53"
       }
     },
-    "owner": "codewebx"
+    "owner": "codewebx",
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/947724fb-760e-4abc-b757-f2832431ea53"
+    }
   }
 }

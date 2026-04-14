@@ -8,11 +8,13 @@ import {
     Platform,
     StatusBar as RNStatusBar,
     Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'react-native';
@@ -20,11 +22,15 @@ import { getImageUrl } from '../utils/imagekit';
 import { driverAPI } from '../utils/api';
 import { getDriverData, setDriverData } from '../utils/storage';
 import { useDriverAuth } from '../context/DriverAuthContext';
+import Header from '../components/Header';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function EditProfileScreen() {
     const router = useRouter();
+    const { width } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
+    
     const { refreshProfile, driver: authDriver } = useDriverAuth();
     const [loading, setLoading] = React.useState(false);
     const [form, setForm] = React.useState({
@@ -116,17 +122,13 @@ export default function EditProfileScreen() {
         <View className="flex-1 bg-slate-50">
             <StatusBar style="dark" />
 
-            <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm">
-                <View className="px-6 py-4 flex-row items-center justify-between">
-                    <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
-                        <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                    </TouchableOpacity>
-                    <Text className="text-slate-900 font-black text-lg tracking-wider uppercase">Edit Profile</Text>
-                    <View className="w-10" />
-                </View>
-            </View>
+            <Header title="Edit Profile" />
 
-            <ScrollView className="flex-1 px-6 mt-8 pb-10" showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                className="flex-1 px-6 mt-8" 
+                contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Profile Image Picker */}
                 <View className="items-center mb-10">
                     <TouchableOpacity
@@ -211,7 +213,7 @@ export default function EditProfileScreen() {
                         <ActivityIndicator color="white" />
                     ) : (
                         <>
-                          <Ionicons name="checkmark-circle" size={20} color="#FFD700" className="mr-2" />
+                          <Ionicons name="checkmark-circle" size={20} color="#FFD700" style={{ marginRight: 8 }} />
                           <Text className="text-white font-black text-sm tracking-[4px] uppercase ml-2">Submit Profile</Text>
                         </>
                     )}

@@ -1,17 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withRepeat,
     withTiming,
-    // withSequence,
-    FadeInDown,
-    // FadeIn
 } from 'react-native-reanimated';
-
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../utils/responsive';
 
 interface SearchingRideOverlayProps {
     isVisible: boolean;
@@ -30,6 +26,7 @@ const SearchingRideOverlay = ({
     rideMode = "Standard",
     timeoutSeconds = 120
 }: SearchingRideOverlayProps) => {
+    const { isSmallPhone, isTablet } = useResponsive();
     const [remainingSeconds, setRemainingSeconds] = useState(timeoutSeconds);
     const [isCancelling, setIsCancelling] = useState(false);
     const cancelInFlightRef = useRef(false);
@@ -118,7 +115,7 @@ const SearchingRideOverlay = ({
                         <View className="w-16 h-1.5 bg-slate-200 rounded-full" />
                     </View>
 
-                    <View className="px-6 pb-10 pt-4">
+                    <View style={{ paddingHorizontal: isSmallPhone ? 14 : 24, paddingBottom: isSmallPhone ? 20 : 40, paddingTop: 16 }}>
                         {/* Title & Animation */}
                         <View className="items-center mb-8">
                             <View className="relative justify-center items-center mb-6 mt-2">
@@ -127,8 +124,8 @@ const SearchingRideOverlay = ({
                                     style={[
                                         {
                                             position: 'absolute',
-                                            width: 80,
-                                            height: 80,
+                                            width: isSmallPhone ? 64 : 80,
+                                            height: isSmallPhone ? 64 : 80,
                                             backgroundColor: '#FFD700',
                                             borderRadius: 9999,
                                         },
@@ -136,14 +133,14 @@ const SearchingRideOverlay = ({
                                     ]}
                                 />
 
-                                <View className="absolute w-20 h-20 bg-[#FFD700]/20 rounded-full" />
+                                <View className={`${isSmallPhone ? "w-16 h-16" : "w-20 h-20"} absolute bg-[#FFD700]/20 rounded-full`} />
 
-                                <View className="w-16 h-16 bg-[#FFD700] rounded-full items-center justify-center shadow-lg shadow-orange-200">
+                                <View className={`${isSmallPhone ? "w-14 h-14" : "w-16 h-16"} bg-[#FFD700] rounded-full items-center justify-center shadow-lg shadow-orange-200`}>
                                     <ActivityIndicator size="large" color="#000" />
                                 </View>
                             </View>
 
-                            <Text className="text-2xl font-black text-slate-900 text-center mb-1">
+                            <Text className={`${isSmallPhone ? "text-xl" : "text-2xl"} font-black text-slate-900 text-center mb-1`}>
                                 Finding your driver
                             </Text>
                             <Text className="text-slate-500 font-medium text-center">
@@ -157,7 +154,7 @@ const SearchingRideOverlay = ({
                         </View>
 
                         {/* Ride Details Card */}
-                        <View className="bg-slate-50 p-5 rounded-3xl border border-slate-100 mb-8 space-y-4">
+                        <View className={`bg-slate-50 border border-slate-100 mb-8 ${isSmallPhone ? "p-4 rounded-2xl" : "p-5 rounded-3xl"} ${isTablet ? "max-w-2xl self-center w-full" : ""}`}>
                             {/* Pickup */}
                             <View className="flex-row items-start">
                                 <View className="mt-1">
