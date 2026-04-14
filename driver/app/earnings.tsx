@@ -9,9 +9,9 @@ import {
     Animated,
     Easing,
     Dimensions,
-    useSafeAreaInsets,
     useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useRouter } from "expo-router";
