@@ -8,7 +8,7 @@ import {
     View,
     ScrollView,
     TextInput,
-    Dimensions,
+    useWindowDimensions,
     ActivityIndicator,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
@@ -16,10 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useDriverAuth } from "../../context/DriverAuthContext";
 
-const { width, height } = Dimensions.get('window');
-const isTablet = width > 768;
-
 const LoginScreen = () => {
+    const { width, height } = useWindowDimensions();
+    const isTablet = width >= 768;
     const [phoneNumber, setPhoneNumber] = useState("");
     const [password, setPassword] = useState("");
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);

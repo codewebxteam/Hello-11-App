@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
@@ -16,10 +16,10 @@ import { StatusBar } from 'expo-status-bar';
 import Input from "../../components/Input";
 import Button from "../../components/Button";
 
-const { width, height } = Dimensions.get('window');
-const isTablet = width > 768;
-
 const RegisterScreen = () => {
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const isSmallPhone = width < 360;
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -118,18 +118,18 @@ const RegisterScreen = () => {
             <Ionicons name="arrow-back" size={24} color="#1E293B" />
           </TouchableOpacity>
 
-          <View className={`flex-1 px-8 ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
+          <View className={`flex-1 ${isSmallPhone ? 'px-5' : 'px-8'} ${isTablet ? 'max-w-2xl self-center w-full' : ''}`}>
 
             {/* Header Content */}
             <View className="mb-8 items-center mt-4">
-              <Text className="text-[32px] md:text-5xl font-black text-slate-900 text-center leading-tight">
+              <Text className={`${isSmallPhone ? 'text-[28px]' : 'text-[32px]'} md:text-5xl font-black text-slate-900 text-center leading-tight`}>
                 Create{"\n"}<Text className="text-slate-800">New Account</Text>
               </Text>
               <View className="w-12 h-1.5 bg-slate-900 rounded-full mt-3" />
             </View>
 
             {/* Registration Form Card */}
-            <View className="bg-white p-6 md:p-10 rounded-[40px] shadow-2xl shadow-slate-300 border border-slate-50">
+            <View className={`bg-white ${isSmallPhone ? 'p-4' : 'p-6'} md:p-10 rounded-[40px] shadow-2xl shadow-slate-300 border border-slate-50`}>
               <View className="space-y-4">
                 <Input
                   placeholder="Full Name"

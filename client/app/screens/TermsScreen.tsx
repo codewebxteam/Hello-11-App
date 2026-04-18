@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar as RNStatusBar, BackHandler } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar as RNStatusBar, BackHandler, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
@@ -7,6 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function TermsScreen() {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
 
     useEffect(() => {
@@ -23,25 +25,25 @@ export default function TermsScreen() {
             <StatusBar style="dark" />
 
             <View style={{ paddingTop: STATUSBAR_HEIGHT }} className="bg-white shadow-sm z-10">
-                <View className="px-6 py-4 flex-row items-center">
+                <View className={`${isSmallPhone ? 'px-4 py-3' : 'px-6 py-4'} flex-row items-center`}>
                     <TouchableOpacity
                         onPress={() => router.back()}
                         className="w-10 h-10 bg-slate-50 rounded-full items-center justify-center border border-slate-100 mr-4"
                     >
                         <Ionicons name="arrow-back" size={20} color="#1E293B" />
                     </TouchableOpacity>
-                    <Text className="text-slate-900 font-black tracking-wider uppercase text-[18px]">
+                    <Text className={`text-slate-900 font-black tracking-wider uppercase ${isSmallPhone ? 'text-base' : 'text-[18px]'}`}>
                         Terms & Conditions
                     </Text>
                 </View>
             </View>
 
-            <ScrollView className="flex-1 pt-6" contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 60 }}>
+            <ScrollView className={`flex-1 ${isSmallPhone ? 'pt-4' : 'pt-6'}`} contentContainerStyle={{ paddingHorizontal: isSmallPhone ? 14 : 24, paddingBottom: 60 }}>
                 <Text className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-6 text-center">
                     Official agreement for Users and Partner Drivers
                 </Text>
                 
-                <View className="bg-white p-5 rounded-[24px] mb-5 shadow-sm border border-slate-100">
+                <View className={`bg-white ${isSmallPhone ? 'p-4 rounded-[16px]' : 'p-5 rounded-[24px]'} mb-5 shadow-sm border border-slate-100`}>
                     <View className="flex-row items-center mb-4 pb-4 border-b border-slate-50">
                         <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center mr-3">
                             <Ionicons name="person" size={20} color="#3B82F6" />
@@ -68,12 +70,12 @@ export default function TermsScreen() {
                         </View>
                         <View className="flex-row items-start">
                             <View className="w-2 h-2 rounded-full bg-[#FFD700] mt-2 mr-3" />
-                            <Text className="flex-1 text-slate-600 leading-6"><Text className="font-black text-slate-900">Outstation:</Text> For outstation trips, you must cover the driver's basic food expenses.</Text>
+                            <Text className="flex-1 text-slate-600 leading-6"><Text className="font-black text-slate-900">Outstation:</Text> For outstation trips, you must cover the driver&apos;s basic food expenses.</Text>
                         </View>
                     </View>
                 </View>
 
-                <View className="bg-white p-5 rounded-[24px] mb-5 shadow-sm border border-slate-100">
+                <View className={`bg-white ${isSmallPhone ? 'p-4 rounded-[16px]' : 'p-5 rounded-[24px]'} mb-5 shadow-sm border border-slate-100`}>
                     <View className="flex-row items-center mb-4 pb-4 border-b border-slate-50">
                         <View className="w-10 h-10 rounded-full bg-orange-50 items-center justify-center mr-3">
                             <Ionicons name="car" size={20} color="#F97316" />
@@ -101,7 +103,7 @@ export default function TermsScreen() {
                     </View>
                 </View>
 
-                <View className="bg-slate-900 p-6 rounded-[24px] mt-4 shadow-lg">
+                <View className={`bg-slate-900 ${isSmallPhone ? 'p-4 rounded-[16px]' : 'p-6 rounded-[24px]'} mt-4 shadow-lg`}>
                     <View className="flex-row items-center mb-3">
                         <Ionicons name="help-buoy" size={24} color="#FFD700" />
                         <Text className="text-[#FFD700] font-black text-lg ml-3 tracking-wider uppercase">Need Help?</Text>

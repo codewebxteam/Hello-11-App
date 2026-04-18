@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, Alert, Image, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, Linking, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,9 +8,9 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { bookingAPI } from '../../utils/api';
 import { getSocket, initSocket } from '../../utils/socket';
 
-const { width } = Dimensions.get('window');
-
 const WaitingTimerScreen = () => {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
     const params = useLocalSearchParams();
     const bookingId = params.bookingId as string;
@@ -103,7 +103,7 @@ const WaitingTimerScreen = () => {
     return (
         <View className="flex-1 bg-white">
             <StatusBar style="dark" />
-            <SafeAreaView className="flex-1 px-6 pt-4">
+            <SafeAreaView className={`flex-1 ${isSmallPhone ? 'px-4' : 'px-6'} pt-4`}>
 
                 <View className="flex-row justify-between items-center mb-10">
                     <TouchableOpacity onPress={() => router.back()} className="bg-slate-100 p-3 rounded-full">
@@ -116,7 +116,7 @@ const WaitingTimerScreen = () => {
                 <View className="items-center justify-center flex-1 -mt-20">
                     <Animated.View
                         entering={ZoomIn.duration(600).springify()}
-                        className="w-64 h-64 rounded-full border-[6px] border-slate-100 items-center justify-center relative bg-white shadow-2xl shadow-slate-200"
+                        className={`${isSmallPhone ? 'w-56 h-56' : 'w-64 h-64'} rounded-full border-[6px] border-slate-100 items-center justify-center relative bg-white shadow-2xl shadow-slate-200`}
                     >
                         <View className={`absolute top-0 w-full h-full rounded-full border-[6px] ${isOverdue ? 'border-red-500' : 'border-[#FFD700]'} opacity-30`} />
 
@@ -124,7 +124,7 @@ const WaitingTimerScreen = () => {
                             <Text className="text-slate-400 text-sm font-bold tracking-widest uppercase mb-2">
                                 {isOverdue ? 'Penalty Time' : 'Remaining Free Time'}
                             </Text>
-                            <Text className={`text-5xl font-black ${isOverdue ? 'text-red-500' : 'text-slate-900'} tracking-tighter`}>
+                            <Text className={`${isSmallPhone ? 'text-4xl' : 'text-5xl'} font-black ${isOverdue ? 'text-red-500' : 'text-slate-900'} tracking-tighter`}>
                                 {formatTime(timeLeft)}
                             </Text>
                             {isOverdue && (
@@ -173,7 +173,7 @@ const WaitingTimerScreen = () => {
                         onPress={() => Alert.alert("Coming?", "Notify the driver that you are coming.", [{ text: "Cancel" }, { text: "Notify", onPress: () => { } }])}
                         className="bg-slate-900 w-full py-4 rounded-2xl items-center shadow-lg active:scale-95"
                     >
-                        <Text className="text-[#FFD700] font-black text-lg">I'M COMING NOW</Text>
+                        <Text className="text-[#FFD700] font-black text-lg">I&apos;M COMING NOW</Text>
                     </TouchableOpacity>
                 </View>
 

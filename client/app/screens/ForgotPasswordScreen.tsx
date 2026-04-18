@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Dimensions, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -7,9 +7,9 @@ import Input from "../../components/Input";
 import Button from "../../components/Button";
 import { authAPI } from '../../utils/api';
 
-const { width } = Dimensions.get('window');
-
 const ForgotPasswordScreen = () => {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
     const [mobile, setMobile] = useState('');
     const [otp, setOtp] = useState('');
@@ -63,8 +63,8 @@ const ForgotPasswordScreen = () => {
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 className="flex-1"
             >
-                <ScrollView contentContainerClassName="flex-grow justify-center px-8">
-                    <TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-8 z-10 p-2 bg-slate-50 rounded-full">
+                <ScrollView contentContainerClassName={`flex-grow justify-center ${isSmallPhone ? 'px-5' : 'px-8'}`}>
+                    <TouchableOpacity onPress={() => router.back()} className={`absolute top-12 ${isSmallPhone ? 'left-5' : 'left-8'} z-10 p-2 bg-slate-50 rounded-full`}>
                         <Ionicons name="arrow-back" size={24} color="#1E293B" />
                     </TouchableOpacity>
 

@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, SlideInUp, ZoomIn } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from "expo-router";
 
-const { width } = Dimensions.get('window');
-
 const RideCompletionScreen = () => {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
     const [isVerified, setIsVerified] = useState(true);
 
@@ -94,20 +94,20 @@ const RideCompletionScreen = () => {
                         </Animated.View>
                     </View>
 
-                    <View className="mx-6 bg-slate-900 rounded-3xl p-6 items-center shadow-xl shadow-slate-200 mb-6 relative overflow-hidden">
+                    <View className={`${isSmallPhone ? 'mx-4 p-4' : 'mx-6 p-6'} bg-slate-900 rounded-3xl items-center shadow-xl shadow-slate-200 mb-6 relative overflow-hidden`}>
                         <View className="absolute top-0 right-0 w-32 h-32 bg-[#FFD700] rounded-full opacity-10 -mr-10 -mt-10" />
                         <View className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full opacity-10 -ml-10 -mb-10" />
 
                         <Text className="text-slate-400 font-bold tracking-widest uppercase text-xs mb-2">
                              TOTAL TRIP COST
                         </Text>
-                        <Text className="text-5xl font-black text-[#FFD700]">
+                        <Text className={`${isSmallPhone ? 'text-4xl' : 'text-5xl'} font-black text-[#FFD700]`}>
                             ₹{(Number(bookingDetails.fare) + Number(bookingDetails.returnTripFare) + Number(bookingDetails.penaltyApplied) + Number(bookingDetails.tollFee))}
                         </Text>
                     </View>
 
                     {/* Fare Breakdown */}
-                    <View className="mx-6 bg-slate-50 p-5 rounded-3xl mb-6 border border-slate-100">
+                    <View className={`${isSmallPhone ? 'mx-4 p-4' : 'mx-6 p-5'} bg-slate-50 rounded-3xl mb-6 border border-slate-100`}>
                             <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">Fare Breakdown</Text>
                             
                             <View className="flex-row justify-between mb-3 items-center">
@@ -162,7 +162,7 @@ const RideCompletionScreen = () => {
                             </View>
                         </View>
 
-                    <View className="mx-6 bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-6">
+                    <View className={`${isSmallPhone ? 'mx-4 p-4' : 'mx-6 p-5'} bg-slate-50 rounded-2xl border border-slate-100 mb-6`}>
                         <Text className="text-slate-500 font-bold text-xs uppercase mb-4 tracking-wider">Trip Details</Text>
 
                         <View className="flex-row items-start mb-6 relative">
@@ -197,7 +197,7 @@ const RideCompletionScreen = () => {
                     </View>
                 </ScrollView>
 
-                <View className="px-6 py-6 border-t border-slate-100 bg-white">
+                <View className={`${isSmallPhone ? 'px-4 py-4' : 'px-6 py-6'} border-t border-slate-100 bg-white`}>
                     {isVerified ? (
                         <TouchableOpacity
                             onPress={() => {

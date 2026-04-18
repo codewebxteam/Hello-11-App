@@ -8,7 +8,8 @@ import {
     ActivityIndicator,
     Alert,
     Platform,
-    BackHandler
+    BackHandler,
+    useWindowDimensions
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +30,8 @@ interface NotificationItem {
 const NOTIFICATIONS_CACHE_KEY = 'notifications_cache';
 
 const NotificationsScreen = () => {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -175,12 +178,12 @@ const NotificationsScreen = () => {
     return (
         <SafeAreaView className="flex-1 bg-white" edges={['top']}>
             <StatusBar style="dark" />
-            <View className="px-6 py-4 flex-row justify-between items-center border-b border-slate-50">
+            <View className={`${isSmallPhone ? 'px-4 py-3' : 'px-6 py-4'} flex-row justify-between items-center border-b border-slate-50`}>
                 <View className="flex-row items-center">
                     <TouchableOpacity onPress={() => router.back()} className="mr-4">
                         <Ionicons name="arrow-back" size={24} color="#1E293B" />
                     </TouchableOpacity>
-                    <Text className="text-xl font-black text-slate-800 tracking-tight">Notifications</Text>
+                    <Text className={`${isSmallPhone ? 'text-lg' : 'text-xl'} font-black text-slate-800 tracking-tight`}>Notifications</Text>
                 </View>
                 {notifications.length > 0 && (
                     <TouchableOpacity onPress={handleClearAll}>
@@ -190,13 +193,13 @@ const NotificationsScreen = () => {
             </View>
 
             {notifications.length === 0 ? (
-                <View className="flex-1 items-center justify-center px-10">
+                <View className={`flex-1 items-center justify-center ${isSmallPhone ? 'px-5' : 'px-10'}`}>
                     <View className="w-20 h-20 bg-slate-50 rounded-full items-center justify-center mb-6">
                         <Ionicons name="notifications-off-outline" size={40} color="#CBD5E1" />
                     </View>
                     <Text className="text-lg font-black text-slate-800 text-center">No notifications yet</Text>
                     <Text className="text-slate-400 text-sm text-center mt-2 leading-5">
-                        We'll notify you when something important happens regarding your rides.
+                        We&apos;ll notify you when something important happens regarding your rides.
                     </Text>
                 </View>
             ) : (

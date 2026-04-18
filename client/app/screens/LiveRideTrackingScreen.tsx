@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, Image, Linking, Platform, BackHandler } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Linking, Platform, BackHandler, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,11 +17,11 @@ import { sendLocalNotification } from '../../utils/notifications';
 import { getImageUrl } from '../../utils/imagekit';
 import * as Haptics from 'expo-haptics';
 
-const { width, height } = Dimensions.get('window');
-
 type RideStatus = 'accepted' | 'arrived' | 'started' | 'waiting' | 'return_ride_started' | 'completed' | 'cancelled';
 
 const LiveRideTrackingScreen = () => {
+    const { width, height } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
@@ -563,7 +563,7 @@ const LiveRideTrackingScreen = () => {
 
             <View className="flex-[3] bg-slate-200 relative">
                 {region ? (
-                    <MapView style={{ width, height: height * 0.6 }} region={region} provider={PROVIDER_GOOGLE}>
+                    <MapView style={{ width, height: Math.min(height * 0.6, 460) }} region={region} provider={PROVIDER_GOOGLE}>
                         {routeCoords.length > 0 && <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor="#3b82f6" />}
                         {booking && (
                             <>
@@ -675,7 +675,7 @@ const LiveRideTrackingScreen = () => {
 
             <View className="flex-[2] bg-white rounded-t-[40px] shadow-2xl overflow-hidden -mt-10">
                 <ScrollView
-                    contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 20, paddingHorizontal: 24 }}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: isSmallPhone ? 16 : 20, paddingHorizontal: isSmallPhone ? 16 : 24 }}
                     showsVerticalScrollIndicator={false}
                     bounces={true}
                 >

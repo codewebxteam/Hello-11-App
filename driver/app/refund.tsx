@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar as RNStatusBar, BackHandler } from 'react-native';
+import { View, Text, ScrollView, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 import Header from '../components/Header';
 
 export default function RefundScreen() {
@@ -19,7 +17,7 @@ export default function RefundScreen() {
         };
         const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
         return () => backHandler.remove();
-    }, []);
+    }, [router]);
 
     return (
         <View className="flex-1 bg-slate-50 relative">

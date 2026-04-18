@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar as RNStatusBar, BackHandler } from 'react-native';
+import { View, Text, ScrollView, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 import Header from '../components/Header';
 
 export default function TermsScreen() {
@@ -19,7 +17,7 @@ export default function TermsScreen() {
         };
         const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
         return () => backHandler.remove();
-    }, []);
+    }, [router]);
 
     return (
         <View className="flex-1 bg-slate-50 relative">
@@ -60,7 +58,7 @@ export default function TermsScreen() {
                         </View>
                         <View className="flex-row items-start">
                             <View className="w-2 h-2 rounded-full bg-[#FFD700] mt-2 mr-3" />
-                            <Text className="flex-1 text-slate-600 leading-6"><Text className="font-black text-slate-900">Outstation:</Text> For outstation trips, you must cover the driver's basic food expenses.</Text>
+                            <Text className="flex-1 text-slate-600 leading-6"><Text className="font-black text-slate-900">Outstation:</Text> For outstation trips, you must cover the driver&apos;s basic food expenses.</Text>
                         </View>
                     </View>
                 </View>

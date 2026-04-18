@@ -4,7 +4,7 @@ import {
   View,
   TouchableOpacity,
   TextInput,
-  Dimensions,
+  useWindowDimensions,
   ScrollView,
   Platform,
   Animated,
@@ -28,15 +28,13 @@ import SearchingRideOverlay from "../../components/SearchingRideOverlay";
 import DriverAssignedOverlay from "../../components/DriverAssignedOverlay";
 import ActivitySection from "../../components/ActivitySection";
 
-
-const { width, height } = Dimensions.get('window');
-
-
 import { userAPI, bookingAPI, notificationAPI, locationAPI } from "../../utils/api";
 import { useAuth } from "../../context/AuthContext";
 import { showToast } from "../../components/NotificationToast";
 
 const HomeScreen = () => {
+  const { width } = useWindowDimensions();
+  const isSmallPhone = width < 360;
   const params = useLocalSearchParams();
   const router = useRouter();
   const [displayName, setDisplayName] = useState("User");
@@ -464,10 +462,10 @@ const HomeScreen = () => {
 
       {activeTab === "Home" && (
         <>
-          <View className="min-h-[350px] bg-[#FFD700] rounded-b-[50px] z-10 relative overflow-hidden pb-10">
+          <View className={`${isSmallPhone ? 'min-h-[320px] rounded-b-[36px] pb-8' : 'min-h-[350px] rounded-b-[50px] pb-10'} bg-[#FFD700] z-10 relative overflow-hidden`}>
             <View className="absolute -bottom-[20%] self-center w-[150%] h-[20%] bg-white rounded-[100%] scale-x-[1.3] opacity-10" />
 
-            <SafeAreaView className="flex-1 px-6 pt-4">
+            <SafeAreaView className={`flex-1 ${isSmallPhone ? 'px-4 pt-3' : 'px-6 pt-4'}`}>
               <View className="flex-row justify-between items-center mt-2">
                 <View>
                   <Text className="text-base text-slate-800 font-medium opacity-70">Hello,</Text>
@@ -486,8 +484,8 @@ const HomeScreen = () => {
                 </TouchableOpacity>
               </View>
 
-              <View className="mt-8">
-                <Text className="text-4xl font-black text-slate-800 leading-[44px] italic">Where are you{"\n"}going today?</Text>
+              <View className={`${isSmallPhone ? 'mt-5' : 'mt-8'}`}>
+                <Text className={`${isSmallPhone ? 'text-[32px] leading-9' : 'text-4xl leading-[44px]'} font-black text-slate-800 italic`}>Where are you{"\n"}going today?</Text>
                 <Text className="text-base text-slate-800 mt-3 mb-5 font-semibold opacity-75">Book your ride with Hello11</Text>
               </View>
             </SafeAreaView>
@@ -495,16 +493,16 @@ const HomeScreen = () => {
 
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            className="flex-1 z-20 -mt-16"
+            className={`flex-1 z-20 ${isSmallPhone ? '-mt-12' : '-mt-16'}`}
           >
             <ScrollView
               ref={scrollViewRef}
-              contentContainerClassName="px-6 pb-32"
+              contentContainerClassName={`${isSmallPhone ? 'px-4' : 'px-6'} pb-32`}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
               <Animated.View
-                className="bg-white rounded-[35px] p-6 shadow-2xl shadow-slate-300 border border-slate-50 z-50 elevation-10"
+                className={`bg-white rounded-[35px] ${isSmallPhone ? 'p-4' : 'p-6'} shadow-2xl shadow-slate-300 border border-slate-50 z-50 elevation-10`}
                 style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
               >
                 <View className="mb-4">
@@ -745,7 +743,7 @@ const HomeScreen = () => {
                     <View className="bg-white/10 self-start p-2 rounded-2xl mb-3">
                       <Ionicons name="time" size={22} color="#FFD700" />
                     </View>
-                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Relax, We'll Wait</Text>
+                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Relax, We&apos;ll Wait</Text>
                     <Text className="text-white/90 text-[11px] font-bold mt-1">Enjoy 12 mins of complimentary wait time per KM.</Text>
                   </View>
                 </View>

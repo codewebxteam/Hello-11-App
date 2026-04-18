@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Alert,
-  Dimensions,
-  Platform,
-  StatusBar as RNStatusBar,
   Animated,
   Easing,
   FlatList,
@@ -19,14 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Calendar, LocaleConfig } from 'react-native-calendars';
+import { Calendar } from 'react-native-calendars';
 import * as Haptics from "expo-haptics";
 import RazorpayCheckout from "react-native-razorpay";
 import { driverAPI } from "../utils/api";
 import Header from "../components/Header";
-
-
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 // Shimmer Component
 const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
@@ -42,7 +36,7 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
         useNativeDriver: true,
       })
     ).start();
-  }, []);
+  }, [shimmerAnim]);
 
   const translateX = shimmerAnim.interpolate({
     inputRange: [-1, 1],
@@ -91,7 +85,7 @@ export default function WalletScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState("week");
   const [range, setRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
 
-  const loadData = async (isRefresh = false, pageNum = 1, period = selectedPeriod, start?: string, end?: string) => {
+  const loadData = useCallback(async (isRefresh = false, pageNum = 1, period = selectedPeriod, start?: string, end?: string) => {
     try {
       if (!isRefresh && pageNum === 1) setLoading(true);
       if (pageNum > 1) setLoadingMore(true);
@@ -100,8 +94,8 @@ export default function WalletScreen() {
         period,
         dateFrom: start,
         dateTo: end,
-        txPage: activeTab === "history" ? pageNum : txPage,
-        commPage: activeTab === "commissions" ? pageNum : commPage,
+        txPage: activeTab === "history" ? pageNum : 1,
+        commPage: activeTab === "commissions" ? pageNum : 1,
         txLimit: 20,
         commLimit: 20
       };
@@ -137,11 +131,11 @@ export default function WalletScreen() {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  };
+  }, [selectedPeriod, activeTab]);
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [activeTab, loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -510,7 +504,7 @@ export default function WalletScreen() {
               <Ionicons name={activeTab === 'history' ? "receipt" : "car"} size={40} color="#CBD5E1" />
             </View>
             <Text className="text-slate-900 font-black text-sm uppercase tracking-widest text-center">No Records Found</Text>
-            <Text className="text-slate-400 font-bold mt-2 text-[10px] text-center uppercase tracking-tighter italic">We couldn't find anything for this period</Text>
+            <Text className="text-slate-400 font-bold mt-2 text-[10px] text-center uppercase tracking-tighter italic">We couldn&apos;t find anything for this period</Text>
           </View>
         )}
         onRefresh={onRefresh}

@@ -1,15 +1,12 @@
 import { useEffect } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getSocket } from '../utils/socket';
 import { driverAPI } from '../utils/api';
-
-const { width } = Dimensions.get('window');
 
 export default function PaymentScreen() {
     const router = useRouter();
@@ -46,7 +43,7 @@ export default function PaymentScreen() {
                 }
             }).catch(err => console.error("Failed to request payment via API:", err));
         }
-    }, [params.bookingId, totalAmount, isPartialPayment, firstLegPaid, toll]);
+    }, [params.bookingId, totalAmount, isPartialPayment, firstLegPaid, baseFare, returnFare, penalty, toll, nightSurcharge]);
 
     const handlePaymentVerified = async () => {
         try {
@@ -55,8 +52,6 @@ export default function PaymentScreen() {
                 Alert.alert("Error", "No active booking found.");
                 return;
             }
-
-            const { driverAPI } = require("../utils/api");
 
             if (isPartialPayment && typeof params.nextRoute === 'string') {
                 // START WAITING Logic (USP)

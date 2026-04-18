@@ -8,7 +8,6 @@ import {
     Alert, 
     KeyboardAvoidingView, 
     Platform, 
-    Dimensions,
     ActivityIndicator,
     BackHandler,
     Image
@@ -20,8 +19,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userAPI } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-
-const { width } = Dimensions.get('window');
 
 const ProfileScreen = () => {
     const router = useRouter();

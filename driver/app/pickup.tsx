@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, Image, StatusBar as RNStatusBar, Linking, Alert, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Linking, Alert, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -12,18 +12,17 @@ import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
 import { getSocket, initSocket } from '../utils/socket';
 
-const { width, height } = Dimensions.get('window');
-const SHEET_MAX_HEIGHT = height * 0.75;
 const SHEET_MIN_HEIGHT = 120;
 
 export default function PickupScreen() {
+    const { width, height } = useWindowDimensions();
+    const SHEET_MAX_HEIGHT = height * 0.75;
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
     const { bookingId } = params;
     const resolvedBookingId = Array.isArray(bookingId) ? bookingId[0] : bookingId;
     const [booking, setBooking] = useState<any>(null);
-    const [driverLoc, setDriverLoc] = useState<any>(null);
     const [routeCoords, setRouteCoords] = useState<any[]>([]);
     const [region, setRegion] = useState<any>(null);
     const [distance, setDistance] = useState<string>("---");
@@ -83,7 +82,7 @@ export default function PickupScreen() {
                 translateY.value = maxDrag;
             }
         })(sheetMeasuredHeight, PEEK_HEIGHT);
-    }, [sheetMeasuredHeight]);
+    }, [sheetMeasuredHeight, sheetHeight, translateY]);
 
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
@@ -95,7 +94,6 @@ export default function PickupScreen() {
                     let loc = await Location.getCurrentPositionAsync({});
                     currentLat = loc.coords.latitude;
                     currentLon = loc.coords.longitude;
-                    setDriverLoc(loc.coords);
                     if (!isNaN(loc.coords.latitude) && !isNaN(loc.coords.longitude)) {
                         setRegion({
                             latitude: loc.coords.latitude,
@@ -115,7 +113,7 @@ export default function PickupScreen() {
                         if (byIdRes?.data?.booking) {
                             b = byIdRes.data.booking;
                         }
-                    } catch (err) {
+                    } catch {
                         console.log("Pickup: getBookingStatus failed, trying current booking fallback");
                     }
                 }
@@ -199,7 +197,7 @@ export default function PickupScreen() {
                 s.off("bookingCancelledByUser");
             }
         };
-    }, [resolvedBookingId]);
+    }, [resolvedBookingId, bookingId, router]);
 
     useEffect(() => {
         if (!booking) return;
@@ -217,7 +215,6 @@ export default function PickupScreen() {
                     },
                     (newLoc) => {
                         const { latitude, longitude } = newLoc.coords;
-                        setDriverLoc(newLoc.coords);
                         if (!isNaN(latitude) && !isNaN(longitude)) {
                             setRegion((prev: any) => ({
                                 latitude,
@@ -257,7 +254,7 @@ export default function PickupScreen() {
 
         startTracking();
         return () => locationSubscription?.remove();
-    }, [booking?._id]);
+    }, [booking, booking?._id, booking?.pickupLatitude, booking?.pickupLongitude]);
 
     const handleCall = () => {
         if (booking?.user?.mobile) {

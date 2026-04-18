@@ -7,40 +7,43 @@ import {
     ActivityIndicator,
     Platform,
     StatusBar as RNStatusBar,
-    Dimensions
+    useWindowDimensions,
+    TextInput,
+    Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { userAPI, bookingAPI } from '../../utils/api';
-import { TextInput, Alert } from 'react-native';
 
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
-const { width } = Dimensions.get('window');
-
-// Responsive sizing constants
-const GRID_GAP = width > 380 ? 12 : 10;
-const PADDING_H = width > 380 ? 24 : 16;
-const CARD_WIDTH = (width - (PADDING_H * 2) - GRID_GAP) / 2;
-
-const RESPONSIVE_CONFIG = {
-    paddingHorizontal: PADDING_H,
-    paddingVertical: width > 380 ? 12 : 8,
-    headerFontSize: width > 380 ? 18 : 16,
-    titleFontSize: width > 380 ? 32 : 28,
-    cardPadding: width > 380 ? 20 : 16,
-    cardRadius: width > 380 ? 30 : 24,
-    iconSize: width > 380 ? 20 : 16,
-    badgeSize: width > 380 ? 14 : 12,
-    textSize: width > 380 ? 14 : 13,
-    labelSize: width > 380 ? 10 : 9,
-    gridWidth: CARD_WIDTH,
-    gridGap: GRID_GAP,
-}
 
 export default function RideDetailsScreen() {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
+    const isWidePhone = width > 380;
     const router = useRouter();
     const { bookingId, prefill } = useLocalSearchParams();
+    const RESPONSIVE_CONFIG = useMemo(() => {
+        const gridGap = isWidePhone ? 12 : 10;
+        const paddingHorizontal = isWidePhone ? 24 : isSmallPhone ? 14 : 16;
+        const cardWidth = (width - (paddingHorizontal * 2) - gridGap) / 2;
+
+        return {
+            paddingHorizontal,
+            paddingVertical: isWidePhone ? 12 : 8,
+            headerFontSize: isWidePhone ? 18 : 16,
+            titleFontSize: isWidePhone ? 32 : 28,
+            cardPadding: isWidePhone ? 20 : 16,
+            cardRadius: isWidePhone ? 30 : 24,
+            iconSize: isWidePhone ? 20 : 16,
+            badgeSize: isWidePhone ? 14 : 12,
+            textSize: isWidePhone ? 14 : 13,
+            labelSize: isWidePhone ? 10 : 9,
+            gridWidth: cardWidth,
+            gridGap,
+        };
+    }, [width, isSmallPhone, isWidePhone]);
     const initialPrefill = useMemo(() => {
         if (!prefill || typeof prefill !== 'string') return null;
         try {
@@ -172,7 +175,7 @@ export default function RideDetailsScreen() {
                     style={{ 
                         borderRadius: RESPONSIVE_CONFIG.cardRadius, 
                         padding: RESPONSIVE_CONFIG.cardPadding,
-                        marginBottom: width > 380 ? 20 : 16
+                        marginBottom: isWidePhone ? 20 : 16
                     }}
                 >
                     <View className={`rounded-full mb-3 ${statusBg}`} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
@@ -251,7 +254,7 @@ export default function RideDetailsScreen() {
                         style={{ 
                             borderRadius: RESPONSIVE_CONFIG.cardRadius, 
                             padding: RESPONSIVE_CONFIG.cardPadding,
-                            marginBottom: width > 380 ? 20 : 16
+                            marginBottom: isWidePhone ? 20 : 16
                         }}
                     >
                         <View 
@@ -287,7 +290,7 @@ export default function RideDetailsScreen() {
                         style={{ 
                             borderRadius: RESPONSIVE_CONFIG.cardRadius, 
                             padding: RESPONSIVE_CONFIG.cardPadding,
-                            marginBottom: width > 380 ? 20 : 16
+                            marginBottom: isWidePhone ? 20 : 16
                         }}
                     >
                         <View className="flex-row items-center flex-1" style={{ marginRight: RESPONSIVE_CONFIG.gridGap }}>
@@ -344,7 +347,7 @@ export default function RideDetailsScreen() {
                     style={{ 
                         borderRadius: RESPONSIVE_CONFIG.cardRadius, 
                         padding: RESPONSIVE_CONFIG.cardPadding,
-                        marginBottom: width > 380 ? 20 : 16
+                        marginBottom: isWidePhone ? 20 : 16
                     }}
                 >
                     <Text 
@@ -356,22 +359,22 @@ export default function RideDetailsScreen() {
                     <View className="pl-1 relative">
                         <View 
                             className="absolute top-4 bottom-4 bg-slate-100 border-l border-dashed border-slate-300"
-                            style={{ left: width > 380 ? 10 : 8, width: 1 }}
+                            style={{ left: isWidePhone ? 10 : 8, width: 1 }}
                         />
-                        <View className="flex-row items-start" style={{ marginBottom: width > 380 ? 32 : 24 }}>
+                        <View className="flex-row items-start" style={{ marginBottom: isWidePhone ? 32 : 24 }}>
                             <View 
                                 className="rounded-full bg-blue-50 border-blue-100 items-center justify-center z-10"
                                 style={{ 
-                                    width: width > 380 ? 20 : 18, 
-                                    height: width > 380 ? 20 : 18, 
+                                    width: isWidePhone ? 20 : 18, 
+                                    height: isWidePhone ? 20 : 18, 
                                     borderWidth: 3 
                                 }}
                             >
                                 <View 
                                     className="rounded-full bg-blue-500"
                                     style={{ 
-                                        width: width > 380 ? 8 : 6, 
-                                        height: width > 380 ? 8 : 6 
+                                        width: isWidePhone ? 8 : 6, 
+                                        height: isWidePhone ? 8 : 6 
                                     }}
                                 />
                             </View>
@@ -394,16 +397,16 @@ export default function RideDetailsScreen() {
                             <View 
                                 className="rounded-full bg-slate-900 border-slate-800 items-center justify-center z-10"
                                 style={{ 
-                                    width: width > 380 ? 20 : 18, 
-                                    height: width > 380 ? 20 : 18, 
+                                    width: isWidePhone ? 20 : 18, 
+                                    height: isWidePhone ? 20 : 18, 
                                     borderWidth: 3 
                                 }}
                             >
                                 <View 
                                     className="bg-white rounded-full"
                                     style={{ 
-                                        width: width > 380 ? 6 : 5, 
-                                        height: width > 380 ? 6 : 5 
+                                        width: isWidePhone ? 6 : 5, 
+                                        height: isWidePhone ? 6 : 5 
                                     }}
                                 />
                             </View>
@@ -426,7 +429,7 @@ export default function RideDetailsScreen() {
                 </View>
 
                 {/* ─── Stats Grid ─── */}
-                <View className="flex-row flex-wrap" style={{ gap: RESPONSIVE_CONFIG.gridGap, marginBottom: width > 380 ? 20 : 16 }}>
+                <View className="flex-row flex-wrap" style={{ gap: RESPONSIVE_CONFIG.gridGap, marginBottom: isWidePhone ? 20 : 16 }}>
 
                     <View 
                         className="bg-white shadow-sm border border-slate-100"
@@ -712,12 +715,12 @@ export default function RideDetailsScreen() {
                         style={{ 
                             borderRadius: RESPONSIVE_CONFIG.cardRadius, 
                             padding: RESPONSIVE_CONFIG.cardPadding,
-                            marginBottom: width > 380 ? 24 : 16
+                            marginBottom: isWidePhone ? 24 : 16
                         }}
                     >
                         <View 
                             className="flex-row justify-between items-center mb-4"
-                            style={{ marginBottom: width > 380 ? 16 : 12 }}
+                            style={{ marginBottom: isWidePhone ? 16 : 12 }}
                         >
                             <Text 
                                 className="text-slate-400 font-black uppercase tracking-widest"
@@ -814,8 +817,8 @@ export default function RideDetailsScreen() {
                         })}
                         className="bg-[#FFD700] rounded-xl items-center justify-center shadow-lg shadow-orange-100 flex-row"
                         style={{ 
-                            paddingVertical: width > 380 ? 16 : 14,
-                            marginBottom: width > 380 ? 24 : 16
+                            paddingVertical: isWidePhone ? 16 : 14,
+                            marginBottom: isWidePhone ? 24 : 16
                         }}
                     >
                         <Ionicons name="map" size={RESPONSIVE_CONFIG.iconSize + 2} color="black" />

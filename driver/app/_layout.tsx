@@ -118,7 +118,7 @@ function DriverRealtimeOverlay() {
       setIncomingRide(null);
       setIsAccepting(false);
     });
-  }, [player, windowHeight]);
+  }, [player, requestSlide, timerLine, windowHeight]);
 
   const refreshDashboardState = React.useCallback(async () => {
     if (!isAuthenticated) return;
@@ -399,7 +399,7 @@ function DriverRealtimeOverlay() {
       if (cleanup) cleanup();
       clearRideRequest();
     };
-  }, [isAuthenticated, isOnline, driverId, player, clearRideRequest, pathname]);
+  }, [isAuthenticated, isOnline, driverId, player, clearRideRequest, pathname, requestSlide, timerLine]);
 
   const onAcceptRide = async () => {
     if (isAccepting) return;

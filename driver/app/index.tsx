@@ -1,32 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef , useCallback } from 'react';
 import {
   Alert,
   View,
   Text,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   Switch,
-  Platform,
   Animated,
   Easing,
   Vibration,
-  StatusBar as RNStatusBar,
-  ToastAndroid,
   Image,
   AppState,
   ActivityIndicator,
   NativeModules
-} from 'react-native';
+, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams , useFocusEffect } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
-import { useAudioPlayer } from 'expo-audio';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
 import { getImageUrl } from '../utils/imagekit';
 
 import { initSocket, disconnectSocket } from '../utils/socket';
@@ -34,21 +28,17 @@ import { driverAPI } from '../utils/api';
 import { getDriverToken } from '../utils/storage';
 import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat';
 import * as Location from 'expo-location';
-import { registerForPushNotificationsAsync, sendLocalNotification } from '../utils/notifications';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';
 import RazorpayCheckout from 'react-native-razorpay';
 
-import { Modal } from 'react-native';
-
-const { width, height } = Dimensions.get('window');
-const isTablet = width > 768;
 
 export default function DriverDashboard() {
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768;
   const [isOnline, setIsOnline] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [hasActiveRide, setHasActiveRide] = useState(false);
-  const [isAccepting, setIsAccepting] = useState(false);
-  const [stats, setStats] = useState({ earnings: 0, trips: 0, name: '', rating: 0, profileImage: '' });
+  const [, setStats] = useState({ earnings: 0, trips: 0, name: '', rating: 0, profileImage: '' });
   const [location, setLocation] = useState<any>(null);
   const [region, setRegion] = useState<any>({
     latitude: 26.8467, // Default to Lucknow, Uttar Pradesh
@@ -65,13 +55,8 @@ export default function DriverDashboard() {
   const insets = useSafeAreaInsets();
 
   const radarPulse = useRef(new Animated.Value(0)).current;
-  const requestSlide = useRef(new Animated.Value(height)).current;
-  const timerLine = useRef(new Animated.Value(1)).current;
   const hasNavigatedRef = useRef(false);
   const isAutoEnablingSearchRef = useRef(false);
-
-  // --- NEW EXPO-AUDIO PLAYER ---
-  const player = useAudioPlayer('https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1MB_MP3.mp3'); // Using a stable test audio URL
 
   const { rideEnded } = useLocalSearchParams();
 
@@ -86,7 +71,7 @@ export default function DriverDashboard() {
   }, [authDriver?.profileImage, profileVersion]);
 
   // --- STATS & SOCKET LOGIC ---
-  const loadStats = async (isChangingOnline = false) => {
+  const loadStats = useCallback(async (isChangingOnline = false) => {
     try {
       const token = await getDriverToken();
       if (!token) {
@@ -116,7 +101,6 @@ export default function DriverDashboard() {
         // Check for active booking and redirect ONLY on initial load OR app foregrounding
         if (currentBooking && !hasNavigatedRef.current) {
           console.log("Found active booking on dashboard load:", currentBooking);
-          setHasActiveRide(true);
           hasNavigatedRef.current = true; // Mark as navigated
 
           const bookingId = currentBooking.id || currentBooking._id;
@@ -177,13 +161,13 @@ export default function DriverDashboard() {
     } catch (err) {
       console.log("Dashboard stats error:", err);
     }
-  };
+  }, [router, refreshProfile]);
 
   // --- AUTO-REFRESH ON FOCUS ---
   useFocusEffect(
     useCallback(() => {
       loadStats();
-    }, [isOnline, driverId])
+    }, [loadStats])
   );
 
   useEffect(() => {
@@ -219,7 +203,7 @@ export default function DriverDashboard() {
         loadStats();
         refreshProfile(); // Also refresh global profile data
       }
-    }, [refreshProfile])
+    }, [loadStats, refreshProfile])
   );
 
   useEffect(() => {
@@ -251,7 +235,7 @@ export default function DriverDashboard() {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [loadStats]);
 
   const startLocationTracking = async () => {
     let fgStatus = await Location.requestForegroundPermissionsAsync();
@@ -330,11 +314,10 @@ export default function DriverDashboard() {
 
   useEffect(() => {
     if (rideEnded === 'true') {
-      setHasActiveRide(false);
       setIsSearching(isOnline);
       router.setParams({ rideEnded: undefined });
     }
-  }, [rideEnded, isOnline]);
+  }, [rideEnded, isOnline, router]);
 
   useEffect(() => {
     return () => {
@@ -342,16 +325,7 @@ export default function DriverDashboard() {
     };
   }, []);
 
-  async function playChime() {
-    try {
-      // Always play chime to alert driver of incoming ride, even in background
-      player.loop = true;
-      player.volume = 1.0;
-      player.play();
-    } catch (e) { console.log("Audio logic error:", e); }
-  }
-
-  const applySearchState = (enabled: boolean) => {
+  const applySearchState = useCallback((enabled: boolean) => {
     setIsSearching(enabled);
     if (enabled) {
       Animated.loop(
@@ -364,9 +338,9 @@ export default function DriverDashboard() {
       radarPulse.setValue(0);
       radarPulse.stopAnimation();
     }
-  };
+  }, [radarPulse]);
 
-  const ensureSearchingEnabled = async () => {
+  const ensureSearchingEnabled = useCallback(async () => {
     if (isAutoEnablingSearchRef.current || isTogglingAvailabilityRef.current) return;
     if (!isOnline || isSearching) return;
     try {
@@ -386,13 +360,13 @@ export default function DriverDashboard() {
       isTogglingAvailabilityRef.current = false;
       isAutoEnablingSearchRef.current = false;
     }
-  };
+  }, [isOnline, isSearching, applySearchState]);
 
   useEffect(() => {
     if (isOnline && !isSearching) {
       ensureSearchingEnabled();
     }
-  }, [isOnline, isSearching]);
+  }, [isOnline, isSearching, ensureSearchingEnabled]);
 
 
   const handlePayment = async () => {

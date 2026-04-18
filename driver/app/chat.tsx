@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-import socket from '../utils/socket'; // Assumes singleton socket instance
 import { driverAPI } from '../utils/api';
+import { initSocket, getSocket } from '../utils/socket';
 
 interface Message {
     id: string;
@@ -46,7 +46,6 @@ export default function ChatScreen() {
         // 2. Join Chat Room & Ensure Init
         const setupSocket = async () => {
             try {
-                const { initSocket } = require("../utils/socket");
                 activeSocket = await initSocket();
 
                 // Register listener IMMEDIATELY after getting socket
@@ -97,7 +96,6 @@ export default function ChatScreen() {
 
         try {
             // Check if socket is connected
-            const { getSocket } = require("../utils/socket");
             const s = getSocket();
 
             if (s && s.connected) {

@@ -4,34 +4,30 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
-    Platform,
-    StatusBar as RNStatusBar,
     Alert,
     ActivityIndicator,
     Animated,
     Easing,
     Modal,
     Image,
-    Dimensions,
     useWindowDimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 // @ts-ignore
 import * as FileSystem from 'expo-file-system/legacy';
-const cacheDirectory = FileSystem.cacheDirectory;
-const documentDirectory = FileSystem.documentDirectory;
+import * as Haptics from 'expo-haptics';
+import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { driverAPI } from '../utils/api';
 import { getImageUrl } from '../utils/imagekit';
 import { useDriverAuth } from '../context/DriverAuthContext';
-
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 import Header from '../components/Header';
+const cacheDirectory = FileSystem.cacheDirectory;
+const documentDirectory = FileSystem.documentDirectory;
 
 // Shimmer Component
 const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
@@ -46,7 +42,7 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
                 useNativeDriver: true,
             })
         ).start();
-    }, []);
+    }, [shimmerAnim]);
 
     const { width } = useWindowDimensions();
     const translateX = shimmerAnim.interpolate({
@@ -76,8 +72,8 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 };
 
 export default function DocumentsScreen() {
-    const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const [loading, setLoading] = React.useState(true);
     const [individualLoading, setIndividualLoading] = React.useState<Record<string, boolean>>({
         license: false,
@@ -145,11 +141,6 @@ export default function DocumentsScreen() {
 
         setIndividualLoading(prev => ({ ...prev, [key]: true }));
         try {
-            let Haptics;
-            try {
-                Haptics = require('expo-haptics');
-            } catch (e) {}
-
             console.log(`[Documents] Uploading ${key}...`);
             const response = await driverAPI.updateDocuments({ [key]: value });
             console.log("[Documents] Backend raw response:", response.data);
@@ -166,7 +157,7 @@ export default function DocumentsScreen() {
                 };
                 setDocs(newDocs);
 
-                if (Haptics) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 Alert.alert("Success", `${title} uploaded successfully! It is now locked and cannot be changed.`);
                 
                 await refreshProfile();
@@ -185,15 +176,6 @@ export default function DocumentsScreen() {
 
     const pickDocumentImage = async (key: keyof typeof docs, title: string) => {
         try {
-            let DocumentPicker, Haptics;
-            try {
-                DocumentPicker = require('expo-document-picker');
-                Haptics = require('expo-haptics');
-            } catch (e) {
-                Alert.alert("Native Module Missing", "Required native modules (Picker/Haptics) are missing.");
-                return;
-            }
-
             const result = await DocumentPicker.getDocumentAsync({
                 type: 'application/pdf',
                 multiple: false,
@@ -206,7 +188,7 @@ export default function DocumentsScreen() {
                 const maxSize = 10 * 1024 * 1024; // 10MB
 
                 if (fileSize > maxSize) {
-                    if (Haptics) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                     Alert.alert(
                         "File Too Large", 
                         `Selected file is ${(fileSize / (1024 * 1024)).toFixed(1)}MB. Maximum allowed size is 10MB. Please select a smaller file.`
@@ -219,7 +201,7 @@ export default function DocumentsScreen() {
                     encoding: 'base64'
                 });
                 setDocs((prev: any) => ({ ...prev, [key]: `data:application/pdf;base64,${pdfBase64}` }));
-                if (Haptics) Haptics.selectionAsync();
+                Haptics.selectionAsync();
             }
         } catch (error) {
             console.log("PDF picker error:", error);
@@ -232,8 +214,6 @@ export default function DocumentsScreen() {
         console.log(`[DEBUG_DOCS] Entry - title: ${title}, key: ${key}, value: ${value.substring(0, 50)}`);
         
         // 1. Detect Document Type
-        const isPdf = value.toLowerCase().includes('.pdf') || value.startsWith('data:application/pdf');
-        
         // 2. Handle Remote Documents (Direct to System Viewer)
         if (value.startsWith('http')) {
             console.log(`[DEBUG_DOCS] Opening remote document via Direct System Viewer: ${value}`);
@@ -274,7 +254,7 @@ export default function DocumentsScreen() {
                         dialogTitle: 'Preview Document',
                         UTI: 'com.adobe.pdf'
                     });
-                } catch (error: any) {
+                } catch {
                     Alert.alert("Error", "Could not preview local PDF.");
                 } finally {
                     setViewingDocs(prev => ({ ...prev, [key]: false }));
@@ -383,7 +363,7 @@ export default function DocumentsScreen() {
                     )}
                     {isUploaded && (
                         <Text className="text-slate-400 text-[8px] font-bold mt-3 text-center uppercase tracking-tighter">
-                            Tip: Tap 'View' to share or download this document.
+                            Tip: Tap &apos;View&apos; to share or download this document.
                         </Text>
                     )}
                 </View>
@@ -476,8 +456,8 @@ export default function DocumentsScreen() {
                             <Image 
                                 source={{ uri: getImageUrl(previewImage, { width: 1200, quality: 90, format: 'jpg', pg: 1 }) }}
                                 style={{ 
-                                    width: Dimensions.get('window').width, 
-                                    height: Dimensions.get('window').height * 0.85,
+                                    width: screenWidth, 
+                                    height: screenHeight * 0.85,
                                     resizeMode: 'contain' 
                                 }}
                                 onLoadStart={() => {

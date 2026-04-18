@@ -7,18 +7,19 @@ import {
     TouchableOpacity,
     View,
     ScrollView,
-    Dimensions,
+    useWindowDimensions,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import Input from "../../components/Input";
 import Button from "../../components/Button";
-
-const { width, height } = Dimensions.get('window');
-const isTablet = width > 768;
+import { driverAuthAPI } from "../../utils/api";
+import { setDriverToken, setDriverData } from "../../utils/storage";
 
 const RegisterScreen = () => {
+    const { width, height } = useWindowDimensions();
+    const isTablet = width >= 768;
     const [name, setName] = useState("");
     const [phoneNumber, setPhoneNumber] = useState("");
     const [password, setPassword] = useState("");
@@ -38,9 +39,6 @@ const RegisterScreen = () => {
         }
 
         try {
-            const { driverAuthAPI } = require("../../utils/api");
-            const { setDriverToken, setDriverData } = require("../../utils/storage");
-
             const response = await driverAuthAPI.register({
                 name,
                 mobile: phoneNumber,

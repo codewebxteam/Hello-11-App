@@ -21,6 +21,8 @@ import * as Location from 'expo-location';
 export default function StartRideScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const inputWidth = (screenWidth - 48 - 48) / 4; // screenWidth - padding - gap approx
   const { bookingId } = useLocalSearchParams();
 
   const [otp, setOtp] = useState(["", "", "", ""]);
@@ -93,7 +95,7 @@ export default function StartRideScreen() {
         s.off("bookingCancelledByUser");
       }
     };
-  }, [bookingId]);
+  }, [bookingId, router]);
 
   const isOtpComplete = useMemo(
     () => otp.every((digit) => digit !== ""),
@@ -149,9 +151,6 @@ export default function StartRideScreen() {
       </View>
     );
   }
-
-  const { width: screenWidth } = useWindowDimensions();
-  const inputWidth = (screenWidth - 48 - 48) / 4; // screenWidth - padding - gap approx
 
   return (
     <View

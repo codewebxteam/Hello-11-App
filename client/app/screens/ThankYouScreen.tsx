@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Dimensions, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -7,9 +7,9 @@ import Animated, { FadeIn, SlideInUp, ZoomIn } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { userAPI, bookingAPI } from "../../utils/api";
 
-const { width } = Dimensions.get('window');
-
 const ThankYouScreen = () => {
+    const { width } = useWindowDimensions();
+    const isSmallPhone = width < 360;
     const router = useRouter();
     const params = useLocalSearchParams();
     const bookingId = params.bookingId as string;
@@ -74,7 +74,7 @@ const ThankYouScreen = () => {
                         behavior={Platform.OS === "ios" ? "padding" : "height"}
                         className="flex-1 justify-center"
                     >
-                        <View className="flex-1 px-6 pt-10 pb-6 justify-between">
+                        <View className={`flex-1 ${isSmallPhone ? 'px-4 pt-6 pb-4' : 'px-6 pt-10 pb-6'} justify-between`}>
 
                             {/* Header Section */}
                             <View className="items-center">
@@ -111,7 +111,7 @@ const ThankYouScreen = () => {
                                         >
                                             <Ionicons
                                                 name={star <= rating ? "star" : "star-outline"}
-                                                size={40}
+                                                size={isSmallPhone ? 34 : 40}
                                                 color={star <= rating ? "#FFD700" : "#CBD5E1"}
                                             />
                                         </TouchableOpacity>

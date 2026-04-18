@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, Keyboard
+  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, Keyboard, useWindowDimensions
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,8 @@ const VEHICLES = [
 ];
 
 const BookingScreen = () => {
+  const { width } = useWindowDimensions();
+  const isSmallPhone = width < 360;
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -293,8 +295,8 @@ const BookingScreen = () => {
       <StatusBar style="dark" />
 
       {/* Header Section */}
-      <View className="bg-[#FFD700] pt-14 pb-8 px-6 rounded-b-[45px] shadow-lg">
-        <Text className="text-3xl font-black text-slate-900 mb-6">Plan Your Trip</Text>
+      <View className={`bg-[#FFD700] ${isSmallPhone ? 'pt-12 pb-6 px-4 rounded-b-[32px]' : 'pt-14 pb-8 px-6 rounded-b-[45px]'} shadow-lg`}>
+        <Text className={`${isSmallPhone ? 'text-[28px] mb-4' : 'text-3xl mb-6'} font-black text-slate-900`}>Plan Your Trip</Text>
 
         <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 4, borderRadius: 16, marginBottom: 24 }}>
           <TouchableOpacity
@@ -322,7 +324,7 @@ const BookingScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <View className="bg-white p-4 rounded-[30px] shadow-sm">
+        <View className={`bg-white ${isSmallPhone ? 'p-3 rounded-[22px]' : 'p-4 rounded-[30px]'} shadow-sm`}>
           <View className="flex-row items-center h-12">
             <View className="w-2.5 h-2.5 rounded-full bg-blue-500 mr-4 border-2 border-blue-200" />
             <TextInput
@@ -389,11 +391,11 @@ const BookingScreen = () => {
         </View>
       </View>
 
-      <ScrollView className="flex-1 px-6 pt-6" contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+      <ScrollView className={`flex-1 ${isSmallPhone ? 'px-4 pt-4' : 'px-6 pt-6'}`} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
 
         {/* Long Distance Message */}
         {rideMode === 'long' && (
-          <View className="bg-blue-600 p-8 rounded-[40px] mb-8 shadow-xl">
+          <View className={`bg-blue-600 ${isSmallPhone ? 'p-5 rounded-[26px] mb-6' : 'p-8 rounded-[40px] mb-8'} shadow-xl`}>
             <View className="bg-white/20 w-12 h-12 rounded-2xl items-center justify-center mb-4">
               <MaterialCommunityIcons name="map-clock-outline" size={28} color="#FFF" />
             </View>
@@ -407,7 +409,7 @@ const BookingScreen = () => {
         {/* Fare Summary (For Normal) */}
         {distanceKm > 0 && rideMode === 'normal' && (
           <View className="mb-8">
-            <View className="bg-white p-6 rounded-[35px] border border-slate-100 flex-row items-center justify-between shadow-sm">
+            <View className={`bg-white ${isSmallPhone ? 'p-4 rounded-[24px]' : 'p-6 rounded-[35px]'} border border-slate-100 flex-row items-center justify-between shadow-sm`}>
               <View className="flex-row items-center flex-1">
                 <View className="bg-slate-900 w-12 h-12 rounded-2xl items-center justify-center mr-4">
                   <Ionicons name="car-sport" size={24} color="#FFD700" />
@@ -458,7 +460,7 @@ const BookingScreen = () => {
 
         {/* Scheduler */}
         {bookingType === 'schedule' && (
-          <View className="bg-white p-6 rounded-[35px] border border-slate-100 mb-6">
+          <View className={`bg-white ${isSmallPhone ? 'p-4 rounded-[24px]' : 'p-6 rounded-[35px]'} border border-slate-100 mb-6`}>
             <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Select Date & Time</Text>
             <View className="flex-row gap-3">
               <TouchableOpacity
@@ -496,7 +498,7 @@ const BookingScreen = () => {
 
         <TouchableOpacity
           onPress={handleConfirm}
-          className="bg-slate-900 py-[22px] px-4 rounded-[28px] items-center shadow-lg active:scale-95"
+          className={`bg-slate-900 ${isSmallPhone ? 'py-4 rounded-[20px]' : 'py-[22px] rounded-[28px]'} px-4 items-center shadow-lg active:scale-95`}
         >
           <Text 
             numberOfLines={1}

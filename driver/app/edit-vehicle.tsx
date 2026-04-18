@@ -5,8 +5,6 @@ import {
     TouchableOpacity,
     TextInput,
     ScrollView,
-    Platform,
-    StatusBar as RNStatusBar,
     Alert,
     ActivityIndicator
 } from 'react-native';
@@ -20,8 +18,6 @@ import { getDriverData, setDriverData } from '../utils/storage';
 import { useDriverAuth } from '../context/DriverAuthContext';
 
 import Header from '../components/Header';
-
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function EditVehicleScreen() {
     const router = useRouter();
@@ -159,7 +155,7 @@ export default function EditVehicleScreen() {
                                             onPress={() => {
                                                 try {
                                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                                } catch (e) {}
+                                                } catch {}
                                                 setForm({ ...form, vehicleType: type });
                                             }}
                                             style={{ 

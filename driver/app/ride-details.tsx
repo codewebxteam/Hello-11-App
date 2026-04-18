@@ -1,24 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     ScrollView,
-    Dimensions,
     Platform,
     StatusBar as RNStatusBar
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { driverAPI } from '../utils/api';
 import Shimmer from '../components/Shimmer';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width } = Dimensions.get('window');
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 import Header from '../components/Header';
+
+const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 export default function RideDetailsScreen() {
     const router = useRouter();
@@ -36,7 +33,7 @@ export default function RideDetailsScreen() {
 
     const [booking, setBooking] = useState<any>(initialPrefill);
     const [loading, setLoading] = useState(!initialPrefill);
-    const [refreshing, setRefreshing] = useState(false);
+    const [, setRefreshing] = useState(false);
 
     const nightFareAmount = Number(booking?.nightSurcharge ?? booking?.nightFareAmount ?? booking?.nightFare ?? booking?.nightCharge ?? 0);
     const hasNightFare = Boolean(
@@ -45,19 +42,10 @@ export default function RideDetailsScreen() {
         nightFareAmount > 0
     );
 
-    useEffect(() => {
-        if (bookingId) {
-            fetchBookingDetails();
-        }
-    }, [bookingId]);
-
-    const fetchBookingDetails = async () => {
+    const fetchBookingDetails = useCallback(async () => {
         try {
-            if (booking) {
-                setRefreshing(true);
-            } else {
-                setLoading(true);
-            }
+            setRefreshing(true);
+            setLoading(true);
             const response = await driverAPI.getBookingById(bookingId as string);
             if (response.data && response.data.booking) {
                 setBooking(response.data.booking);
@@ -68,7 +56,13 @@ export default function RideDetailsScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [bookingId]);
+
+    useEffect(() => {
+        if (bookingId) {
+            fetchBookingDetails();
+        }
+    }, [bookingId, fetchBookingDetails]);
 
     if (loading) {
         return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +21,7 @@ export default function WaitingForReturnScreen() {
     const [secondsElapsed, setSecondsElapsed] = useState(0);
     const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             const res = await driverAPI.getBookingStatus(bookingId);
             if (res.data.success) {
@@ -39,7 +39,7 @@ export default function WaitingForReturnScreen() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [bookingId]);
 
     useEffect(() => {
         fetchData();
@@ -74,8 +74,6 @@ export default function WaitingForReturnScreen() {
                             pathname: "/active-ride",
                             params: {
                                 mode: 'return',
-                                penalty: booking?.penaltyApplied || '0',
-                                toll: booking?.tollFee || '0',
                                 bookingId: bookingId
                             }
                         });
@@ -94,7 +92,7 @@ export default function WaitingForReturnScreen() {
             if (socket) socket.off("tollFeeUpdated");
             if (socket) socket.off("rideStatusUpdate");
         };
-    }, [bookingId]);
+    }, [bookingId, fetchData, router]);
 
     const waitingLimit = booking?.waitingLimit || 3600;
     const remainingSeconds = waitingLimit - secondsElapsed;
@@ -121,7 +119,7 @@ export default function WaitingForReturnScreen() {
         updateTimer();
         const timer = setInterval(updateTimer, 1000);
         return () => clearInterval(timer);
-    }, [booking?.waitingStartedAt]);
+    }, [booking?.waitingStartedAt, booking?.waitingLimit, fetchData]);
 
     // Format Helpers
     const formatTime = (totalSeconds: number) => {

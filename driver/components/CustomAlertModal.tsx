@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, DeviceEventEmitter, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const SHOW_CUSTOM_ALERT = 'SHOW_CUSTOM_ALERT';
 
@@ -23,7 +22,6 @@ export default function CustomAlertModal() {
     const [visible, setVisible] = useState(false);
     const [alertData, setAlertData] = useState<AlertData | null>(null);
     const scaleValue = React.useRef(new Animated.Value(0)).current;
-    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         const subscription = DeviceEventEmitter.addListener(SHOW_CUSTOM_ALERT, (data: AlertData) => {

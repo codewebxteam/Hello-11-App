@@ -5,13 +5,11 @@ import {
     TouchableOpacity,
     Image,
     ScrollView,
-    Platform,
-    StatusBar as RNStatusBar,
     Alert,
     useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getImageUrl } from '../utils/imagekit';
@@ -22,12 +20,12 @@ import { useDriverAuth } from '../context/DriverAuthContext';
 
 import Header from '../components/Header';
 
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
-
 export default function ProfileScreen() {
-    const { width } = useWindowDimensions();
+    const { width: screenWidth } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const { driver, setDriver, refreshProfile: contextRefresh, profileVersion } = useDriverAuth();
+    const bgBlobLarge = Math.min(400, Math.max(260, Math.round(screenWidth * 0.9)));
+    const bgBlobSmall = Math.min(220, Math.max(160, Math.round(screenWidth * 0.5)));
 
     const profileImageSource = React.useMemo(() => {
         if (!driver?.profileImage) return null;
@@ -38,8 +36,6 @@ export default function ProfileScreen() {
 
     const router = useRouter();
 
-    // Use useFocusEffect from expo-router (or @react-navigation/native)
-    const { useFocusEffect } = require('expo-router');
     useFocusEffect(
         React.useCallback(() => {
             contextRefresh();
@@ -108,10 +104,10 @@ export default function ProfileScreen() {
                     borderRadius: 9999,
                     backgroundColor: '#FFD700',
                     opacity: 0.2,
-                    top: -150,
-                    right: -100,
-                    width: 400,
-                    height: 400
+                    top: -Math.round(bgBlobLarge * 0.38),
+                    right: -Math.round(bgBlobLarge * 0.25),
+                    width: bgBlobLarge,
+                    height: bgBlobLarge
                 }}
             />
             <View
@@ -120,10 +116,10 @@ export default function ProfileScreen() {
                     borderRadius: 9999,
                     backgroundColor: '#FFD700',
                     opacity: 0.1,
-                    top: 100,
-                    left: -100,
-                    width: 200,
-                    height: 200
+                    top: Math.round(bgBlobSmall * 0.45),
+                    left: -Math.round(bgBlobSmall * 0.5),
+                    width: bgBlobSmall,
+                    height: bgBlobSmall
                 }}
             />
 

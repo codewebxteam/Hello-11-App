@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, Image, StatusBar as RNStatusBar, Alert, TextInput } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, Image, Alert, TextInput, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
@@ -10,12 +10,13 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate, runOnUI } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
+import { getSocket } from '../utils/socket';
 
-const { width, height } = Dimensions.get('window');
-const SHEET_MAX_HEIGHT = height * 0.85;
 const SHEET_MIN_HEIGHT = 140;
 
 export default function ActiveRideScreen() {
+    const { width, height } = useWindowDimensions();
+    const SHEET_MAX_HEIGHT = height * 0.85;
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
@@ -102,7 +103,7 @@ export default function ActiveRideScreen() {
                 translateY.value = maxDrag;
             }
         })(sheetMeasuredHeight, PEEK_HEIGHT);
-    }, [sheetMeasuredHeight]);
+    }, [sheetMeasuredHeight, sheetHeight, translateY]);
 
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
@@ -172,7 +173,7 @@ export default function ActiveRideScreen() {
         };
 
         fetchBookingAndRoute();
-    }, [bookingId]);
+    }, [bookingId, isReturnTrip, router]);
 
     useEffect(() => {
         if (!booking) return;
@@ -232,11 +233,11 @@ export default function ActiveRideScreen() {
 
         startTracking();
         return () => locationSubscription?.remove();
-    }, [booking?._id]);
+    }, [booking, booking?._id, booking?.dropLatitude, booking?.dropLongitude, booking?.pickupLatitude, booking?.pickupLongitude, isReturnTrip]);
 
     useEffect(() => {
         const setupSocket = async () => {
-            const socket = await require("../utils/socket").getSocket();
+            const socket = await getSocket();
             if (socket) {
                 socket.on("returnTripAccepted", (data: any) => {
                     if (String(data.bookingId) === String(bookingId)) {
@@ -271,7 +272,7 @@ export default function ActiveRideScreen() {
             }
         };
         setupSocket();
-    }, [bookingId]);
+    }, [bookingId, router]);
 
     const updateTollFee = (value: number) => {
         const next = Math.max(0, Number(value) || 0);
@@ -376,7 +377,7 @@ export default function ActiveRideScreen() {
                                     pathname: "/waiting-for-return",
                                     params: { bookingId, distance: distanceKm.toString() }
                                 });
-                            } catch (err) {
+                            } catch {
                                 Alert.alert("Error", "Failed to update payment choice.");
                             }
                         }

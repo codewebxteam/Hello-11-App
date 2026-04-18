@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler
+  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
@@ -11,6 +11,8 @@ import { bookingAPI, locationAPI, driverAPI, fareAPI } from '../../utils/api';
 import { initSocket } from '../../utils/socket';
 
 const OutstationBookingScreen = () => {
+  const { width } = useWindowDimensions();
+  const isSmallPhone = width < 360;
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -320,11 +322,11 @@ const OutstationBookingScreen = () => {
   // ─── Render ──────────────────────────────────────────────────────────────────
   if (isSearchingDriver && activeBookingId) {
     return (
-      <View className="flex-1 bg-slate-900 items-center justify-center px-6">
+      <View className={`flex-1 bg-slate-900 items-center justify-center ${isSmallPhone ? 'px-4' : 'px-6'}`}>
         <Stack.Screen options={{ headerShown: false }} />
         <StatusBar style="light" />
 
-        <View className="w-full max-w-[430px] rounded-[30px] border border-slate-700 bg-slate-800/70 p-6 shadow-2xl">
+        <View className={`w-full max-w-[430px] ${isSmallPhone ? 'rounded-[22px] p-4' : 'rounded-[30px] p-6'} border border-slate-700 bg-slate-800/70 shadow-2xl`}>
           <Animated.View
             style={{ opacity: searchingDotAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }}
             className="w-24 h-24 self-center rounded-full border-4 border-[#FFD700] items-center justify-center mb-5 bg-slate-900"
@@ -405,7 +407,7 @@ const OutstationBookingScreen = () => {
       <StatusBar style="dark" />
 
       {/* ─── HEADER ─── */}
-      <View className="bg-[#FFD700] pt-12 pb-8 px-5 rounded-b-[40px] shadow-sm">
+      <View className={`bg-[#FFD700] ${isSmallPhone ? 'pt-10 pb-6 px-4 rounded-b-[28px]' : 'pt-12 pb-8 px-5 rounded-b-[40px]'} shadow-sm`}>
         <View className="flex-row items-center justify-between mb-5">
           <TouchableOpacity onPress={() => router.back()} className="bg-white/50 p-2 rounded-xl">
             <Ionicons name="arrow-back" size={24} color="black" />
@@ -423,7 +425,7 @@ const OutstationBookingScreen = () => {
         </View>
 
         {/* Location Card */}
-        <View className="bg-white p-4 rounded-[25px] shadow-lg">
+        <View className={`bg-white ${isSmallPhone ? 'p-3 rounded-[18px]' : 'p-4 rounded-[25px]'} shadow-lg`}>
           {/* Pickup */}
           <View className="flex-row items-center h-[45px]">
             <View className="w-2 h-2 rounded-full bg-blue-500 mr-4" />
@@ -475,11 +477,11 @@ const OutstationBookingScreen = () => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: isSmallPhone ? 14 : 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
         {/* ─── TRIP SUMMARY ─── */}
         {distanceKm > 0 && (
-          <View className="flex-row bg-white rounded-[20px] p-4 mb-5 border border-slate-100 shadow-sm gap-4">
+          <View className={`flex-row bg-white ${isSmallPhone ? 'rounded-[16px] p-3' : 'rounded-[20px] p-4'} mb-5 border border-slate-100 shadow-sm gap-4`}>
             <View className="flex-1 items-center">
               <Text className="text-slate-400 text-[9px] font-black uppercase mb-1">Distance</Text>
               <Text className="text-slate-900 font-black text-lg">{distanceKm.toFixed(1)} km</Text>
@@ -588,7 +590,7 @@ const OutstationBookingScreen = () => {
         </View>
 
         {/* ─── BOOKING PANEL ─── */}
-        <View className="bg-slate-900 p-5 rounded-[35px] mt-4">
+        <View className={`bg-slate-900 ${isSmallPhone ? 'p-4 rounded-[24px]' : 'p-5 rounded-[35px]'} mt-4`}>
           {/* Ride Now / Schedule Toggle */}
           <View className="flex-row bg-slate-800 p-1.5 rounded-[15px] mb-4">
             <TouchableOpacity

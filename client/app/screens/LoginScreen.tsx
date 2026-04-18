@@ -8,7 +8,7 @@ import {
   View,
   ScrollView,
   TextInput,
-  Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   Image,
 } from "react-native";
@@ -17,10 +17,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from "../../context/AuthContext";
 
-const { width, height } = Dimensions.get('window');
-const isTablet = width > 768;
-
 const LoginScreen = () => {
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const isSmallPhone = width < 360;
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -88,7 +88,7 @@ const LoginScreen = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View
-            className="self-center w-full px-8 py-10"
+            className={`self-center w-full ${isSmallPhone ? 'px-5 py-8' : 'px-8 py-10'}`}
             style={{ maxWidth: isTablet ? 550 : '100%' }}
           >
 
@@ -125,13 +125,13 @@ const LoginScreen = () => {
                 <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
                   Mobile Number
                 </Text>
-                <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'phone' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
+                <View className={`flex-row items-center bg-white ${isSmallPhone ? 'h-14 px-4' : 'h-16 px-5'} rounded-[22px] border-2 ${focusedInput === 'phone' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
                   <View className="border-r border-slate-100 pr-3 mr-3">
                     <Ionicons name="call-outline" size={18} color={focusedInput === 'phone' ? "#FFD700" : "#94A3B8"} />
                   </View>
                   <TextInput
                     placeholder="Enter Number"
-                    className="flex-1 font-bold text-slate-800 text-base"
+                    className={`flex-1 font-bold text-slate-800 ${isSmallPhone ? 'text-sm' : 'text-base'}`}
                     keyboardType="phone-pad"
                     maxLength={10}
                     value={phoneNumber}
@@ -152,7 +152,7 @@ const LoginScreen = () => {
                     {/* Removed password strength label */}
                 </View>
 
-                <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'pass' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
+                <View className={`flex-row items-center bg-white ${isSmallPhone ? 'h-14 px-4' : 'h-16 px-5'} rounded-[22px] border-2 ${focusedInput === 'pass' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
                   <View className="mr-3">
                     <Ionicons
                       name={focusedInput === 'pass' ? "lock-open-outline" : "lock-closed-outline"}
@@ -164,7 +164,7 @@ const LoginScreen = () => {
                   <TextInput
                     placeholder="••••••••"
                     secureTextEntry={!isPasswordVisible}
-                    className="flex-1 font-black text-slate-800 text-lg tracking-widest"
+                    className={`flex-1 font-black text-slate-800 ${isSmallPhone ? 'text-base' : 'text-lg'} tracking-widest`}
                     value={password}
                     onChangeText={setPassword}
                     onFocus={() => setFocusedInput('pass')}

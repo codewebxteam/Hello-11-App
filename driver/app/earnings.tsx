@@ -8,16 +8,14 @@ import {
     StatusBar as RNStatusBar,
     Animated,
     Easing,
-    Dimensions,
     useWindowDimensions,
-} from 'react-native';
+ Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useRouter } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Modal } from 'react-native';
 import { driverAPI } from '../utils/api';
 import { getEarningsData, setEarningsData } from '../utils/storage';
 import Header from '../components/Header';
@@ -48,7 +46,7 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
                 useNativeDriver: true,
             })
         ).start();
-    }, []);
+    }, [shimmerAnim]);
 
     const translateX = shimmerAnim.interpolate({
         inputRange: [-1, 1],
@@ -82,7 +80,7 @@ export default function EarningsScreen() {
     const [earnings, setEarnings] = React.useState<any>(null);
     const [selectedPeriod, setSelectedPeriod] = React.useState('week');
     const [loading, setLoading] = React.useState(true);
-    const [refreshing, setRefreshing] = React.useState(false);
+    const [, setRefreshing] = React.useState(false);
 
     // Calendar & Range State
     const [showCalendar, setShowCalendar] = React.useState(false);
@@ -220,7 +218,7 @@ export default function EarningsScreen() {
 
                                 <View className="flex-row items-center justify-between pt-6 border-t border-white/5">
                                     <View>
-                                        <Text className="text-slate-400 text-[8px] font-black uppercase mb-1">Today's Earnings</Text>
+                                        <Text className="text-slate-400 text-[8px] font-black uppercase mb-1">Today&apos;s Earnings</Text>
                                         <Text className="text-[#FFD700] text-xl font-black italic">₹{earnings?.todayEarnings || 0}</Text>
                                     </View>
                                     <View className="items-end">

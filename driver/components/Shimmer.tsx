@@ -26,7 +26,7 @@ export default function Shimmer({ width = '100%', height = 20, borderRadius = 4,
         })
       ])
     ).start();
-  }, []);
+  }, [animatedValue]);
 
   const opacity = animatedValue.interpolate({
     inputRange: [0, 1],
@@ -37,8 +37,8 @@ export default function Shimmer({ width = '100%', height = 20, borderRadius = 4,
     <Animated.View
       style={[
         {
-          width,
-          height,
+          width: width as any,
+          height: height as any,
           borderRadius,
           backgroundColor: '#CBD5E1', // slate-300
           opacity,

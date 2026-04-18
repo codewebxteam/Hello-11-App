@@ -4,8 +4,6 @@ import {
     Text,
     TouchableOpacity,
     FlatList,
-    Platform,
-    StatusBar as RNStatusBar,
     TextInput,
     ScrollView,
     Animated,
@@ -18,8 +16,6 @@ import { StatusBar } from 'expo-status-bar';
 import { driverAPI } from '../utils/api';
 
 import Header from '../components/Header';
-
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
 
 interface RideItem {
     id: string;

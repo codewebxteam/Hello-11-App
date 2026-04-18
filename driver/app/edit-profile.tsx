@@ -5,11 +5,9 @@ import {
     TouchableOpacity,
     TextInput,
     ScrollView,
-    Platform,
-    StatusBar as RNStatusBar,
     Alert,
     ActivityIndicator,
-    useWindowDimensions
+    Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
@@ -17,21 +15,17 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'react-native';
 import { getImageUrl } from '../utils/imagekit';
 import { driverAPI } from '../utils/api';
 import { getDriverData, setDriverData } from '../utils/storage';
 import { useDriverAuth } from '../context/DriverAuthContext';
 import Header from '../components/Header';
 
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? RNStatusBar.currentHeight : 0;
-
 export default function EditProfileScreen() {
     const router = useRouter();
-    const { width } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     
-    const { refreshProfile, driver: authDriver } = useDriverAuth();
+    const { refreshProfile } = useDriverAuth();
     const [loading, setLoading] = React.useState(false);
     const [form, setForm] = React.useState({
         name: '',
