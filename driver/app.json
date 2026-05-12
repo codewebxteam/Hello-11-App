@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "driverSection",
-    "slug": "driverSection",
+    "name": "Hello 11 Driver",
+    "slug": "hello-11-driver",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "appVersion"
