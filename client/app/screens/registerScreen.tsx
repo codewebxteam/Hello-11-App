@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import Input from "../../components/Input";
 import Button from "../../components/Button";
+import { useAuth } from "../../context/AuthContext";
 
 const RegisterScreen = () => {
   const { width, height } = useWindowDimensions();
@@ -22,49 +23,58 @@ const RegisterScreen = () => {
   const isSmallPhone = width < 360;
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [isOtpSent, setIsOtpSent] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // ✅ Loading State
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { register, verifyOTP } = useAuth();
 
-  const handleRegister = async () => {
-    if (!name || phoneNumber.length < 10 || password.length < 6) {
-      Alert.alert("Attention", "Please fill all fields correctly.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match!");
+  const handleRegisterRequest = async () => {
+    if (!name || phoneNumber.length < 10) {
+      Alert.alert("Attention", "Please enter your name and 10-digit mobile number.");
       return;
     }
 
-    setIsLoading(true); // ✅ Start Loader
+    setIsLoading(true);
 
     try {
-      const { authAPI } = require("../../utils/api");
-      const { saveToken, saveUser } = require("../../utils/storage");
-
-      const response = await authAPI.signup({
-        name,
-        mobile: phoneNumber,
-        password
-      });
-
-      const { token, user } = response.data;
-
-      if (token) {
-        await saveToken(token);
-        await saveUser(user);
-        Alert.alert("Success", `Welcome ${name}!`);
-        router.replace("/screens/HomeScreen");
+      const result = await register(name, phoneNumber);
+      
+      if (result.success) {
+        setIsOtpSent(true);
+        Alert.alert("OTP Sent", "Verification code sent to your WhatsApp.");
       } else {
-        router.push("/screens/LoginScreen");
+        Alert.alert("Error", result.message);
       }
     } catch (error: any) {
       Alert.alert("Registration Failed", error.message || "Something went wrong");
     } finally {
-      setIsLoading(false); // ✅ Stop Loader
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length < 6) {
+      Alert.alert("Invalid OTP", "Please enter the 6-digit code sent to your WhatsApp.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const result = await verifyOTP(phoneNumber, otp);
+      
+      if (result.success) {
+        Alert.alert("Success", `Welcome ${name}!`);
+        router.replace("/screens/HomeScreen");
+      } else {
+        Alert.alert("Verification Failed", result.message);
+      }
+    } catch (error: any) {
+      Alert.alert("Verification Failed", error.message || "Something went wrong");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -73,13 +83,13 @@ const RegisterScreen = () => {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
-      {/* ✅ LOADING OVERLAY: Exactly like Login Screen */}
+      {/* ✅ LOADING OVERLAY */}
       {isLoading && (
         <View className="absolute inset-0 z-50 justify-center items-center bg-white/60">
           <View className="bg-slate-900 p-8 rounded-3xl shadow-2xl items-center">
             <ActivityIndicator size="large" color="#FFD700" />
             <Text className="text-white font-black mt-4 tracking-widest text-[10px] uppercase">
-              Creating Account...
+              {isOtpSent ? "Verifying..." : "Sending OTP..."}
             </Text>
           </View>
         </View>
@@ -135,7 +145,7 @@ const RegisterScreen = () => {
                   placeholder="Full Name"
                   value={name}
                   onChangeText={setName}
-                  editable={!isLoading}
+                  editable={!isLoading && !isOtpSent}
                   isFocused={focusedInput === 'name'}
                   onFocus={() => setFocusedInput('name')}
                   onBlur={() => setFocusedInput(null)}
@@ -147,7 +157,7 @@ const RegisterScreen = () => {
                   keyboardType="phone-pad"
                   value={phoneNumber}
                   onChangeText={setPhoneNumber}
-                  editable={!isLoading}
+                  editable={!isLoading && !isOtpSent}
                   maxLength={10}
                   isFocused={focusedInput === 'phone'}
                   onFocus={() => setFocusedInput('phone')}
@@ -159,40 +169,35 @@ const RegisterScreen = () => {
                   }
                 />
 
-                <Input
-                  placeholder="Create Password"
-                  secureTextEntry={!isPasswordVisible}
-                  value={password}
-                  onChangeText={setPassword}
-                  editable={!isLoading}
-                  isFocused={focusedInput === 'password'}
-                  onFocus={() => setFocusedInput('password')}
-                  onBlur={() => setFocusedInput(null)}
-                  icon={<Ionicons name="lock-closed-outline" size={20} color={focusedInput === 'password' ? "#1E293B" : "#94A3B8"} />}
-                  rightIcon={<Ionicons name={isPasswordVisible ? "eye-outline" : "eye-off-outline"} size={20} color="#94A3B8" />}
-                  onRightIconPress={() => setIsPasswordVisible(!isPasswordVisible)}
-                />
-
-                <Input
-                  placeholder="Confirm Password"
-                  secureTextEntry={!isPasswordVisible}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  editable={!isLoading}
-                  isFocused={focusedInput === 'confirm'}
-                  onFocus={() => setFocusedInput('confirm')}
-                  onBlur={() => setFocusedInput(null)}
-                  icon={<Ionicons name="shield-checkmark-outline" size={20} color={focusedInput === 'confirm' ? "#1E293B" : "#94A3B8"} />}
-                />
+                {isOtpSent && (
+                  <Input
+                    placeholder="WhatsApp OTP"
+                    keyboardType="number-pad"
+                    value={otp}
+                    onChangeText={setOtp}
+                    editable={!isLoading}
+                    maxLength={6}
+                    isFocused={focusedInput === 'otp'}
+                    onFocus={() => setFocusedInput('otp')}
+                    onBlur={() => setFocusedInput(null)}
+                    icon={<Ionicons name="shield-checkmark-outline" size={20} color={focusedInput === 'otp' ? "#1E293B" : "#94A3B8"} />}
+                  />
+                )}
               </View>
 
               <View className="mt-8">
                 <Button 
-                  title={isLoading ? "" : "Sign Up"} 
-                  onPress={handleRegister} 
+                  title={isLoading ? "" : (isOtpSent ? "Verify & Register" : "Get OTP")} 
+                  onPress={isOtpSent ? handleVerifyOtp : handleRegisterRequest} 
                   isLoading={isLoading}
                 />
               </View>
+
+              {isOtpSent && (
+                <TouchableOpacity onPress={() => setIsOtpSent(false)} className="mt-4 self-center">
+                  <Text className="text-slate-400 font-bold text-xs underline">Change Number?</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Footer Navigation */}

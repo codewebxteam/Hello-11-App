@@ -39,7 +39,8 @@ interface DriverAuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (mobile: string, password: string) => Promise<{ success: boolean; message: string }>;
+  requestOTP: (mobile: string) => Promise<{ success: boolean; message: string }>;
+  verifyOTP: (mobile: string, otp: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   profileVersion: string;
@@ -74,10 +75,21 @@ export const DriverAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // ================= LOGIN =================
-  const login = React.useCallback(async (mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
+  // ================= REQUEST OTP =================
+  const requestOTP = React.useCallback(async (mobile: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await driverAuthAPI.login({ mobile, password });
+      const response = await driverAuthAPI.login({ mobile });
+      return { success: true, message: response.data.message || "OTP sent successfully" };
+    } catch (error: any) {
+      const message = error?.message || "Failed to send OTP.";
+      return { success: false, message };
+    }
+  }, []);
+
+  // ================= VERIFY OTP =================
+  const verifyOTP = React.useCallback(async (mobile: string, otp: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const response = await driverAuthAPI.verifyOtp({ mobile, otp });
       const { token: newToken, driver: driverData } = response.data;
 
       // Save to storage
@@ -91,7 +103,7 @@ export const DriverAuthProvider = ({ children }: { children: ReactNode }) => {
 
       return { success: true, message: "Login successful" };
     } catch (error: any) {
-      const message = error?.message || "Login failed. Please try again.";
+      const message = error?.message || "Verification failed.";
       return { success: false, message };
     }
   }, []);
@@ -167,7 +179,8 @@ export const DriverAuthProvider = ({ children }: { children: ReactNode }) => {
         token,
         isLoading,
         isAuthenticated: !!token && !!driver,
-        login,
+        requestOTP,
+        verifyOTP,
         logout,
         refreshProfile,
         profileVersion,

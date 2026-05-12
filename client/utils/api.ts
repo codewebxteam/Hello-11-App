@@ -66,16 +66,19 @@ api.interceptors.response.use(
 
 // ================= AUTH API =================
 export const authAPI = {
-  signup: (data: { name: string; mobile: string; password: string }) =>
+  signup: (data: { name: string; mobile: string }) =>
     api.post(API_ENDPOINTS.SIGNUP, data),
 
-  signin: (data: { mobile: string; password: string }) =>
-    api.post(API_ENDPOINTS.SIGNIN, data),
+  requestOtp: (data: { mobile: string }) =>
+    api.post("/api/auth/request-otp", data),
+
+  verifyOtp: (data: { mobile: string; otp: string }) =>
+    api.post("/api/auth/verify-otp", data),
 
   forgotPassword: (data: { mobile: string }) =>
     api.post(API_ENDPOINTS.FORGOT_PASSWORD, data),
 
-  resetPassword: (data: { mobile: string; otp: string; newPassword: string }) =>
+  resetPassword: (data: { mobile: string; otp: string }) =>
     api.post(API_ENDPOINTS.RESET_PASSWORD, data),
 };
 

@@ -28,6 +28,7 @@ export const API_ENDPOINTS = {
   // Auth (Public)
   DRIVER_REGISTER: "/api/drivers/register",
   DRIVER_LOGIN: "/api/drivers/login",
+  DRIVER_VERIFY_OTP: "/api/drivers/verify-otp",
 
   // Nearby drivers (Public)
   NEARBY_DRIVERS: "/api/drivers/nearby",
@@ -132,15 +133,17 @@ export const driverAuthAPI = {
   register: (data: {
     name: string;
     mobile: string;
-    password: string;
     vehicleModel: string;
     vehicleNumber: string;
     vehicleType?: string; // "5seater" | "7seater"
     serviceType?: string;
   }) => api.post(API_ENDPOINTS.DRIVER_REGISTER, data),
 
-  login: (data: { mobile: string; password: string }) =>
+  login: (data: { mobile: string }) =>
     api.post(API_ENDPOINTS.DRIVER_LOGIN, data),
+
+  verifyOtp: (data: { mobile: string; otp: string }) =>
+    api.post(API_ENDPOINTS.DRIVER_VERIFY_OTP, data),
 
   logout: () => api.post(API_ENDPOINTS.LOGOUT),
 };

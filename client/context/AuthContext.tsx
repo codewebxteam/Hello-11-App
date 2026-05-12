@@ -18,8 +18,9 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (mobile: string, password: string) => Promise<{ success: boolean; message: string }>;
-  register: (name: string, mobile: string, password: string) => Promise<{ success: boolean; message: string }>;
+  requestOTP: (mobile: string) => Promise<{ success: boolean; message: string }>;
+  verifyOTP: (mobile: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  register: (name: string, mobile: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUserLocal: (data: Partial<User>) => void;
@@ -108,10 +109,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLogoutCallback(logout);
   }, [logout]);
 
-  // ================= LOGIN =================
-  const login = React.useCallback(async (mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
+  // ================= REQUEST OTP =================
+  const requestOTP = React.useCallback(async (mobile: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await authAPI.signin({ mobile, password });
+      const response = await authAPI.requestOtp({ mobile });
+      return { success: true, message: response.data.message || "OTP sent successfully" };
+    } catch (error: any) {
+      const message = error?.message || "Failed to send OTP.";
+      return { success: false, message };
+    }
+  }, []);
+
+  // ================= VERIFY OTP =================
+  const verifyOTP = React.useCallback(async (mobile: string, otp: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const response = await authAPI.verifyOtp({ mobile, otp });
       const { token: newToken, user: userData } = response.data;
 
       await saveToken(newToken);
@@ -121,16 +133,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return { success: true, message: "Login successful" };
     } catch (error: any) {
-      const message = error?.message || "Login failed.";
+      const message = error?.message || "Verification failed.";
       return { success: false, message };
     }
   }, []);
 
   // ================= REGISTER =================
-  const register = React.useCallback(async (name: string, mobile: string, password: string): Promise<{ success: boolean; message: string }> => {
+  const register = React.useCallback(async (name: string, mobile: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await authAPI.signup({ name, mobile, password });
-      return { success: true, message: response.data.message || "Signup successful" };
+      const response = await authAPI.signup({ name, mobile });
+      return { success: true, message: response.data.message || "Signup successful. OTP sent." };
     } catch (error: any) {
       const message = error?.message || "Registration failed.";
       return { success: false, message };
@@ -152,12 +164,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     token,
     isLoading,
     isAuthenticated: !!token, // Only depend on token for authentication status
-    login,
+    requestOTP,
+    verifyOTP,
     register,
     logout,
     refreshProfile,
     updateUserLocal,
-  }), [user, token, isLoading, login, register, logout, refreshProfile, updateUserLocal]);
+  }), [user, token, isLoading, requestOTP, verifyOTP, register, logout, refreshProfile, updateUserLocal]);
 
   return (
     <AuthContext.Provider value={contextValue}>

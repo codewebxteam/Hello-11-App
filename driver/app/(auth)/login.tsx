@@ -20,31 +20,56 @@ const LoginScreen = () => {
     const { width, height } = useWindowDimensions();
     const isTablet = width >= 768;
     const [phoneNumber, setPhoneNumber] = useState("");
-    const [password, setPassword] = useState("");
-    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [otp, setOtp] = useState("");
+    const [isOtpSent, setIsOtpSent] = useState(false);
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
-    const { login } = useDriverAuth();
+    const { requestOTP, verifyOTP } = useDriverAuth();
 
-    const handleLogin = async () => {
-        if (!phoneNumber || !password) {
-            Alert.alert("Access Denied", "Please verify your credentials.");
+    const handleRequestOtp = async () => {
+        if (!phoneNumber || phoneNumber.length < 10) {
+            Alert.alert("Invalid Number", "Please enter a valid 10-digit phone number.");
             return;
         }
 
         setIsLoading(true);
 
         try {
-            const result = await login(phoneNumber, password);
+            const result = await requestOTP(phoneNumber);
+            
+            if (result.success) {
+                setIsOtpSent(true);
+                Alert.alert("OTP Sent", "A 6-digit verification code has been sent to your WhatsApp.");
+            } else {
+                Alert.alert("Login Request Failed", result.message);
+            }
+        } catch (err: any) {
+            console.error("Login request error:", err);
+            Alert.alert("Error", err.message || "Something went wrong. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (!otp || otp.length < 6) {
+            Alert.alert("Invalid OTP", "Please enter the 6-digit code sent to your WhatsApp.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const result = await verifyOTP(phoneNumber, otp);
             
             if (result.success) {
                 router.replace("/");
             } else {
-                Alert.alert("Login Failed", result.message);
+                Alert.alert("Verification Failed", result.message);
             }
         } catch (err: any) {
-            console.error("Login error:", err);
+            console.error("Verification error:", err);
             Alert.alert("Error", err.message || "Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);
@@ -75,6 +100,16 @@ const LoginScreen = () => {
                     height: width * 0.4
                 }}
             />
+
+            {/* ✅ FULL SCREEN LOADING OVERLAY */}
+            {isLoading && (
+                <View className="absolute inset-0 z-50 justify-center items-center bg-white/60">
+                    <View className="bg-slate-900 p-8 rounded-3xl shadow-2xl items-center">
+                        <ActivityIndicator size="large" color="#FFD700" />
+                        <Text className="text-white font-bold mt-4 tracking-widest text-xs uppercase">Processing</Text>
+                    </View>
+                </View>
+            )}
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -134,66 +169,68 @@ const LoginScreen = () => {
                                         onChangeText={setPhoneNumber}
                                         onFocus={() => setFocusedInput('phone')}
                                         onBlur={() => setFocusedInput(null)}
+                                        editable={!isLoading && !isOtpSent}
                                     />
+                                    {isOtpSent && (
+                                        <TouchableOpacity onPress={() => setIsOtpSent(false)}>
+                                            <Text className="text-[#FFB800] font-bold text-xs">Edit</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             </View>
 
-                            {/* Password Section */}
-                            <View>
-                                <View className="flex-row justify-between items-center mb-2 px-1">
-                                    <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px]">
-                                        Password
+                            {/* OTP Section (Only visible if OTP is sent) */}
+                            {isOtpSent && (
+                                <View>
+                                    <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
+                                        WhatsApp OTP
                                     </Text>
-                                </View>
+                                    <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'otp' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
+                                        <View className="mr-3">
+                                            <Ionicons
+                                                name="shield-checkmark-outline"
+                                                size={20}
+                                                color={focusedInput === 'otp' ? "#FFD700" : "#94A3B8"}
+                                            />
+                                        </View>
 
-                                <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'pass' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
-                                    <View className="mr-3">
-                                        <Ionicons
-                                            name={focusedInput === 'pass' ? "lock-open-outline" : "lock-closed-outline"}
-                                            size={20}
-                                            color={focusedInput === 'pass' ? "#FFD700" : "#94A3B8"}
+                                        <TextInput
+                                            placeholder="Enter 6-digit OTP"
+                                            className="flex-1 font-black text-slate-800 text-lg tracking-[4px]"
+                                            keyboardType="number-pad"
+                                            maxLength={6}
+                                            value={otp}
+                                            onChangeText={setOtp}
+                                            onFocus={() => setFocusedInput('otp')}
+                                            onBlur={() => setFocusedInput(null)}
+                                            editable={!isLoading}
                                         />
                                     </View>
-
-                                    <TextInput
-                                        placeholder="••••••••"
-                                        secureTextEntry={!isPasswordVisible}
-                                        className="flex-1 font-black text-slate-800 text-lg tracking-widest"
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        onFocus={() => setFocusedInput('pass')}
-                                        onBlur={() => setFocusedInput(null)}
-                                    />
-
-                                    <TouchableOpacity
-                                        onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-                                        className="bg-slate-50 p-2 rounded-xl"
+                                    <TouchableOpacity 
+                                        className="mt-4 self-end"
+                                        onPress={handleRequestOtp}
+                                        disabled={isLoading}
                                     >
-                                        <Ionicons name={isPasswordVisible ? "eye-off" : "eye"} size={20} color={isPasswordVisible ? "#FFD700" : "#CBD5E1"} />
+                                        <Text className="text-slate-400 font-bold text-xs underline">Resend OTP?</Text>
                                     </TouchableOpacity>
                                 </View>
-                            </View>
-
-                            <TouchableOpacity
-                                onPress={() => router.push("/(auth)/forgot-password")}
-                                className="self-end"
-                            >
-                                <Text className="text-slate-400 font-bold text-xs underline">Forgot Password?</Text>
-                            </TouchableOpacity>
+                            )}
                         </View>
 
                         {/* --- ACTIONS --- */}
                         <View className="mt-10">
                             <TouchableOpacity
                                 activeOpacity={0.8}
-                                onPress={handleLogin}
+                                onPress={isOtpSent ? handleVerifyOtp : handleRequestOtp}
                                 disabled={isLoading}
                                 className="bg-[#FFD700] py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40"
                             >
                                 {isLoading ? (
                                     <ActivityIndicator color="#1E293B" />
                                 ) : (
-                                    <Text className="text-slate-900 font-black text-lg tracking-[2px]">LOGIN</Text>
+                                    <Text className="text-slate-900 font-black text-lg tracking-[2px]">
+                                        {isOtpSent ? "VERIFY & LOGIN" : "SEND OTP"}
+                                    </Text>
                                 )}
                             </TouchableOpacity>
 
