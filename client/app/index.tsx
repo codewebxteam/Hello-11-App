@@ -1,28 +1,42 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, Animated, FlatList, useWindowDimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Animated, FlatList, useWindowDimensions, Platform } from 'react-native';
 import { useRouter, Redirect } from "expo-router";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
 
 const SLIDE_DATA = [
-  { id: '1', title: 'Your Ultimate\nTravel Partner.', subTitle: 'Duri pata na chale. Travel anywhere\nwith comfort and ease.' },
-  { id: '2', title: 'Track Your\nJourney.', subTitle: 'Real-time updates to keep you\ninformed at every step.' },
-  { id: '3', title: 'Ready to\nExplore?', subTitle: 'Join Hello 11 and start your\nadventure today.' },
+  {
+    id: '1',
+    title: 'THE ELITE\nRIDE.',
+    subTitle: 'Experience luxury and comfort in every journey. Hello 11 is your premium travel partner.',
+    icon: 'car-sport'
+  },
+  {
+    id: '2',
+    title: 'TRACK IN\nREAL-TIME.',
+    subTitle: 'Stay informed with live updates. Track your ride from start to finish with pinpoint accuracy.',
+    icon: 'location'
+  },
+  {
+    id: '3',
+    title: 'JOIN THE\nCIRCLE.',
+    subTitle: 'Become a member today and unlock exclusive benefits and priority bookings.',
+    icon: 'people'
+  },
 ];
 
 const Start = () => {
   const { isAuthenticated } = useAuth();
   const { width, height } = useWindowDimensions();
   const isTablet = width >= 768;
-  const isSmallPhone = width < 360;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
 
   const scrollX = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   if (isAuthenticated) {
     return <Redirect href="/screens/HomeScreen" />;
@@ -43,43 +57,39 @@ const Start = () => {
     if (activeIndex < SLIDE_DATA.length - 1) {
       flatListRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
     } else {
-      Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
-        router.push("/screens/LoginScreen");
-      });
+      router.push("/screens/LoginScreen");
     }
   };
 
   return (
     <View className="flex-1 bg-[#FFD700]">
-      <StatusBar style="dark" />
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
+
+      {/* Soft Premium Glows */}
+      <View className="absolute top-[-100] right-[-100] w-96 h-96 bg-white/20 rounded-full" />
+      <View className="absolute bottom-[-150] left-[-100] w-[500px] h-[500px] bg-black/5 rounded-full" />
+
       <SafeAreaView className="flex-1">
-        
-        <Animated.View 
-          style={{ opacity: fadeAnim }}
-          className={`flex-1 justify-center items-center ${isSmallPhone ? 'px-4' : 'px-6'}`}
-        >
-          <View 
-            style={{ 
-              width: isTablet ? width * 0.4 : isSmallPhone ? width * 0.7 : width * 0.65,
-              minHeight: Math.max(220, height * 0.22),
-              aspectRatio: 1 
-            }}
-            className="bg-white rounded-full justify-center items-center overflow-hidden shadow-2xl border-4 border-white/30"
-          >
+
+        {/* Top Branding Section - Reduced height slightly */}
+        <View className="items-center mt-4 h-[30%] justify-center">
+          <View className="bg-white p-5 rounded-[50px] shadow-2xl shadow-black/10 border border-white/50">
             <Image
-              source={require('../assets/images/imgss.jpeg')}
-              //  FIX: 102% ya 105% use karein edges cover karne ke liye
-              style={{ width: '105%', height: '105%' }} 
-              resizeMode="cover"
+              source={require('../assets/images/official_logo.png')}
+              style={{ width: 100, height: 100 }}
+              resizeMode="contain"
             />
           </View>
-        </Animated.View>
+          <View className="mt-6 items-center">
+            <Text className="text-black text-4xl font-black tracking-tighter italic">
+              HELLO <Text className="text-white shadow-sm">11</Text>
+            </Text>
+          </View>
+        </View>
 
-        <Animated.View 
-          style={{ opacity: fadeAnim }}
-          className={`flex-[1.2] bg-white ${isSmallPhone ? 'rounded-t-[36px] pt-7' : 'rounded-t-[50px] pt-10'} shadow-inner`}
-        >
-          <Animated.FlatList
+        {/* Content Section - Added vertical padding to prevent cutting */}
+        <View className="flex-1">
+          <FlatList
             ref={flatListRef}
             data={SLIDE_DATA}
             horizontal
@@ -88,31 +98,76 @@ const Start = () => {
             onScroll={handleScroll}
             scrollEventThrottle={16}
             keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingVertical: 20 }}
             renderItem={({ item }) => (
-              <View style={{ width: width }} className={`${isSmallPhone ? 'px-6' : 'px-10'} items-center justify-start`}>
-                <Text className={`text-slate-900 ${isSmallPhone ? 'text-[28px]' : 'text-3xl'} font-black text-center`}>{item.title}</Text>
-                <Text className={`text-slate-500 ${isSmallPhone ? 'text-sm' : 'text-base'} text-center mt-4`}>{item.subTitle}</Text>
+              <View style={{ width: width }} className="px-8 justify-center py-4">
+                <View
+                  className="bg-white p-8 rounded-[45px] shadow-2xl border border-white/40 items-center"
+                  style={{
+                    elevation: 15,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 20
+                  }}
+                >
+                  <View className="bg-[#FFD700]/15 p-5 rounded-[28px] mb-6">
+                    <Ionicons name={item.icon as any} size={32} color="#000" />
+                  </View>
+                  <Text className="text-black text-3xl font-black text-center tracking-tight italic leading-tight">
+                    {item.title}
+                  </Text>
+                  <Text className="text-slate-500 text-sm text-center mt-4 font-medium leading-5 px-2">
+                    {item.subTitle}
+                  </Text>
+                </View>
               </View>
             )}
           />
+        </View>
 
-          <View className={`${isSmallPhone ? 'px-6 pb-8' : 'px-10 pb-12'} items-center`}>
-            <View className={`flex-row ${isSmallPhone ? 'mb-6' : 'mb-10'}`}>
-              {SLIDE_DATA.map((_, index) => (
-                <View key={index} className={`h-2 rounded-full mx-1 ${activeIndex === index ? 'w-8 bg-[#FFD700]' : 'w-2 bg-slate-200'}`} />
-              ))}
-            </View>
-
-            <TouchableOpacity
-              onPress={handleNext}
-              className={`bg-slate-900 w-full ${isSmallPhone ? 'py-4' : 'py-5'} rounded-full items-center shadow-lg`}
-            >
-              <Text className={`text-white ${isSmallPhone ? 'text-base' : 'text-lg'} font-bold`}>
-                {activeIndex === SLIDE_DATA.length - 1 ? "Get started" : "Next"}
-              </Text>
-            </TouchableOpacity>
+        {/* Footer Controls */}
+        <View className="px-10 pb-8 items-center">
+          {/* Progress Indicators */}
+          <View className="flex-row mb-8">
+            {SLIDE_DATA.map((_, index) => (
+              <View
+                key={index}
+                className={`h-2 rounded-full mx-1.5 ${activeIndex === index ? 'w-10 bg-black' : 'w-2 bg-black/10'}`}
+              />
+            ))}
           </View>
-        </Animated.View>
+
+          {/* Main Action Button with Visual Feedback */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleNext}
+            className="bg-black w-full py-4 rounded-[25px] items-center shadow-2xl shadow-black/30 active:bg-slate-800"
+            style={{
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 15 },
+              shadowOpacity: 0.4,
+              shadowRadius: 20,
+              transform: [{ scale: 1 }] // Base scale
+            }}
+          >
+            <Text className="text-[#FFD700] text-base font-black uppercase tracking-[3px]">
+              {activeIndex === SLIDE_DATA.length - 1 ? "Start Journey" : "Next Step"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Skip Option */}
+          <TouchableOpacity
+            activeOpacity={0.6}
+            onPress={() => router.push("/screens/LoginScreen")}
+            className="mt-8 active:opacity-40"
+          >
+            <Text className="text-black/40 font-bold text-[12px] uppercase tracking-[2px]">
+              Skip Introduction
+            </Text>
+          </TouchableOpacity>
+        </View>
+
       </SafeAreaView>
     </View>
   );
