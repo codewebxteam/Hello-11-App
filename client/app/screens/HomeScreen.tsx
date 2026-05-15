@@ -249,6 +249,7 @@ const HomeScreen = () => {
   const [activeInput, setActiveInput] = useState<'source' | 'destination' | null>(null);
   const [sourceCoords, setSourceCoords] = useState<{ lat: string; lon: string } | null>(null);
   const [destCoords, setDestCoords] = useState<{ lat: string; lon: string } | null>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
 
   // Function to fetch current location and reverse geocode
@@ -418,6 +419,16 @@ const HomeScreen = () => {
     ]).start();
   }, []);
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const handleFocus = () => {
     setTimeout(() => {
       scrollViewRef.current?.scrollTo({ y: 120, animated: true });
@@ -492,14 +503,16 @@ const HomeScreen = () => {
           </View>
 
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
             className={`flex-1 z-20 ${isSmallPhone ? '-mt-12' : '-mt-16'}`}
           >
             <ScrollView
               ref={scrollViewRef}
-              contentContainerClassName={`${isSmallPhone ? 'px-4' : 'px-6'} pb-32`}
+              contentContainerClassName={`${isSmallPhone ? 'px-4' : 'px-6'} ${isKeyboardVisible ? 'pb-56' : 'pb-32'}`}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             >
               <Animated.View
                 className={`bg-white rounded-[35px] ${isSmallPhone ? 'p-4' : 'p-6'} shadow-2xl shadow-slate-300 border border-slate-50 z-50 elevation-10`}
@@ -530,29 +543,6 @@ const HomeScreen = () => {
                     </View>
                   </View>
 
-                  {suggestions.length > 0 && activeInput === 'destination' && (
-                    <View className="bg-slate-50 rounded-2xl p-2 mb-2 border border-slate-100 shadow-sm z-20">
-                      {suggestions.map((item, idx) => (
-                        <TouchableOpacity
-                          key={idx}
-                          className="flex-row items-center p-3 border-b border-slate-200/50 last:border-0"
-                          onPress={() => {
-                            setDestination(item.display_name);
-                            setDestCoords({ lat: item.lat, lon: item.lon });
-                            setSuggestions([]);
-                            setActiveInput(null);
-                            Keyboard.dismiss();
-                          }}
-                        >
-                          <Ionicons name="pin-outline" size={16} color="#64748B" />
-                          <Text className="text-slate-700 text-sm font-medium ml-3 flex-1" numberOfLines={1}>
-                            {item.display_name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-
                   <View className="flex-row items-center mb-2.5">
                     <View className="w-8 items-center pt-1"><Ionicons name="location" size={20} color="#F97316" /></View>
                     <View className="flex-1 ml-3 border-b border-slate-100 pb-2">
@@ -573,6 +563,29 @@ const HomeScreen = () => {
                       />
                     </View>
                   </View>
+
+                  {suggestions.length > 0 && activeInput === 'destination' && (
+                    <View className="bg-slate-50 rounded-2xl p-2 mt-2 mb-2 border border-slate-100 shadow-sm z-20">
+                      {suggestions.map((item, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          className="flex-row items-center p-3 border-b border-slate-200/50 last:border-0"
+                          onPress={() => {
+                            setDestination(item.display_name);
+                            setDestCoords({ lat: item.lat, lon: item.lon });
+                            setSuggestions([]);
+                            setActiveInput(null);
+                            Keyboard.dismiss();
+                          }}
+                        >
+                          <Ionicons name="pin-outline" size={16} color="#64748B" />
+                          <Text className="text-slate-700 text-sm font-medium ml-3 flex-1" numberOfLines={1}>
+                            {item.display_name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
 
                   {/* Hints / Suggestions List */}
                   {activeInput === 'source' && (
