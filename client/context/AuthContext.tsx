@@ -112,7 +112,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ================= REQUEST OTP =================
   const requestOTP = React.useCallback(async (mobile: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await authAPI.requestOtp({ mobile });
+      const normalizedMobile = mobile.replace(/\D/g, "").slice(-10);
+      const response = await authAPI.requestOtp({ mobile: normalizedMobile });
       return { success: true, message: response.data.message || "OTP sent successfully" };
     } catch (error: any) {
       const message = error?.message || "Failed to send OTP.";
@@ -123,7 +124,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ================= VERIFY OTP =================
   const verifyOTP = React.useCallback(async (mobile: string, otp: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await authAPI.verifyOtp({ mobile, otp });
+      const normalizedMobile = mobile.replace(/\D/g, "").slice(-10);
+      const response = await authAPI.verifyOtp({ mobile: normalizedMobile, otp });
       const { token: newToken, user: userData } = response.data;
 
       await saveToken(newToken);

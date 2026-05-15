@@ -6,14 +6,17 @@ const getApiBaseUrl = (): string => {
     const EXPLICIT_API_URL = process.env.EXPO_PUBLIC_API_URL;
     if (EXPLICIT_API_URL) return EXPLICIT_API_URL;
 
-    // 2. Dynamic Detection for Development
-    // Works for both Emulator (localhost) and Physical Device (Local IP)
-    const debuggerHost = Constants.expoConfig?.hostUri;
-    const localhost = debuggerHost?.split(':').shift();
+    // 2. Dynamic detection for development (Expo Go / Dev Client / Metro)
+    const anyConstants = Constants as any;
+    const hostCandidates: Array<string | undefined> = [
+        Constants.expoConfig?.hostUri,
+        anyConstants?.expoGoConfig?.debuggerHost,
+        anyConstants?.manifest2?.extra?.expoGo?.debuggerHost,
+        anyConstants?.manifest?.debuggerHost,
+    ];
 
-    if (localhost) {
-        return `http://${localhost}:5001`;
-    }
+    const host = hostCandidates.find(Boolean)?.split(':')?.[0];
+    if (host) return `http://${host}:5001`;
 
     // 3. Fallback for all other cases
     return "http://127.0.0.1:5001";
