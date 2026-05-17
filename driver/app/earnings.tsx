@@ -76,6 +76,10 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 
 export default function EarningsScreen() {
     const router = useRouter();
+    const { width } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const insets = useSafeAreaInsets();
     const [earnings, setEarnings] = React.useState<any>(null);
     const [selectedPeriod, setSelectedPeriod] = React.useState('week');
@@ -170,7 +174,7 @@ export default function EarningsScreen() {
             <ScrollView 
                 className="flex-1" 
                 showsVerticalScrollIndicator={false} 
-                contentContainerStyle={{ padding: 24, paddingBottom: Math.max(40, insets.bottom + 20) }}
+                contentContainerStyle={{ padding: 24, paddingBottom: Math.max(40, insets.bottom + 20), width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}
             >
                 {/* Main Glassmorphism Card */}
                 <View className="rounded-[32px] overflow-hidden shadow-2xl shadow-slate-900/10 mb-8">
@@ -198,14 +202,14 @@ export default function EarningsScreen() {
                         ) : (
                             <>
                                 <View className="flex-row justify-between items-start mb-2">
-                                    <View>
+                                    <View className="flex-1 pr-3">
                                         <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Net Earnings</Text>
-                                        <Text className="text-white text-5xl font-black italic tracking-tighter">
+                                        <Text className="text-white font-black italic tracking-tighter" style={{ fontSize: 52 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
                                             ₹{earnings?.totalEarnings || 0}
                                         </Text>
                                     </View>
-                                    <View className="bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30">
-                                        <Text className="text-amber-400 text-[8px] font-black uppercase">Premium Account</Text>
+                                    <View className="bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30 max-w-[48%]">
+                                        <Text className="text-amber-400 text-[8px] font-black uppercase" numberOfLines={1} adjustsFontSizeToFit>Premium Account</Text>
                                     </View>
                                 </View>
 
@@ -217,15 +221,15 @@ export default function EarningsScreen() {
                                 </View>
 
                                 <View className="flex-row items-center justify-between pt-6 border-t border-white/5">
-                                    <View>
+                                    <View className="flex-1 pr-3">
                                         <Text className="text-slate-400 text-[8px] font-black uppercase mb-1">Today&apos;s Earnings</Text>
-                                        <Text className="text-[#FFD700] text-xl font-black italic">₹{earnings?.todayEarnings || 0}</Text>
+                                        <Text className="text-[#FFD700] text-xl font-black italic" numberOfLines={1} adjustsFontSizeToFit>₹{earnings?.todayEarnings || 0}</Text>
                                     </View>
-                                    <View className="items-end">
-                                        <Text className="text-slate-400 text-[8px] font-black uppercase mb-1">Professional Identity</Text>
-                                        <View className="flex-row items-center">
+                                    <View className="items-end flex-1">
+                                        <Text className="text-slate-400 text-[8px] font-black uppercase mb-1 text-right" numberOfLines={1}>Professional Identity</Text>
+                                        <View className="flex-row items-center justify-end w-full pr-2">
                                             <Ionicons name="shield-checkmark" size={12} color="#10B981" />
-                                            <Text className="text-green-500 text-xl font-black italic ml-1">VERIFIED</Text>
+                                            <Text className="text-green-500 font-black italic ml-1" style={{ fontSize: 28, lineHeight: 30 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62}>VERIFIED</Text>
                                         </View>
                                     </View>
                                 </View>
@@ -259,23 +263,41 @@ export default function EarningsScreen() {
                     <TouchableOpacity
                         onPress={() => loadData('day')}
                         style={{ backgroundColor: selectedPeriod === 'day' ? '#0F172A' : 'transparent' }}
-                        className="flex-1 py-3 rounded-full items-center"
+                        className="flex-1 py-3 rounded-full items-center px-1"
                     >
-                        <Text style={{ color: selectedPeriod === 'day' ? '#FFD700' : '#94A3B8' }} className="text-[9px] font-black uppercase tracking-widest">Daily</Text>
+                        <Text
+                            style={{ color: selectedPeriod === 'day' ? '#FFD700' : '#94A3B8' }}
+                            className="text-[9px] font-black uppercase tracking-[1px]"
+                            numberOfLines={1}
+                        >
+                            Daily
+                        </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => loadData('week')}
                         style={{ backgroundColor: selectedPeriod === 'week' ? '#0F172A' : 'transparent' }}
-                        className="flex-1 py-3 rounded-full items-center"
+                        className="flex-1 py-3 rounded-full items-center px-1"
                     >
-                        <Text style={{ color: selectedPeriod === 'week' ? '#FFD700' : '#94A3B8' }} className="text-[9px] font-black uppercase tracking-widest">Weekly</Text>
+                        <Text
+                            style={{ color: selectedPeriod === 'week' ? '#FFD700' : '#94A3B8' }}
+                            className="text-[9px] font-black uppercase tracking-[1px]"
+                            numberOfLines={1}
+                        >
+                            Weekly
+                        </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => loadData('month')}
                         style={{ backgroundColor: selectedPeriod === 'month' ? '#0F172A' : 'transparent' }}
-                        className="flex-1 py-3 rounded-full items-center"
+                        className="flex-1 py-3 rounded-full items-center px-1"
                     >
-                        <Text style={{ color: selectedPeriod === 'month' ? '#FFD700' : '#94A3B8' }} className="text-[9px] font-black uppercase tracking-widest">Monthly</Text>
+                        <Text
+                            style={{ color: selectedPeriod === 'month' ? '#FFD700' : '#94A3B8' }}
+                            className="text-[9px] font-black uppercase tracking-[1px]"
+                            numberOfLines={1}
+                        >
+                            Monthly
+                        </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => {
@@ -283,11 +305,17 @@ export default function EarningsScreen() {
                             loadData('month', false); // Fetch month data to show dots on calendar
                         }}
                         style={{ backgroundColor: selectedPeriod === 'custom' ? '#0F172A' : 'transparent' }}
-                        className="flex-1 py-3 rounded-full items-center"
+                        className="flex-1 py-3 rounded-full items-center px-1"
                     >
-                        <View className="flex-row items-center">
+                        <View className="flex-row items-center justify-center">
                             <Ionicons name="calendar-outline" size={10} color={selectedPeriod === 'custom' ? '#FFD700' : '#94A3B8'} className="mr-1" />
-                            <Text style={{ color: selectedPeriod === 'custom' ? '#FFD700' : '#94A3B8' }} className="text-[9px] font-black uppercase tracking-widest">Range</Text>
+                            <Text
+                                style={{ color: selectedPeriod === 'custom' ? '#FFD700' : '#94A3B8' }}
+                                className="text-[9px] font-black uppercase tracking-[1px]"
+                                numberOfLines={1}
+                            >
+                                Range
+                            </Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -301,9 +329,13 @@ export default function EarningsScreen() {
                         {loading ? (
                             <ShimmerPlaceHolder className="w-16 h-6 rounded" />
                         ) : (
-                            <Text className="text-slate-900 text-xl font-black italic">₹{velocity}</Text>
+                            <Text className="text-slate-900 text-xl font-black italic w-full text-center" numberOfLines={1} adjustsFontSizeToFit>
+                                ₹{velocity}
+                            </Text>
                         )}
-                        <Text className="text-slate-400 text-[8px] font-black uppercase mt-1 tracking-widest">₹/per Hour</Text>
+                        <Text className="text-slate-400 text-[8px] font-black uppercase mt-1 tracking-[1px] w-full text-center" numberOfLines={1} adjustsFontSizeToFit>
+                            ₹/per Hour
+                        </Text>
                     </View>
                     <View className="flex-1 bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm items-center">
                         <View className="w-10 h-10 bg-blue-50 rounded-full items-center justify-center mb-3">
@@ -312,9 +344,13 @@ export default function EarningsScreen() {
                         {loading ? (
                             <ShimmerPlaceHolder className="w-16 h-6 rounded" />
                         ) : (
-                            <Text className="text-slate-900 text-xl font-black italic">₹{roi}</Text>
+                            <Text className="text-slate-900 text-xl font-black italic w-full text-center" numberOfLines={1} adjustsFontSizeToFit>
+                                ₹{roi}
+                            </Text>
                         )}
-                        <Text className="text-slate-400 text-[8px] font-black uppercase mt-1 tracking-widest">Avg ROI/Trip</Text>
+                        <Text className="text-slate-400 text-[8px] font-black uppercase mt-1 tracking-[1px] w-full text-center" numberOfLines={1} adjustsFontSizeToFit>
+                            Avg ROI/Trip
+                        </Text>
                     </View>
                 </View>
 
@@ -338,7 +374,13 @@ export default function EarningsScreen() {
                         {loading ? (
                             <ShimmerPlaceHolder className="w-12 h-6 rounded" />
                         ) : (
-                            <Text className="text-slate-900 font-black italic text-xl">{earnings?.totalTrips || 0}</Text>
+                            <Text
+                                className="text-slate-900 font-black italic text-xl text-right min-w-[88px]"
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                            >
+                                {earnings?.totalTrips || 0}
+                            </Text>
                         )}
                     </View>
 
@@ -352,7 +394,13 @@ export default function EarningsScreen() {
                         {loading ? (
                             <ShimmerPlaceHolder className="w-12 h-6 rounded" />
                         ) : (
-                            <Text className="text-slate-900 font-black italic text-xl">{earnings?.onlineHours || 0}h</Text>
+                            <Text
+                                className="text-slate-900 font-black italic text-xl text-right min-w-[88px]"
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                            >
+                                {earnings?.onlineHours || 0}h
+                            </Text>
                         )}
                     </View>
 
@@ -366,7 +414,13 @@ export default function EarningsScreen() {
                         {loading ? (
                             <ShimmerPlaceHolder className="w-12 h-6 rounded" />
                         ) : (
-                            <Text className="text-slate-900 font-black italic text-xl">4.98</Text>
+                            <Text
+                                className="text-slate-900 font-black italic text-xl text-right min-w-[88px]"
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                            >
+                                4.98
+                            </Text>
                         )}
                     </View>
                 </View>
@@ -495,3 +549,5 @@ export default function EarningsScreen() {
         </View>
     );
 }
+
+

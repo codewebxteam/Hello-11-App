@@ -6,7 +6,8 @@ import {
     TextInput,
     ScrollView,
     Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +22,10 @@ import Header from '../components/Header';
 
 export default function EditVehicleScreen() {
     const router = useRouter();
+    const { width } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const insets = useSafeAreaInsets();
     const { refreshProfile } = useDriverAuth();
     const [loading, setLoading] = React.useState(false);
@@ -82,7 +87,7 @@ export default function EditVehicleScreen() {
 
             <Header title="Vehicle Details" />
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20) }}>
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20), width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
                 <View className="px-6 py-8">
                     {/* Primary Info - LOCKED */}
                     <View className="mb-8">
@@ -174,10 +179,10 @@ export default function EditVehicleScreen() {
                                                 color={form.vehicleType === type ? '#FFD700' : '#94A3B8'} 
                                                 style={{ marginRight: 8 }}
                                             />
-                                            <Text className={`font-black uppercase text-[10px] tracking-widest ${form.vehicleType === type ? 'text-white' : 'text-slate-400'}`}>
+                                            <Text className={`font-black uppercase text-[10px] tracking-wide ${form.vehicleType === type ? 'text-white' : 'text-slate-400'}`} numberOfLines={1}>
                                                 {type === '5seater' ? 'Standard' : 'Premium'}
                                             </Text>
-                                            <Text className={`text-[8px] font-bold uppercase ml-1.5 ${form.vehicleType === type ? 'text-[#FFD700]' : 'text-slate-500'}`}>
+                                            <Text className={`text-[8px] font-bold uppercase ml-1.5 flex-shrink ${form.vehicleType === type ? 'text-[#FFD700]' : 'text-slate-500'}`} numberOfLines={1}>
                                                 {type === '5seater' ? '(5 Seater)' : '(7 Seater)'}
                                             </Text>
                                         </TouchableOpacity>
@@ -191,8 +196,8 @@ export default function EditVehicleScreen() {
                         onPress={handleSave}
                         disabled={loading}
                         activeOpacity={0.8}
-                        className={`mt-10 py-5 rounded-[28px] items-center flex-row justify-center ${loading ? 'bg-slate-300' : 'bg-slate-900'}`}
-                        style={!loading ? { elevation: 8, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 } : {}}
+                        className={`mt-10 py-5 rounded-[28px] items-center flex-row justify-center self-center w-full ${loading ? 'bg-slate-300' : 'bg-slate-900'}`}
+                        style={[{ maxWidth: contentMaxWidth }, !loading ? { elevation: 8, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 } : {}]}
                     >
                         {loading ? (
                             <ActivityIndicator color="white" />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -9,6 +9,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 export default function RideSummaryScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const params = useLocalSearchParams();
 
     // Default values if params missing (safe fallback)
@@ -31,7 +35,7 @@ export default function RideSummaryScreen() {
         <View className="flex-1 bg-slate-900">
             <StatusBar style="light" />
             <SafeAreaView className="flex-1">
-                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(160, insets.bottom + 120) }}>
+                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(160, insets.bottom + 120), width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
 
                     {/* Success Animation Placeholder */}
                     <View className="items-center mb-8 mt-4 w-full">
@@ -177,16 +181,18 @@ export default function RideSummaryScreen() {
                                 params: { bookingId: params.bookingId, distance: params.distance }
                             });
                         }}
-                        className="w-full bg-[#FFD700] py-5 rounded-[24px] items-center shadow-lg shadow-orange-500/20 active:scale-95"
+                        className="w-full bg-[#FFD700] py-5 rounded-[24px] items-center shadow-lg shadow-orange-500/20 active:scale-95 self-center"
+                        style={{ maxWidth: contentMaxWidth }}
                     >
-                        <Text className="text-black font-black text-lg tracking-[2px] uppercase">Start Waiting / Return Trip</Text>
+                        <Text className="text-black font-black text-base tracking-[1px] uppercase" numberOfLines={1}>Start Waiting / Return Trip</Text>
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
                         onPress={handleExit}
-                        className="w-full bg-slate-800 py-5 rounded-[24px] items-center border border-slate-700 active:bg-slate-700"
+                        className="w-full bg-slate-800 py-5 rounded-[24px] items-center border border-slate-700 active:bg-slate-700 self-center"
+                        style={{ maxWidth: contentMaxWidth }}
                     >
-                        <Text className="text-white font-black text-lg tracking-[2px] uppercase">Back to Dashboard</Text>
+                        <Text className="text-white font-black text-base tracking-[1px] uppercase" numberOfLines={1}>Back to Dashboard</Text>
                     </TouchableOpacity>
                 )}
             </View>

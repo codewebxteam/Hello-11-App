@@ -16,6 +16,9 @@ const SHEET_MIN_HEIGHT = 120;
 
 export default function PickupScreen() {
     const { width, height } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const SHEET_MAX_HEIGHT = height * 0.75;
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -318,7 +321,7 @@ export default function PickupScreen() {
 
             {/* --- TOP BAR --- */}
             <SafeAreaView edges={['top']} className="absolute top-0 w-full z-10 px-4" style={{ paddingTop: insets.top + 8 }}>
-                <View className="bg-[#0F172A] rounded-2xl p-4 shadow-2xl flex-row items-center border border-slate-700/50">
+                <View className="bg-[#0F172A] rounded-2xl p-4 shadow-2xl flex-row items-center border border-slate-700/50 self-center w-full" style={{ maxWidth: contentMaxWidth }}>
                     <TouchableOpacity
                         onPress={() => router.back()}
                         className="w-10 h-10 bg-slate-800 rounded-xl items-center justify-center border border-slate-700 active:bg-slate-700"
@@ -349,8 +352,8 @@ export default function PickupScreen() {
                                 setSheetMeasuredHeight(h);
                             }
                         }}
-                        style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT }}
-                        className="bg-[#0F172A] rounded-t-[40px] px-6 pt-4 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50"
+                        style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT, maxWidth: contentMaxWidth }}
+                        className="bg-[#0F172A] rounded-t-[40px] px-6 pt-4 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50 self-center w-full"
                     >
                         {/* Handle Indicator */}
                         <View className="self-center w-12 h-1.5 bg-slate-700 rounded-full mb-4 opacity-50" />

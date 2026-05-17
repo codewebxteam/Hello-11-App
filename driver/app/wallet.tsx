@@ -65,6 +65,10 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 };
 
 export default function WalletScreen() {
+  const { width } = useWindowDimensions();
+  const isLargePhone = width >= 412;
+  const isTablet = width >= 768;
+  const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -231,7 +235,7 @@ export default function WalletScreen() {
   };
 
   const renderHeader = () => (
-    <View className="px-5 pb-4">
+    <View className="pb-4 w-full self-center" style={{ maxWidth: contentMaxWidth }}>
       {/* Premium Hero Banner */}
       <View className="mt-6 rounded-[40px] overflow-hidden shadow-2xl shadow-slate-900/20">
         <LinearGradient
@@ -242,12 +246,12 @@ export default function WalletScreen() {
         >
           {/* Top Row: Title & Badge */}
           <View className="flex-row justify-between items-center mb-8">
-            <View className="bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30">
-              <Text className="text-amber-400 text-[8px] font-black uppercase tracking-widest">Premium Driver Wallet</Text>
+            <View className="bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30 max-w-[58%]">
+              <Text className="text-amber-400 text-[8px] font-black uppercase tracking-[1px]" numberOfLines={1} adjustsFontSizeToFit>Premium Driver Wallet</Text>
             </View>
-            <View className="flex-row items-center">
+            <View className="flex-row items-center flex-1 justify-end pl-2">
               <View className="w-2 h-2 rounded-full bg-emerald-400 mr-2 shadow-sm shadow-emerald-400/50" />
-              <Text className="text-emerald-400 text-[9px] font-black uppercase tracking-widest">Active & Verified</Text>
+              <Text className="text-emerald-400 text-[9px] font-black uppercase tracking-[1px]" numberOfLines={1} adjustsFontSizeToFit>Active & Verified</Text>
             </View>
           </View>
 
@@ -272,9 +276,9 @@ export default function WalletScreen() {
               <Text className="text-slate-500 text-[8px] font-black uppercase mb-1">Total Lifetime Earned</Text>
               <Text className="text-white text-xl font-black italic">₹{Number(walletData?.lifetimeBalance || 0).toFixed(0)}</Text>
             </View>
-            <View className="items-end">
-              <Text className="text-slate-500 text-[8px] font-black uppercase mb-1">Rides Pending Pay</Text>
-              <View className="flex-row items-center">
+            <View className="items-end flex-1">
+              <Text className="text-slate-500 text-[8px] font-black uppercase mb-1 text-right" numberOfLines={1}>Rides Pending Pay</Text>
+              <View className="flex-row items-center justify-end w-full">
                 <MaterialCommunityIcons name="car-clock" size={14} color="#FFD700" />
                 <Text className="text-amber-400 text-xl font-black italic ml-1">{walletData?.unpaidRideCount || 0}</Text>
               </View>
@@ -298,7 +302,7 @@ export default function WalletScreen() {
           ) : (
             <MaterialCommunityIcons name="send-circle" size={24} color="#0F172A" />
           )}
-          <Text className="text-[#0F172A] font-black text-sm uppercase tracking-widest ml-2">
+          <Text className="text-[#0F172A] font-black text-sm uppercase tracking-[1px] ml-2" numberOfLines={1} adjustsFontSizeToFit>
             {isPaying ? "Processing..." : "Settlement Now"}
           </Text>
         </TouchableOpacity>
@@ -317,7 +321,7 @@ export default function WalletScreen() {
           onPress={() => setActiveTab("history")}
           className={`flex-1 py-3 rounded-xl items-center ${activeTab === "history" ? "bg-white shadow-md border border-slate-100" : ""}`}
         >
-          <Text className={`text-[10px] font-black uppercase tracking-widest ${activeTab === "history" ? "text-slate-900" : "text-slate-400"}`}>
+          <Text className={`text-[10px] font-black uppercase tracking-[1px] ${activeTab === "history" ? "text-slate-900" : "text-slate-400"}`} numberOfLines={1} adjustsFontSizeToFit>
             Payment History
           </Text>
         </TouchableOpacity>
@@ -325,14 +329,14 @@ export default function WalletScreen() {
           onPress={() => setActiveTab("commissions")}
           className={`flex-1 py-3 rounded-xl items-center ${activeTab === "commissions" ? "bg-white shadow-md border border-slate-100" : ""}`}
         >
-          <Text className={`text-[10px] font-black uppercase tracking-widest ${activeTab === "commissions" ? "text-slate-900" : "text-slate-400"}`}>
+          <Text className={`text-[10px] font-black uppercase tracking-[1px] ${activeTab === "commissions" ? "text-slate-900" : "text-slate-400"}`} numberOfLines={1} adjustsFontSizeToFit>
             Audited Fees
           </Text>
         </TouchableOpacity>
       </View>
 
       <View className="mt-8 mb-4">
-        <Text className="text-slate-900 font-black text-xs uppercase tracking-[3px] opacity-30">
+        <Text className="text-slate-900 font-black text-xs uppercase tracking-[2px] opacity-30" numberOfLines={1}>
           {activeTab === "history" ? "Transactions" : "Ride Wise Logic"}
         </Text>
       </View>
@@ -340,7 +344,7 @@ export default function WalletScreen() {
   );
 
   const renderTransaction = ({ item }: { item: any }) => (
-    <View className="bg-white mx-5 mb-4 p-5 rounded-[28px] border border-slate-100 shadow-sm flex-row items-center">
+    <View className="bg-white mb-4 p-5 rounded-[28px] border border-slate-100 shadow-sm flex-row items-center w-full self-center" style={{ maxWidth: contentMaxWidth }}>
       <View className="w-14 h-14 bg-emerald-50 rounded-[20px] items-center justify-center mr-4 border border-emerald-100">
         <Ionicons name="card" size={24} color="#10B981" />
       </View>
@@ -380,7 +384,8 @@ export default function WalletScreen() {
             params: { bookingId: item._id }
           })
         }
-        className="bg-white mx-5 mb-4 rounded-[28px] border border-slate-100 shadow-sm overflow-hidden"
+        className="bg-white mb-4 rounded-[28px] border border-slate-100 shadow-sm overflow-hidden w-full self-center"
+        style={{ maxWidth: contentMaxWidth }}
       >
         <View className="p-5">
           <View className="flex-row justify-between items-start mb-4">
@@ -456,7 +461,7 @@ export default function WalletScreen() {
   };
 
   const ShimmerList = () => (
-    <View className="px-5">
+    <View className="w-full self-center" style={{ maxWidth: contentMaxWidth }}>
       {[1, 2, 3, 4].map((i) => (
         <View key={i} className="bg-white p-5 rounded-[28px] mb-4 border border-slate-100 flex-row items-center shadow-sm">
           <ShimmerPlaceHolder className="w-14 h-14 rounded-[20px] mr-4" />
@@ -471,7 +476,7 @@ export default function WalletScreen() {
   );
 
   const FooterShimmer = () => (
-    <View className="px-5 pt-2">
+    <View className="pt-2 w-full self-center" style={{ maxWidth: contentMaxWidth }}>
       {[1, 2].map((i) => (
         <View key={`footer-${i}`} className="bg-white p-5 rounded-[28px] mb-4 border border-slate-100 flex-row items-center shadow-sm">
           <ShimmerPlaceHolder className="w-14 h-14 rounded-[20px] mr-4" />
@@ -499,7 +504,7 @@ export default function WalletScreen() {
         renderItem={activeTab === "history" ? renderTransaction : renderCommission}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={loading ? <ShimmerList /> : (
-          <View className="bg-white p-12 mx-5 rounded-[40px] items-center border border-slate-100 shadow-sm">
+          <View className="bg-white p-12 rounded-[40px] items-center border border-slate-100 shadow-sm w-full self-center" style={{ maxWidth: contentMaxWidth }}>
             <View className="w-20 h-20 bg-slate-50 rounded-full items-center justify-center mb-6 border border-slate-100">
               <Ionicons name={activeTab === 'history' ? "receipt" : "car"} size={40} color="#CBD5E1" />
             </View>
@@ -511,7 +516,7 @@ export default function WalletScreen() {
         refreshing={refreshing}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
-        contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 10) }}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: Math.max(20, insets.bottom + 10) }}
         ListFooterComponent={loadingMore ? <FooterShimmer /> : <View className="h-10" />}
       />
 
@@ -602,4 +607,5 @@ export default function WalletScreen() {
     </View>
   );
 }
+
 

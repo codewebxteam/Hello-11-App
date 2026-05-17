@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -13,6 +13,10 @@ const PENALTY_RATE_PER_HOUR = 100; // ₹100 per extra hour
 export default function WaitingForReturnScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const params = useLocalSearchParams();
     const bookingId = params.bookingId as string;
 
@@ -184,7 +188,7 @@ export default function WaitingForReturnScreen() {
                 </Text>
             </View>
 
-            <View className="flex-1 items-center justify-center px-6">
+            <View className="flex-1 items-center justify-center px-6 w-full self-center" style={{ maxWidth: contentMaxWidth }}>
                 <View className={`w-64 h-64 rounded-full items-center justify-center border-8 mb-10 ${isPenaltyActive ? 'border-red-500 bg-red-500/10' : 'border-[#FFD700] bg-[#FFD700]/10'}`}>
                     <Text className="text-white/50 text-xs font-bold uppercase tracking-widest mb-2">
                         {isPenaltyActive ? "Overdue" : "Time Remaining"}
@@ -240,7 +244,7 @@ export default function WaitingForReturnScreen() {
                 )}
             </View>
 
-            <View className="px-6 pb-6">
+            <View className="px-6 pb-6 w-full self-center" style={{ maxWidth: contentMaxWidth }}>
                 {awaitingConfirmation && (
                     <View className="mb-3 bg-blue-500/20 border border-blue-400/40 rounded-2xl px-4 py-3">
                         <Text className="text-blue-300 text-xs font-bold uppercase tracking-widest text-center">

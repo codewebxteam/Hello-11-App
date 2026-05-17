@@ -22,6 +22,9 @@ import Header from '../components/Header';
 
 export default function ProfileScreen() {
     const { width: screenWidth } = useWindowDimensions();
+    const isLargePhone = screenWidth >= 412;
+    const isTablet = screenWidth >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const insets = useSafeAreaInsets();
     const { driver, setDriver, refreshProfile: contextRefresh, profileVersion } = useDriverAuth();
     const bgBlobLarge = Math.min(400, Math.max(260, Math.round(screenWidth * 0.9)));
@@ -133,7 +136,7 @@ export default function ProfileScreen() {
 
             <ScrollView 
                 style={{ flex: 1 }} 
-                contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+                contentContainerStyle={{ paddingBottom: 40 + insets.bottom, width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}
                 showsVerticalScrollIndicator={false}
             >
 
@@ -202,7 +205,9 @@ export default function ProfileScreen() {
 
                         <View className="bg-black/20 p-4 rounded-2xl flex-row justify-between items-center border border-white/5">
                             <Text className="text-slate-400 text-xs font-bold uppercase tracking-wider">Plate Number</Text>
-                            <Text className="text-white text-lg font-black tracking-widest">{driver?.vehicleNumber || '----------'}</Text>
+                            <Text className="text-white text-base font-black tracking-wide ml-2 flex-shrink" numberOfLines={1}>
+                                {driver?.vehicleNumber || '----------'}
+                            </Text>
                         </View>
                     </View>
                 </View>

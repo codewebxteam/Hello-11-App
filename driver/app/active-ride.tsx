@@ -16,6 +16,9 @@ const SHEET_MIN_HEIGHT = 140;
 
 export default function ActiveRideScreen() {
     const { width, height } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const SHEET_MAX_HEIGHT = height * 0.85;
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -531,8 +534,8 @@ export default function ActiveRideScreen() {
                                 setSheetMeasuredHeight(h);
                             }
                         }}
-                        style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT }}
-                        className="bg-[#0F172A] rounded-t-[40px] px-6 pt-4 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50"
+                        style={{ paddingBottom: insets.bottom + 20, minHeight: SHEET_MIN_HEIGHT, maxWidth: contentMaxWidth }}
+                        className="bg-[#0F172A] rounded-t-[40px] px-6 pt-4 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] border-t border-slate-700/50 w-full self-center"
                     >
                         {/* Handle Indicator */}
                         <View className="self-center w-12 h-1.5 bg-slate-700 rounded-full mb-4 opacity-50" />

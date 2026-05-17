@@ -74,6 +74,9 @@ const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
 export default function DocumentsScreen() {
     const insets = useSafeAreaInsets();
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+    const isLargePhone = screenWidth >= 412;
+    const isTablet = screenWidth >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const [loading, setLoading] = React.useState(true);
     const [individualLoading, setIndividualLoading] = React.useState<Record<string, boolean>>({
         license: false,
@@ -272,10 +275,10 @@ export default function DocumentsScreen() {
         return (
             <View className="mb-6">
                 <View className="flex-row justify-between items-center mb-3 ml-1">
-                    <View className="flex-row items-center">
-                        <View className="w-1.5 h-4 bg-[#FFD700] rounded-full mr-2.5 shadow-sm shadow-[#FFD700]/50" />
-                        <Text className="text-slate-900 text-[12px] font-black uppercase tracking-[1.5px]">{title}</Text>
-                    </View>
+                <View className="flex-row items-center flex-1 pr-2">
+                    <View className="w-1.5 h-4 bg-[#FFD700] rounded-full mr-2.5 shadow-sm shadow-[#FFD700]/50" />
+                    <Text className="text-slate-900 text-[12px] font-black uppercase tracking-[1.5px] flex-shrink" numberOfLines={1}>{title}</Text>
+                </View>
                     {isUploaded && (
                         <View className="flex-row items-center bg-green-100/50 px-3 py-1 rounded-full border border-green-200">
                             <Ionicons name="lock-closed" size={10} color="#15803D" />
@@ -394,7 +397,7 @@ export default function DocumentsScreen() {
             <ScrollView 
                 className="flex-1 px-6 mt-8" 
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20) }}
+                contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20), width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}
             >
                 <View className="bg-amber-50 p-6 rounded-[24px] mb-8 border border-amber-100 flex-row items-center shadow-sm">
                     <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center">

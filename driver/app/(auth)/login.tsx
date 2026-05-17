@@ -10,6 +10,7 @@ import {
     TextInput,
     useWindowDimensions,
     ActivityIndicator,
+    Image,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
@@ -136,7 +137,11 @@ const LoginScreen = () => {
                                     transform: [{ rotate: '-10deg' }]
                                 }}
                             >
-                                <Ionicons name="car-sport" size={isTablet ? 55 : 42} color="#1E293B" />
+                                <Image
+                                    source={require('../../assets/images/icon.png')}
+                                    style={{ width: isTablet ? 58 : 44, height: isTablet ? 58 : 44 }}
+                                    resizeMode="contain"
+                                />
                             </View>
 
                             <Text className="text-4xl font-black text-slate-900 mt-6 tracking-tighter italic">

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -11,6 +11,10 @@ import { driverAPI } from '../utils/api';
 export default function PaymentScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isLargePhone = width >= 412;
+    const isTablet = width >= 768;
+    const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
     const params = useLocalSearchParams();
 
     // Calculate totals
@@ -120,7 +124,7 @@ export default function PaymentScreen() {
         <View className="flex-1 bg-slate-900">
             <StatusBar style="light" />
             <SafeAreaView className="flex-1">
-                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(100, insets.bottom + 60), flexGrow: 1, justifyContent: 'center' }}>
+                <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: Math.max(100, insets.bottom + 60), flexGrow: 1, justifyContent: 'center', width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
 
                     {/* Header Icon & Text */}
                     <View className="items-center mb-12">
@@ -232,14 +236,15 @@ export default function PaymentScreen() {
             <View className="absolute bottom-0 w-full p-6 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md" style={{ paddingBottom: insets.bottom + 20 }}>
                 <TouchableOpacity
                     onPress={handlePaymentVerified}
-                    className="w-full bg-[#FFD700] py-6 rounded-[28px] items-center shadow-[0_0_30px_rgba(255,215,0,0.3)] relative overflow-hidden active:scale-[0.98]"
+                    className="w-full bg-[#FFD700] py-6 rounded-[28px] items-center shadow-[0_0_30px_rgba(255,215,0,0.3)] relative overflow-hidden active:scale-[0.98] self-center"
+                    style={{ maxWidth: contentMaxWidth }}
                 >
                     {/* Shine Effect */}
                     <View className="absolute top-0 bottom-0 left-0 w-full bg-white/20 -skew-x-12 -ml-[100%]" />
 
                     <View className="flex-row items-center">
                         <Ionicons name={isPartialPayment ? "time" : "checkmark-circle"} size={28} color="#0F172A" style={{ marginRight: 10 }} />
-                        <Text className="text-[#0F172A] font-black text-xl tracking-[3px] uppercase">
+                        <Text className="text-[#0F172A] font-black text-base tracking-[1px] uppercase flex-shrink" numberOfLines={1}>
                             {isPartialPayment ? "Start Waiting Timer" : "Money Received"}
                         </Text>
                     </View>
