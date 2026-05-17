@@ -204,7 +204,7 @@ const ProfileScreen = () => {
                 >
                     <View 
                         className="bg-[#FFD700] rounded-b-[60px] shadow-lg relative overflow-hidden"
-                        style={{ paddingTop: insets.top + 15, paddingBottom: 85 }}
+                        style={{ paddingTop: insets.top + 6, paddingBottom: 72 }}
                     >
                         <View className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full" />
                         

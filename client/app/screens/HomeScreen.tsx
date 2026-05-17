@@ -476,8 +476,8 @@ const HomeScreen = () => {
           <View className={`${isSmallPhone ? 'min-h-[320px] rounded-b-[36px] pb-8' : 'min-h-[350px] rounded-b-[50px] pb-10'} bg-[#FFD700] z-10 relative overflow-hidden`}>
             <View className="absolute -bottom-[20%] self-center w-[150%] h-[20%] bg-white rounded-[100%] scale-x-[1.3] opacity-10" />
 
-            <SafeAreaView className={`flex-1 ${isSmallPhone ? 'px-4 pt-3' : 'px-6 pt-4'}`}>
-              <View className="flex-row justify-between items-center mt-2">
+            <SafeAreaView className={`flex-1 ${isSmallPhone ? 'px-4 pt-1' : 'px-6 pt-1'}`}>
+              <View className="flex-row justify-between items-center">
                 <View>
                   <Text className="text-base text-slate-800 font-medium opacity-70">Hello,</Text>
                   <Text className="text-3xl text-slate-800 font-black tracking-tight">{displayName}</Text>
