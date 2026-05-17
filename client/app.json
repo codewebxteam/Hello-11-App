@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Hello 11",
-    "slug": "Hello-11",
+    "slug": "hello-11",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -17,9 +17,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
