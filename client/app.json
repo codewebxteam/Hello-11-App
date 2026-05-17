@@ -15,6 +15,7 @@
       "supportsTablet": true
     },
     "android": {
+      "minSdkVersion": 24,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png"
