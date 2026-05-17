@@ -139,7 +139,7 @@ const LoginScreen = () => {
                             >
                                 <Image
                                     source={require('../../assets/images/icon.png')}
-                                    style={{ width: isTablet ? 58 : 44, height: isTablet ? 58 : 44 }}
+                                    style={{ width: isTablet ? 76 : 58, height: isTablet ? 76 : 58 }}
                                     resizeMode="contain"
                                 />
                             </View>
