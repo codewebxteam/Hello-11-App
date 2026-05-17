@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Hello 11 Driver",
-    "slug": "hello-11-driver",
+    "slug": "driverSection",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -15,7 +15,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.pmup53.driverSection",
+      "package": "com.pmup53.driversection",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png",
@@ -32,8 +32,7 @@
         "android.permission.WAKE_LOCK",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
