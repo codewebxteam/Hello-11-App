@@ -16,7 +16,6 @@ import {
   ActivityIndicator,
   AppState
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";

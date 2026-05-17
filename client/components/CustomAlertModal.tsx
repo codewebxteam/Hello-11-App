@@ -67,7 +67,23 @@ export default function CustomAlertModal() {
     if (!visible || !alertData) return null;
 
     const defaultButtons: AlertButton[] = [{ text: 'OK', style: 'default' }];
-    const buttonsToRender = alertData.buttons && alertData.buttons.length > 0 ? alertData.buttons : defaultButtons;
+    const incomingButtons = alertData.buttons && alertData.buttons.length > 0 ? alertData.buttons : defaultButtons;
+    const isNegativeButton = (btn: AlertButton) => {
+        const t = (btn.text || '').trim().toLowerCase();
+        return (
+            btn.style === 'cancel' ||
+            t === 'no' ||
+            t.startsWith('no ') ||
+            t.includes('cancel') ||
+            t.includes('later') ||
+            t.includes('close') ||
+            t.includes('not now')
+        );
+    };
+    const buttonsToRender = [
+        ...incomingButtons.filter((btn) => !isNegativeButton(btn)),
+        ...incomingButtons.filter((btn) => isNegativeButton(btn)),
+    ];
 
     return (
         <Modal
@@ -105,6 +121,7 @@ export default function CustomAlertModal() {
                         {buttonsToRender.map((btn, index) => {
                             const isCancel = btn.style === 'cancel';
                             const isDestructive = btn.style === 'destructive';
+                            const isLast = index === buttonsToRender.length - 1;
                             
                             // Determine styles based on button type
                             let btnBg = "bg-[#FFD700]";
@@ -126,7 +143,7 @@ export default function CustomAlertModal() {
                                 <TouchableOpacity
                                     key={index}
                                     onPress={() => handleButtonPress(btn)}
-                                    className={`py-4 px-6 rounded-2xl items-center justify-center w-full ${buttonsToRender.length > 1 ? 'mb-3' : 'max-w-[140px]'} ${btnBg}`}
+                                    className={`py-4 px-6 rounded-2xl items-center justify-center w-full ${buttonsToRender.length > 1 ? (isLast ? 'mb-0' : 'mb-3') : 'max-w-[140px]'} ${btnBg}`}
                                     activeOpacity={0.8}
                                 >
                                     <Text className={`font-black text-sm uppercase tracking-wider ${textColor}`}>
