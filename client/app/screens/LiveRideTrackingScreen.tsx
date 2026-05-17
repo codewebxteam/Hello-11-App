@@ -8,7 +8,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import ReturnTripOfferModal from '../../components/ReturnTripOfferModal';
 import PaymentPromptModal from '../../components/PaymentPromptModal';
 import { bookingAPI, locationAPI } from '../../utils/api';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../../utils/mapCompat';
 import * as Location from 'expo-location';
 import { getSocket, initSocket } from '../../utils/socket';
 import { userAPI } from '../../utils/api';
