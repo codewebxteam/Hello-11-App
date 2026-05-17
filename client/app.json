@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "hello-11",
-    "slug": "hello-11",
+    "name": "Hello 11",
+    "slug": "Hello-11",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "appVersion"
