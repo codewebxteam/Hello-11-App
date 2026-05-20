@@ -121,7 +121,7 @@ export const loginDriver = async (req, res) => {
     }
 
     // ---> TEST ACCOUNT BYPASS LOGIC START <---
-    const isTestAccount = (mobile === "9999999999" || mobile === "+919999999999");
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
     const otp = isTestAccount ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
     // ---> TEST ACCOUNT BYPASS LOGIC END <---
 
@@ -168,7 +168,7 @@ export const verifyDriverOTP = async (req, res) => {
     }
 
     // ---> TEST ACCOUNT BYPASS LOGIC START <---
-    const isTestAccount = (mobile === "9999999999" || mobile === "+919999999999");
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
 
     if (isTestAccount && otp === "123456") {
       // Test account ke liye sabhi OTP aur Expiry checks bypass ho jayenge
