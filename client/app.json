@@ -15,7 +15,6 @@
       "supportsTablet": true
     },
     "android": {
-      "minSdkVersion": 24,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png"
@@ -30,6 +29,17 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24
+          }
+        }
+      ],
+      "./plugins/with-android-min-sdk",
+      "expo-secure-store",
+      "expo-web-browser",
       [
         "expo-splash-screen",
         {
