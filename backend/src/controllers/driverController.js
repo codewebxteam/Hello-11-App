@@ -120,12 +120,22 @@ export const loginDriver = async (req, res) => {
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // ---> TEST ACCOUNT BYPASS LOGIC START <---
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    const otp = isTestAccount ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
+    // ---> TEST ACCOUNT BYPASS LOGIC END <---
+
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
     driver.loginOtp = otp;
     driver.loginOtpExpiry = otpExpiry;
     await driver.save();
+
+    // ---> SKIP WHATSAPP FOR TEST ACCOUNT <---
+    if (isTestAccount) {
+       return res.json({ message: "OTP sent successfully (Test Account Bypass)", mobile });
+    }
+    // ----------------------------------------
 
     const result = await sendWhatsAppOTP(mobile, otp);
 
@@ -153,17 +163,28 @@ export const verifyDriverOTP = async (req, res) => {
 
     const driver = await Driver.findOne({ mobile });
 
-    if (!driver || !driver.loginOtp) {
-      return res.status(400).json({ message: "Invalid request" });
+    if (!driver) {
+      return res.status(400).json({ message: "Invalid request. Driver not found." });
     }
 
-    if (driver.loginOtp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
+    // ---> TEST ACCOUNT BYPASS LOGIC START <---
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
 
-    if (driver.loginOtpExpiry < new Date()) {
-      return res.status(400).json({ message: "OTP expired" });
+    if (isTestAccount && otp === "123456") {
+      // Test account ke liye sabhi OTP aur Expiry checks bypass ho jayenge
+    } else {
+      // Real users ke liye normal OTP verification
+      if (!driver.loginOtp) {
+        return res.status(400).json({ message: "Invalid request. Please request OTP first." });
+      }
+      if (driver.loginOtp !== otp) {
+        return res.status(400).json({ message: "Invalid OTP" });
+      }
+      if (driver.loginOtpExpiry < new Date()) {
+        return res.status(400).json({ message: "OTP expired" });
+      }
     }
+    // ---> TEST ACCOUNT BYPASS LOGIC END <---
 
     // Clear OTP after successful verification
     driver.loginOtp = null;
