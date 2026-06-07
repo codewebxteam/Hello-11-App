@@ -9,13 +9,19 @@ import {
   verifyDriver,
   updateBookingStatus,
   manualPaymentReset,
-  getFinancialReports
+  getFinancialReports,
+  adminLogin // <-- Naya import
 } from "../controllers/adminController.js";
-
-// Naya function import karein bookingController se
 import { adminForceCancelBooking } from "../controllers/bookingController.js"; 
+import { adminAuth } from "../middleware/adminAuth.js"; // <-- Middleware import
 
 const router = express.Router();
+
+// 1. OPEN ROUTE: Login ke liye auth ki zaroorat nahi hai
+router.post("/login", adminLogin);
+
+// 2. LOCK ALL OTHER ROUTES: Yahan se niche ke saare routes lock ho jayenge
+router.use(adminAuth);
 
 // Dashboard
 router.get("/stats", getDashboardStats);
@@ -33,8 +39,6 @@ router.put("/drivers/:id/reset-commission", manualPaymentReset);
 // Bookings management
 router.get("/bookings", getAllBookings);
 router.put("/bookings/:id/status", updateBookingStatus);
-
-// --- NAYA ROUTE: Admin Cancel Ride Ke Liye ---
 router.post("/bookings/:id/cancel", adminForceCancelBooking);
 
 // Financials

@@ -10,7 +10,7 @@ const api = axios.create({
   },
 });
 
-// Agar aapke paas interceptor nahi hai token attach karne ka, toh ye zaroor add karein:
+// Interceptor for attaching the token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -21,6 +21,9 @@ api.interceptors.request.use((config) => {
 
 // ================= ADMIN API =================
 export const adminAPI = {
+  // Auth
+  login: (credentials: any) => api.post('/api/admin/login', credentials),
+
   // Dashboard
   getStats: () => api.get('/api/admin/stats'),
 
@@ -41,7 +44,7 @@ export const adminAPI = {
   updateBookingStatus: (id: string, status: string) =>
     api.put(`/api/admin/bookings/${id}/status`, { status }),
   
-  // --- NAYA ROUTE: Admin Cancel Ride Ke Liye ---
+  // --- Admin Cancel Ride ---
   cancelBooking: (id: string) => api.post(`/api/admin/bookings/${id}/cancel`),
 
   // Financials

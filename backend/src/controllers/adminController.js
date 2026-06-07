@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import Driver from "../models/Driver.js";
 import Booking from "../models/Booking.js";
 import Transaction from "../models/Transaction.js";
+import jwt from "jsonwebtoken";
 
 const getOneWayFare = (booking) => {
   const fare = Number(booking?.fare || 0);
@@ -376,5 +377,23 @@ export const getFinancialReports = async (req, res) => {
       message: "Failed to fetch financial reports",
       error: error.message
     });
+  }
+};
+export const adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Aapke diye gaye ID aur Password
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "hello11kld@gmail.com";
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "@Hello11";
+
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET || "fallback_secret", { expiresIn: "24h" });
+      return res.json({ success: true, token, message: "Login successful" });
+    } else {
+      return res.status(401).json({ success: false, message: "Invalid email or password" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
