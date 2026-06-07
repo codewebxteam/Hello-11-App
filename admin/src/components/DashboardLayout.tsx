@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation, useSearchParams, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { Search, Bell, LogOut, User, Menu } from 'lucide-react'; // Menu icon add kiya
+import { Search, LogOut, Menu } from 'lucide-react'; // Unused Bell, User hata diye
 
 const DashboardLayout: React.FC = () => {
     const location = useLocation();
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
-    const [isProfileOpen, setIsProfileOpen] = useState(false); // Dropdown ke liye
-    const globalQuery = searchParams.get("q") || "";
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    
+    // globalQuery hata diya kyunki use nahi ho raha tha
 
     const handleLogout = () => {
         localStorage.removeItem("token");
-        window.location.reload(); // Redirect to login
+        window.location.reload();
     };
 
     // Mobile pe auto-close sidebar
