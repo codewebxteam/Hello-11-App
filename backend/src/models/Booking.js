@@ -95,7 +95,7 @@ const bookingSchema = new mongoose.Schema(
     },
     cancelledBy: {
       type: String,
-      enum: ["user", "driver", "system"]
+      enum: ["user", "driver", "system", "admin"] // <-- 'admin' add kar diya
     },
     driverArrivedAt: {
       type: Date,

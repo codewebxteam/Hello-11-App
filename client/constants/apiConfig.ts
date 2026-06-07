@@ -2,24 +2,12 @@ import Constants from 'expo-constants';
 
 // Get API base URL based on environment
 const getApiBaseUrl = (): string => {
-    // 1. Check if an explicit URL is provided in .env (Priority)
+    // 1. Priority: Check if an explicit URL is provided in .env
     const EXPLICIT_API_URL = process.env.EXPO_PUBLIC_API_URL;
     if (EXPLICIT_API_URL) return EXPLICIT_API_URL;
 
-    // 2. Dynamic detection for development (Expo Go / Dev Client / Metro)
-    const anyConstants = Constants as any;
-    const hostCandidates: Array<string | undefined> = [
-        Constants.expoConfig?.hostUri,
-        anyConstants?.expoGoConfig?.debuggerHost,
-        anyConstants?.manifest2?.extra?.expoGo?.debuggerHost,
-        anyConstants?.manifest?.debuggerHost,
-    ];
-
-    const host = hostCandidates.find(Boolean)?.split(':')?.[0];
-    if (host) return `http://${host}:5001`;
-
-    // 3. Fallback for all other cases
-    return "http://127.0.0.1:5001";
+    // 2. Fallback: Direct live URL (Crash proof and works perfectly on production/APK)
+    return "https://hello-11-app-production.up.railway.app";
 };
 
 export const API_BASE_URL = getApiBaseUrl();

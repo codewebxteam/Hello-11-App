@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
 import BookingDetailModal from "./BookingDetailModal";
 import { getBookingTotalFare } from "../utils/fare";
+import { adminAPI } from "../services/api"; // <-- IMPORT YAHAN ADD KIYA HAI
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
@@ -76,7 +77,7 @@ const BookingsList: React.FC = () => {
     [filtered, safePage]
   );
 
-  // --- ADMIN FORCE CANCEL LOGIC ---
+  // --- CLEAN ADMIN FORCE CANCEL LOGIC ---
   const handleForceCancel = async (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation(); // Prevents the modal from opening when clicking the cancel button
     
@@ -85,29 +86,16 @@ const BookingsList: React.FC = () => {
     }
 
     try {
-      // Backend URL (Aapka jo bhi base URL hai Vite mein, .env se utha raha hai)
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const token = localStorage.getItem("token"); // Assuming admin token is in localStorage
-      
-      const response = await fetch(`${baseUrl}/api/admin/bookings/${bookingId}/cancel`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` 
-        }
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to cancel on server");
-      }
+      // Axios instance ka use karke API call
+      await adminAPI.cancelBooking(bookingId);
 
       alert("Ride cancelled successfully by Admin.");
       refreshAll(); // List ko update karne ke liye fetch call
     } catch (err: any) {
       console.error("Failed to force cancel:", err);
-      alert(err.message || "Failed to cancel the ride. Please check API.");
+      // Axios errors handle karne ka tareeqa
+      const errorMessage = err.response?.data?.message || "Failed to cancel the ride. Please check API.";
+      alert(errorMessage);
     }
   };
 
