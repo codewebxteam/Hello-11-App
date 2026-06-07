@@ -1024,6 +1024,7 @@ export const acceptReturnOffer = async (req, res) => {
 };
 
 // ================= CONFIRM RETURN RIDE START =================
+// ================= CONFIRM RETURN RIDE START (UPDATED - NO USER CONFIRMATION REQUIRED) =================
 export const confirmReturnRideStart = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -1032,8 +1033,13 @@ export const confirmReturnRideStart = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (booking.user.toString() !== req.userId) {
-      return res.status(403).json({ message: "Not authorized to confirm return start" });
+    // Check if requester is either the User or the Driver
+    const authId = (req.driverId || req.userId || "").toString();
+    const isUser = booking.user.toString() === authId;
+    const isDriver = booking.driver && booking.driver.toString() === authId;
+
+    if (!isUser && !isDriver) {
+      return res.status(403).json({ message: "Not authorized to start return ride" });
     }
 
     if (booking.status === "return_ride_started") {
@@ -1044,14 +1050,11 @@ export const confirmReturnRideStart = async (req, res) => {
       return res.status(400).json({ message: "Return ride can only be started from waiting state" });
     }
 
-    if (!booking.returnStartRequested) {
-      return res.status(400).json({ message: "No pending return start request from driver" });
-    }
-
     if (!booking.hasReturnTrip && Number(booking.returnTripFare || 0) <= 0) {
       return res.status(400).json({ message: "No return trip is active for this booking" });
     }
 
+    // Direct ride start - removed the user confirmation/returnStartRequested checks
     booking.status = "return_ride_started";
     booking.returnStartRequested = false;
     booking.returnStartRequestedAt = null;
@@ -1062,14 +1065,18 @@ export const confirmReturnRideStart = async (req, res) => {
     const payload = {
       bookingId: booking._id.toString(),
       status: "return_ride_started",
-      message: "Return ride started after user confirmation"
+      message: "Return ride has started." // Direct update message for User
     };
+
+    // User ko socket update jayega ki ride start ho gayi hai
     io.to(booking.user.toString()).emit("rideStatusUpdate", payload);
+    
+    // Driver ko confirmation update
     if (booking.driver) {
       io.to(booking.driver.toString()).emit("rideStatusUpdate", payload);
       io.to(booking.driver.toString()).emit("returnRideStartConfirmed", {
         bookingId: booking._id.toString(),
-        message: "User confirmed. Return ride started."
+        message: "Return ride started successfully."
       });
     }
 
@@ -1081,7 +1088,7 @@ export const confirmReturnRideStart = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to confirm return ride start", error: error.message });
+    return res.status(500).json({ message: "Failed to start return ride", error: error.message });
   }
 };
 

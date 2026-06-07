@@ -703,6 +703,14 @@ const OutstationBookingScreen = () => {
             </View>
           )}
 
+          {/* --- TOLLS & PARKING DISCLAIMER ADDED HERE --- */}
+          <View style={{ backgroundColor: '#1E293B', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#334155', flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="information-circle" size={22} color="#F87171" />
+            <Text style={{ flex: 1, marginLeft: 10, color: '#F87171', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
+              Note: Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.
+            </Text>
+          </View>
+
           {/* Confirm Button */}
           <TouchableOpacity
             onPress={handleConfirm}

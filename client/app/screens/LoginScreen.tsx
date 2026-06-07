@@ -52,10 +52,45 @@ const LoginScreen = () => {
         setIsOtpSent(true);
         Alert.alert("OTP Sent", "Code sent to WhatsApp.");
       } else {
-        Alert.alert("Error", result.message);
+        // Agar user registered nahi hai toh Alert mat dikhao — seedha register screen pe bhejo
+        const msg = (result.message || "").toLowerCase();
+        const isNotRegistered =
+          msg.includes("not found") ||
+          msg.includes("not registered") ||
+          msg.includes("no account") ||
+          msg.includes("does not exist") ||
+          msg.includes("register") ||
+          msg.includes("signup") ||
+          msg.includes("sign up");
+
+        if (isNotRegistered) {
+          router.replace({
+            pathname: "/screens/registerScreen",
+            params: { phone: phoneNumber },
+          });
+        } else {
+          Alert.alert("Error", result.message);
+        }
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
+      const msg = (error.message || "").toLowerCase();
+      const isNotRegistered =
+        msg.includes("not found") ||
+        msg.includes("not registered") ||
+        msg.includes("no account") ||
+        msg.includes("does not exist") ||
+        msg.includes("register") ||
+        msg.includes("signup") ||
+        msg.includes("sign up");
+
+      if (isNotRegistered) {
+        router.replace({
+          pathname: "/screens/registerScreen",
+          params: { phone: phoneNumber },
+        });
+      } else {
+        Alert.alert("Error", error.message || "Something went wrong");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -72,10 +107,50 @@ const LoginScreen = () => {
       if (result.success) {
         router.replace("/screens/HomeScreen");
       } else {
-        Alert.alert("Login Failed", result.message);
+        // ── KEY FIX ──────────────────────────────────────────────────────────
+        // Agar server bolta hai user registered nahi hai (kisi bhi phrasing mein)
+        // toh Alert dikhane ki jagah seedha registration screen pe bhej do,
+        // phoneNumber bhi saath le jao taaki waha pre-fill ho sake.
+        const msg = (result.message || "").toLowerCase();
+        const isNotRegistered =
+          msg.includes("not found") ||
+          msg.includes("not registered") ||
+          msg.includes("no account") ||
+          msg.includes("does not exist") ||
+          msg.includes("register") ||
+          msg.includes("signup") ||
+          msg.includes("sign up");
+
+        if (isNotRegistered) {
+          router.replace({
+            pathname: "/screens/registerScreen",
+            params: { phone: phoneNumber },
+          });
+        } else {
+          Alert.alert("Login Failed", result.message);
+        }
+        // ─────────────────────────────────────────────────────────────────────
       }
     } catch (error: any) {
-      Alert.alert("Verification Failed", error.message || "Something went wrong");
+      // Same check on thrown errors too
+      const msg = (error.message || "").toLowerCase();
+      const isNotRegistered =
+        msg.includes("not found") ||
+        msg.includes("not registered") ||
+        msg.includes("no account") ||
+        msg.includes("does not exist") ||
+        msg.includes("register") ||
+        msg.includes("signup") ||
+        msg.includes("sign up");
+
+      if (isNotRegistered) {
+        router.replace({
+          pathname: "/screens/registerScreen",
+          params: { phone: phoneNumber },
+        });
+      } else {
+        Alert.alert("Verification Failed", error.message || "Something went wrong");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -152,7 +227,6 @@ const LoginScreen = () => {
                       keyboardType="number-pad"
                       value={otp}
                       onChangeText={(text) => {
-                        // Clean input and limit to 6 digits manually
                         const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
                         setOtp(cleaned);
                       }}

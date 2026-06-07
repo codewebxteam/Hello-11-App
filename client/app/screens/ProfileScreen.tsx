@@ -344,14 +344,15 @@ const ProfileScreen = () => {
                             <Ionicons name="home" size={24} color="#94A3B8" />
                             <Text className="text-[11px] font-bold mt-1 text-slate-400">Home</Text>
                         </TouchableOpacity>
+                         <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
+                            <Ionicons name="calendar" size={24} color="#94A3B8" />
+                            <Text className="text-[11px] font-bold mt-1 text-slate-400">Ride</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HistoryScreen')}>
                             <Ionicons name="list" size={24} color="#94A3B8" />
                             <Text className="text-[11px] font-bold mt-1 text-slate-400">History</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
-                            <Ionicons name="calendar" size={24} color="#94A3B8" />
-                            <Text className="text-[11px] font-bold mt-1 text-slate-400">Schedule</Text>
-                        </TouchableOpacity>
+                       
                         <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => { /* already here */ }}>
                             <Ionicons name="person" size={24} color="#1E293B" />
                             <Text className="text-[11px] font-bold mt-1 text-slate-800">Profile</Text>

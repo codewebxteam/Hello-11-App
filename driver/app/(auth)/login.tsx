@@ -20,17 +20,19 @@ import { useDriverAuth } from "../../context/DriverAuthContext";
 const LoginScreen = () => {
     const { width, height } = useWindowDimensions();
     const isTablet = width >= 768;
+    
     const [phoneNumber, setPhoneNumber] = useState("");
     const [otp, setOtp] = useState("");
     const [isOtpSent, setIsOtpSent] = useState(false);
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    
     const router = useRouter();
     const { requestOTP, verifyOTP } = useDriverAuth();
 
     const handleRequestOtp = async () => {
         if (!phoneNumber || phoneNumber.length < 10) {
-            Alert.alert("Invalid Number", "Please enter a valid 10-digit phone number.");
+            Alert.alert("Invalid Number", "Please enter a valid 10-digit mobile number.");
             return;
         }
 
@@ -41,13 +43,15 @@ const LoginScreen = () => {
             
             if (result.success) {
                 setIsOtpSent(true);
-                Alert.alert("OTP Sent", "A 6-digit verification code has been sent to your WhatsApp.");
+                Alert.alert("OTP Sent", "Please check your WhatsApp for the verification code.");
             } else {
-                Alert.alert("Login Request Failed", result.message);
+                // If the user is not registered or validation fails, redirect to the signup flow
+                router.push({ pathname: "/(auth)/signup", params: { phone: phoneNumber } });
             }
         } catch (err: any) {
             console.error("Login request error:", err);
-            Alert.alert("Error", err.message || "Something went wrong. Please try again.");
+            // Redirect to signup on API failure assuming the user might not be registered
+            router.push({ pathname: "/(auth)/signup", params: { phone: phoneNumber } });
         } finally {
             setIsLoading(false);
         }
@@ -67,11 +71,11 @@ const LoginScreen = () => {
             if (result.success) {
                 router.replace("/");
             } else {
-                Alert.alert("Verification Failed", result.message);
+                Alert.alert("Verification Failed", "The OTP you entered is incorrect. Please try again.");
             }
         } catch (err: any) {
             console.error("Verification error:", err);
-            Alert.alert("Error", err.message || "Something went wrong. Please try again.");
+            Alert.alert("Error", "An unexpected error occurred. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -82,7 +86,7 @@ const LoginScreen = () => {
             <Stack.Screen options={{ headerShown: false }} />
             <StatusBar style="dark" />
 
-            {/* --- RESPONSIVE AMBIENT GLOW --- */}
+            {/* --- AMBIENT GLOW --- */}
             <View
                 className="absolute rounded-full bg-[#FFD700] opacity-20"
                 style={{
@@ -102,12 +106,12 @@ const LoginScreen = () => {
                 }}
             />
 
-            {/* ✅ FULL SCREEN LOADING OVERLAY */}
+            {/* --- LOADING OVERLAY --- */}
             {isLoading && (
-                <View className="absolute inset-0 z-50 justify-center items-center bg-white/60">
-                    <View className="bg-slate-900 p-8 rounded-3xl shadow-2xl items-center">
+                <View className="absolute inset-0 z-50 justify-center items-center bg-white/70">
+                    <View className="bg-slate-900 px-10 py-8 rounded-[30px] shadow-2xl items-center">
                         <ActivityIndicator size="large" color="#FFD700" />
-                        <Text className="text-white font-bold mt-4 tracking-widest text-xs uppercase">Processing</Text>
+                        <Text className="text-white font-bold mt-4 text-base">Please wait...</Text>
                     </View>
                 </View>
             )}
@@ -122,52 +126,51 @@ const LoginScreen = () => {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View
-                        className="self-center w-full px-8 py-10"
+                        className="self-center w-full px-6 py-8"
                         style={{ maxWidth: isTablet ? 550 : '100%' }}
                     >
 
                         {/* --- BRANDING SECTION --- */}
-                        <View className="items-center mb-10">
+                        <View className="items-center mb-12">
                             <View
-                                className="bg-[#FFD700] items-center justify-center shadow-2xl shadow-yellow-500/50"
+                                className="bg-white items-center justify-center shadow-xl shadow-slate-200 border border-slate-100"
                                 style={{
-                                    width: isTablet ? 110 : 85,
-                                    height: isTablet ? 110 : 85,
-                                    borderRadius: isTablet ? 35 : 28,
-                                    transform: [{ rotate: '-10deg' }]
+                                    width: isTablet ? 120 : 100,
+                                    height: isTablet ? 120 : 100,
+                                    borderRadius: isTablet ? 35 : 30,
                                 }}
                             >
                                 <Image
                                     source={require('../../assets/images/icon.png')}
-                                    style={{ width: isTablet ? 76 : 58, height: isTablet ? 76 : 58 }}
+                                    style={{ width: isTablet ? 80 : 65, height: isTablet ? 80 : 65 }}
                                     resizeMode="contain"
                                 />
                             </View>
 
-                            <Text className="text-4xl font-black text-slate-900 mt-6 tracking-tighter italic">
-                                Hello <Text className="text-[#FFB800]">11</Text>
+                            <Text className="text-4xl font-black text-slate-900 mt-6 tracking-tight">
+                                Hello<Text className="text-[#FFB800]">11</Text>
                             </Text>
-                            <Text className="text-slate-400 font-bold text-[10px] mt-2 tracking-[3px] uppercase">
-                                Driver App
+                            <Text className="text-slate-500 font-black text-xs mt-1 tracking-widest uppercase">
+                                Driver Partner
                             </Text>
-                            <View className="w-10 h-1 bg-[#FFD700] rounded-full mt-4 opacity-50" />
                         </View>
 
                         {/* --- FORM SECTION --- */}
-                        <View className="space-y-6">
+                        <View className="space-y-5">
 
                             {/* Phone Input */}
                             <View>
-                                <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
-                                    Phone Number
+                                <Text className="text-slate-500 font-bold text-sm mb-2 ml-2">
+                                    Mobile Number
                                 </Text>
-                                <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'phone' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
-                                    <View className="border-r border-slate-100 pr-3 mr-3">
-                                        <Ionicons name="call-outline" size={18} color={focusedInput === 'phone' ? "#FFD700" : "#94A3B8"} />
+                                <View className={`flex-row items-center bg-white h-[68px] px-5 rounded-[24px] border-2 ${focusedInput === 'phone' ? 'border-[#FFD700]' : 'border-slate-100'} shadow-sm`}>
+                                    <View className="border-r border-slate-200 pr-3 mr-3">
+                                        <Ionicons name="call" size={22} color={focusedInput === 'phone' ? "#FFB800" : "#94A3B8"} />
                                     </View>
+                                    <Text className="font-bold text-slate-800 text-lg mr-2">+91</Text>
                                     <TextInput
-                                        placeholder="Enter Number"
-                                        className="flex-1 font-bold text-slate-800 text-base"
+                                        placeholder="Enter your number"
+                                        className="flex-1 font-bold text-slate-800 text-lg"
                                         keyboardType="phone-pad"
                                         maxLength={10}
                                         value={phoneNumber}
@@ -177,31 +180,31 @@ const LoginScreen = () => {
                                         editable={!isLoading && !isOtpSent}
                                     />
                                     {isOtpSent && (
-                                        <TouchableOpacity onPress={() => setIsOtpSent(false)}>
-                                            <Text className="text-[#FFB800] font-bold text-xs">Edit</Text>
+                                        <TouchableOpacity onPress={() => setIsOtpSent(false)} className="bg-slate-100 px-4 py-2 rounded-full">
+                                            <Text className="text-slate-700 font-bold text-xs">Change</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
                             </View>
 
-                            {/* OTP Section (Only visible if OTP is sent) */}
+                            {/* OTP Section (Visible only after OTP is sent) */}
                             {isOtpSent && (
-                                <View>
-                                    <Text className="text-slate-400 font-black text-[10px] uppercase tracking-[2px] mb-2 ml-1">
-                                        WhatsApp OTP
+                                <View className="mt-4">
+                                    <Text className="text-slate-500 font-bold text-sm mb-2 ml-2">
+                                        WhatsApp OTP Code
                                     </Text>
-                                    <View className={`flex-row items-center bg-white h-16 px-5 rounded-[22px] border-2 ${focusedInput === 'otp' ? 'border-[#FFD700]' : 'border-slate-50'} shadow-sm shadow-slate-200`}>
-                                        <View className="mr-3">
+                                    <View className={`flex-row items-center bg-white h-[68px] px-5 rounded-[24px] border-2 ${focusedInput === 'otp' ? 'border-[#FFD700]' : 'border-slate-100'} shadow-sm`}>
+                                        <View className="mr-4">
                                             <Ionicons
-                                                name="shield-checkmark-outline"
-                                                size={20}
-                                                color={focusedInput === 'otp' ? "#FFD700" : "#94A3B8"}
+                                                name="chatbubble-ellipses"
+                                                size={24}
+                                                color="#25D366" 
                                             />
                                         </View>
 
                                         <TextInput
-                                            placeholder="Enter 6-digit OTP"
-                                            className="flex-1 font-black text-slate-800 text-lg tracking-[4px]"
+                                            placeholder="6-digit code"
+                                            className="flex-1 font-black text-slate-900 text-2xl tracking-[8px]"
                                             keyboardType="number-pad"
                                             maxLength={6}
                                             value={otp}
@@ -212,39 +215,39 @@ const LoginScreen = () => {
                                         />
                                     </View>
                                     <TouchableOpacity 
-                                        className="mt-4 self-end"
+                                        className="mt-4 self-center bg-slate-100 px-5 py-2.5 rounded-full"
                                         onPress={handleRequestOtp}
                                         disabled={isLoading}
                                     >
-                                        <Text className="text-slate-400 font-bold text-xs underline">Resend OTP?</Text>
+                                        <Text className="text-slate-600 font-bold text-sm">Didn't receive the code? Resend</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
                         </View>
 
                         {/* --- ACTIONS --- */}
-                        <View className="mt-10">
+                        <View className="mt-8">
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={isOtpSent ? handleVerifyOtp : handleRequestOtp}
                                 disabled={isLoading}
-                                className="bg-[#FFD700] py-5 rounded-[22px] items-center shadow-2xl shadow-yellow-600/40"
+                                className="bg-[#FFD700] h-[64px] rounded-[24px] justify-center items-center shadow-lg shadow-yellow-500/30"
                             >
                                 {isLoading ? (
-                                    <ActivityIndicator color="#1E293B" />
+                                    <ActivityIndicator color="#000" size="large" />
                                 ) : (
-                                    <Text className="text-slate-900 font-black text-lg tracking-[2px]">
-                                        {isOtpSent ? "VERIFY & LOGIN" : "SEND OTP"}
+                                    <Text className="text-slate-900 font-black text-xl">
+                                        {isOtpSent ? "LOGIN" : "SEND OTP"}
                                     </Text>
                                 )}
                             </TouchableOpacity>
 
                             <TouchableOpacity
                                 onPress={() => router.push("/(auth)/signup")}
-                                className="mt-8 self-center"
+                                className="mt-8 self-center p-2"
                             >
-                                <Text className="text-slate-400 font-bold text-[11px] uppercase tracking-widest text-center">
-                                    New Driver? <Text className="text-[#FFB800] font-black">Register Here</Text>
+                                <Text className="text-slate-500 font-bold text-sm text-center">
+                                    New Driver? <Text className="text-[#FFB800] font-black underline">Register Here</Text>
                                 </Text>
                             </TouchableOpacity>
                         </View>

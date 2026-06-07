@@ -496,6 +496,14 @@ const BookingScreen = () => {
           </View>
         )}
 
+        {/* --- TOLLS & PARKING DISCLAIMER ADDED HERE --- */}
+        <View style={{ backgroundColor: '#FEF2F2', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons name="information-circle" size={22} color="#EF4444" />
+          <Text style={{ flex: 1, marginLeft: 10, color: '#DC2626', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
+            Note: Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.
+          </Text>
+        </View>
+
         <TouchableOpacity
           onPress={handleConfirm}
           className={`bg-slate-900 ${isSmallPhone ? 'py-4 rounded-[20px]' : 'py-[22px] rounded-[28px]'} px-4 items-center shadow-lg active:scale-95`}
@@ -534,14 +542,15 @@ const BookingScreen = () => {
           <Ionicons name="home" size={24} color="#94A3B8" />
           <Text className="text-[11px] font-bold mt-1 text-slate-400">Home</Text>
         </TouchableOpacity>
+           <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
+          <Ionicons name="calendar" size={24} color="#1E293B" />
+          <Text className="text-[11px] font-bold mt-1 text-slate-800">Ride</Text>
+        </TouchableOpacity>
         <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HistoryScreen')}>
           <Ionicons name="list" size={24} color="#94A3B8" />
           <Text className="text-[11px] font-bold mt-1 text-slate-400">History</Text>
         </TouchableOpacity>
-        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
-          <Ionicons name="calendar" size={24} color="#1E293B" />
-          <Text className="text-[11px] font-bold mt-1 text-slate-800">Schedule</Text>
-        </TouchableOpacity>
+     
         <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/ProfileScreen')}>
           <Ionicons name="person" size={24} color="#94A3B8" />
           <Text className="text-[11px] font-bold mt-1 text-slate-400">Profile</Text>

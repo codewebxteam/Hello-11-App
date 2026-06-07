@@ -12,8 +12,9 @@ import {
   Image,
   AppState,
   ActivityIndicator,
-  NativeModules
-, Modal } from 'react-native';
+  NativeModules,
+  Modal
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +27,7 @@ import { getImageUrl } from '../utils/imagekit';
 import { initSocket, disconnectSocket } from '../utils/socket';
 import { driverAPI } from '../utils/api';
 import { getDriverToken } from '../utils/storage';
-import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat';
+import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat.native';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';
@@ -51,6 +52,10 @@ export default function DriverDashboard() {
   const isTogglingAvailabilityRef = useRef(false);
   const isTogglingOnlineRef = useRef(false);
   const [isPayNowLoading, setIsPayNowLoading] = useState(false);
+  
+  // Naya state Wallet data live lane ke liye
+  const [walletData, setWalletData] = useState<any>(null);
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -69,6 +74,23 @@ export default function DriverDashboard() {
     console.log("[Dashboard] Profile image URL:", url);
     return { uri: url };
   }, [authDriver?.profileImage, profileVersion]);
+
+  // --- LIVE WALLET DATA API ---
+  const fetchWalletData = async () => {
+    try {
+        const response = await driverAPI.getEarnings('week', undefined, undefined, {
+            txPage: 1,
+            commPage: 1,
+            txLimit: 1,
+            commLimit: 1
+        });
+        if (response.data?.earnings) {
+            setWalletData(response.data.earnings);
+        }
+    } catch (err) {
+        console.log("Dashboard fetch wallet error:", err);
+    }
+  };
 
   // --- STATS & SOCKET LOGIC ---
   const loadStats = useCallback(async (isChangingOnline = false) => {
@@ -166,8 +188,14 @@ export default function DriverDashboard() {
   // --- AUTO-REFRESH ON FOCUS ---
   useFocusEffect(
     useCallback(() => {
-      loadStats();
-    }, [loadStats])
+      // Don't refresh if we are in the middle of an online toggle 
+      // but DO refresh on screen focus to catch profile/stats updates
+      if (!isTogglingOnlineRef.current) {
+        loadStats();
+        refreshProfile(); // Also refresh global profile data
+        fetchWalletData(); // Naya API call dues check karne ke liye
+      }
+    }, [loadStats, refreshProfile])
   );
 
   useEffect(() => {
@@ -195,20 +223,10 @@ export default function DriverDashboard() {
     }
   }, [isOnline, driverId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      // Don't refresh if we are in the middle of an online toggle 
-      // but DO refresh on screen focus to catch profile/stats updates
-      if (!isTogglingOnlineRef.current) {
-        loadStats();
-        refreshProfile(); // Also refresh global profile data
-      }
-    }, [loadStats, refreshProfile])
-  );
-
   useEffect(() => {
     // Also keep the initial load for reliability
     loadStats();
+    fetchWalletData();
 
     const configureAudio = async () => {
       try {
@@ -229,6 +247,7 @@ export default function DriverDashboard() {
       if (nextAppState === "active") {
         console.log("App foregrounded, reloading stats...");
         loadStats();
+        fetchWalletData();
       }
     });
 
@@ -393,7 +412,7 @@ export default function DriverDashboard() {
         
         const options = {
           description: 'Hello-11 Pending Commission Payment',
-          image: 'https://i.imgur.com/39go7K2.png', // Replace with your logo
+          image: 'https://i.imgur.com/39go7K2.png',
           currency: order.currency,
           key: key_id,
           amount: order.amount,
@@ -417,6 +436,7 @@ export default function DriverDashboard() {
           if (verifyRes.data.success) {
             Alert.alert("Success", "Payment successful! You are now unblocked.");
             refreshProfile();
+            fetchWalletData(); // Refresh data to immediately close modal
           } else {
             Alert.alert("Error", "Payment verification failed. Please contact support.");
           }
@@ -434,62 +454,60 @@ export default function DriverDashboard() {
     }
   };
 
-  const isBlocked = (authDriver?.unpaidRideCount || 0) >= 3 && (authDriver?.pendingCommission || 0) > 0;
+  // Nayi logic for checking block condition accurately
+  const unpaidRidesDone = walletData?.unpaidRideCount ?? authDriver?.unpaidRideCount ?? 0;
+  const pendingDues = Number(walletData?.pendingCommission ?? authDriver?.pendingCommission ?? 0);
+  const isBlocked = unpaidRidesDone >= 3 && pendingDues > 0;
 
   return (
     <View className="flex-1 bg-slate-100">
       <StatusBar style="dark" />
 
-      {/* Payment Blocking Modal */}
+      {/* STRICT PAYMENT BLOCKING MODAL (UPDATED) */}
       <Modal
         visible={isBlocked}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
+        onRequestClose={() => {}} // This completely disables the Android physical back button
       >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white rounded-[40px] p-8 items-center shadow-2xl">
-            <View className="w-20 h-20 bg-amber-100 rounded-full items-center justify-center mb-6">
-              <Ionicons name="wallet-outline" size={40} color="#B45309" />
+        <View className="flex-1 bg-slate-900/95 justify-center items-center px-6">
+          <View className="bg-white p-8 rounded-[32px] items-center shadow-2xl w-full max-w-md">
+            
+            <View className="w-20 h-20 bg-red-50 border-[4px] border-red-100 rounded-full items-center justify-center mb-6 shadow-sm">
+              <Ionicons name="lock-closed" size={36} color="#EF4444" />
             </View>
             
-            <Text className="text-2xl font-black text-slate-900 text-center mb-2 italic">Payment Blocked!</Text>
-            <Text className="text-slate-500 text-center mb-8 px-4 font-medium leading-5">
-              Aapne 3 rides ka commission pay nahi kiya hai. Agli ride lene ke liye kripya pending amount pay karein.
+            <Text className="text-3xl font-black text-slate-900 text-center tracking-tight mb-3">
+              Account Locked
             </Text>
 
-            <View className="bg-slate-50 w-full p-6 rounded-3xl mb-8 border border-slate-100">
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Unpaid Rides</Text>
-                <Text className="text-slate-900 font-black text-lg">{authDriver?.unpaidRideCount}</Text>
-              </View>
-              <View className="h-[1px] bg-slate-200 w-full mb-4" />
-              <View className="flex-row justify-between items-center">
-                <Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Total Pending</Text>
-                <Text className="text-amber-600 font-black text-2xl">₹{authDriver?.pendingCommission}</Text>
-              </View>
+            <Text className="text-slate-500 text-center text-sm font-bold mb-8 leading-5 px-2">
+              Aapne <Text className="text-red-500 font-black">{unpaidRidesDone} rides</Text> puri kar li hain. Agli ride lene ke liye kripya pending admin dues clear karein.
+            </Text>
+
+            <View className="bg-slate-50 border border-slate-100 w-full p-5 rounded-[20px] mb-8 flex-row justify-between items-center shadow-sm">
+              <Text className="text-slate-500 font-black uppercase tracking-widest text-xs">Total Dues</Text>
+              <Text className="text-red-500 font-black text-2xl">₹ {pendingDues.toFixed(2)}</Text>
             </View>
 
             <TouchableOpacity
-              onPress={handlePayment}
+              activeOpacity={0.8}
+              onPress={handlePayment} // Automatically handles your Razorpay flow
               disabled={isPayNowLoading}
-              className="w-full h-16 bg-[#1E293B] rounded-2xl flex-row items-center justify-center shadow-lg"
+              className="w-full bg-[#FFD700] py-4 rounded-[20px] flex-row justify-center items-center shadow-xl shadow-yellow-500/30"
             >
               {isPayNowLoading ? (
-                <ActivityIndicator color="#FFD700" />
+                <ActivityIndicator color="#0F172A" />
               ) : (
                 <>
-                  <Ionicons name="card-outline" size={20} color="#FFD700" />
-                  <Text className="text-[#FFD700] font-black text-base ml-3 tracking-[2px] uppercase">Pay Full Amount</Text>
+                  <Ionicons name="card" size={20} color="#0F172A" />
+                  <Text className="text-slate-900 font-black text-sm uppercase tracking-widest ml-2">
+                    Pay Dues Now
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              onPress={() => router.push("/profile")}
-              className="mt-6 py-2"
-            >
-              <Text className="text-slate-400 font-bold text-xs uppercase tracking-widest underline">Go to Profile</Text>
-            </TouchableOpacity>
+
           </View>
         </View>
       </Modal>
@@ -615,8 +633,9 @@ export default function DriverDashboard() {
                         await ensureSearchingEnabled();
                       }
                       
-                      // 2. Force a full stats sync in the background
+                      // Force a full stats sync in the background
                       loadStats(true);
+                      fetchWalletData(); // Keep wallet updated on toggle
                       
                       const token = await registerForPushNotificationsAsync();
                       if (token) {
@@ -700,8 +719,9 @@ export default function DriverDashboard() {
                       await ensureSearchingEnabled();
                     }
                     
-                    // 2. Force a sync in the background
+                    // Force a sync in the background
                     loadStats(true);
+                    fetchWalletData();
                     
                     const token = await registerForPushNotificationsAsync();
                     if (token) {

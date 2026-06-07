@@ -15,19 +15,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-// @ts-ignore
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
-import * as DocumentPicker from 'expo-document-picker';
-import * as Sharing from 'expo-sharing';
+import * as ImagePicker from 'expo-image-picker'; // Added ImagePicker
 import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { driverAPI } from '../utils/api';
 import { getImageUrl } from '../utils/imagekit';
 import { useDriverAuth } from '../context/DriverAuthContext';
 import Header from '../components/Header';
-const cacheDirectory = FileSystem.cacheDirectory;
-const documentDirectory = FileSystem.documentDirectory;
 
 // Shimmer Component
 const ShimmerPlaceHolder = ({ className }: { className?: string }) => {
@@ -77,12 +73,16 @@ export default function DocumentsScreen() {
     const isLargePhone = screenWidth >= 412;
     const isTablet = screenWidth >= 768;
     const contentMaxWidth = isTablet ? 760 : isLargePhone ? 560 : undefined;
+    
     const [loading, setLoading] = React.useState(true);
+    const [isVerified, setIsVerified] = React.useState(false); // New state to track admin approval
+    
     const [individualLoading, setIndividualLoading] = React.useState<Record<string, boolean>>({
         license: false,
         insurance: false,
         registration: false
     });
+    
     const [docs, setDocs] = React.useState({
         license: '',
         insurance: '',
@@ -113,6 +113,8 @@ export default function DocumentsScreen() {
                     insurance: driverData.documents?.insurance || '',
                     registration: driverData.documents?.registration || ''
                 });
+                // Set the admin verification status
+                setIsVerified(driverData.isVerified === true);
             }
         } catch (err) {
             console.log("Docs load error:", err);
@@ -121,38 +123,76 @@ export default function DocumentsScreen() {
         }
     };
 
+    React.useEffect(() => {
+        loadDocs();
+    }, []);
+
     const removeDocumentImage = (key: keyof typeof docs) => {
         setDocs((prev) => ({ ...prev, [key]: '' }));
     };
 
-    React.useEffect(() => {
-        console.log("[DEBUG_DOCS] DocumentsScreen Mounted");
-        console.log("[DEBUG_DOCS] cacheDirectory:", cacheDirectory);
-        console.log("[DEBUG_DOCS] documentDirectory:", documentDirectory);
-        
-        if (!cacheDirectory) {
-            console.error("[DEBUG_DOCS] CRITICAL: cacheDirectory is NULL!");
-            Alert.alert("System Error", "Local storage is not accessible. Please restart the app.");
+    const processImageResult = (result: ImagePicker.ImagePickerResult, key: keyof typeof docs) => {
+        if (!result.canceled && result.assets?.[0]?.base64) {
+            // Limit check handling is abstracted via quality compression in the picker
+            const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            setDocs((prev) => ({ ...prev, [key]: base64Img }));
+            Haptics.selectionAsync();
         }
-        
-        loadDocs();
-    }, []);
+    };
+
+    const openCamera = async (key: keyof typeof docs) => {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+            Alert.alert("Permission Required", "Please allow camera access to take document photos.");
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.5, // Compress image to reduce upload size
+            base64: true,
+        });
+        processImageResult(result, key);
+    };
+
+    const openGallery = async (key: keyof typeof docs) => {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+            Alert.alert("Permission Required", "Please allow gallery access to select document photos.");
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.5,
+            base64: true,
+        });
+        processImageResult(result, key);
+    };
+
+    const handleImagePick = (key: keyof typeof docs, title: string) => {
+        Alert.alert(
+            `Upload ${title}`,
+            "How would you like to provide this document?",
+            [
+                { text: "Take a Photo", onPress: () => openCamera(key) },
+                { text: "Choose from Gallery", onPress: () => openGallery(key) },
+                { text: "Cancel", style: "cancel" }
+            ]
+        );
+    };
 
     const handleIndividualSave = async (key: keyof typeof docs, value: string, title: string) => {
         if (!value) return Alert.alert("Error", "Please select a document first");
-        if (value.startsWith('http')) return; // Already saved
+        if (value.startsWith('http')) return; // Already saved remote image
 
         setIndividualLoading(prev => ({ ...prev, [key]: true }));
         try {
-            console.log(`[Documents] Uploading ${key}...`);
             const response = await driverAPI.updateDocuments({ [key]: value });
-            console.log("[Documents] Backend raw response:", response.data);
-
             const resData = response.data;
+            
             if (resData && (resData.driver || resData.documents || resData.license)) {
                 const updatedDocs = resData.driver?.documents || resData.documents || resData;
-                console.log("[Documents] Successfully extracted docs:", updatedDocs);
-
                 const newDocs = {
                     license: updatedDocs?.license || docs.license,
                     insurance: updatedDocs?.insurance || docs.insurance,
@@ -161,15 +201,12 @@ export default function DocumentsScreen() {
                 setDocs(newDocs);
 
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert("Success", `${title} uploaded successfully! It is now locked and cannot be changed.`);
-                
+                Alert.alert("Success", `${title} uploaded! It will remain in 'Pending Review' until Admin verification.`);
                 await refreshProfile();
             } else {
-                console.error("[Documents] Structure mismatch. Available keys:", Object.keys(resData || {}));
-                throw new Error(`Invalid server response structure. Received keys: ${Object.keys(resData || {}).join(', ')}`);
+                throw new Error("Invalid server response structure.");
             }
         } catch (error: any) {
-            console.error("[Documents] Upload error detail:", error);
             const errMsg = error.response?.data?.message || error.message || `Failed to upload ${title.toLowerCase()}`;
             Alert.alert("Error", errMsg);
         } finally {
@@ -177,93 +214,15 @@ export default function DocumentsScreen() {
         }
     };
 
-    const pickDocumentImage = async (key: keyof typeof docs, title: string) => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: 'application/pdf',
-                multiple: false,
-                copyToCacheDirectory: true,
-            });
-
-            if (!result.canceled && result.assets?.[0]?.uri) {
-                const asset = result.assets[0];
-                const fileSize = asset.size || 0;
-                const maxSize = 10 * 1024 * 1024; // 10MB
-
-                if (fileSize > maxSize) {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                    Alert.alert(
-                        "File Too Large", 
-                        `Selected file is ${(fileSize / (1024 * 1024)).toFixed(1)}MB. Maximum allowed size is 10MB. Please select a smaller file.`
-                    );
-                    return;
-                }
-
-                const pdfUri = asset.uri;
-                const pdfBase64 = await FileSystem.readAsStringAsync(pdfUri, {
-                    encoding: 'base64'
-                });
-                setDocs((prev: any) => ({ ...prev, [key]: `data:application/pdf;base64,${pdfBase64}` }));
-                Haptics.selectionAsync();
-            }
-        } catch (error) {
-            console.log("PDF picker error:", error);
-            Alert.alert("Error", "Could not select PDF file.");
-        }
-    };
-
-    const viewDocument = async (value: string, title: string, key: string) => {
+    const viewDocument = async (value: string) => {
         if (!value) return;
-        console.log(`[DEBUG_DOCS] Entry - title: ${title}, key: ${key}, value: ${value.substring(0, 50)}`);
         
-        // 1. Detect Document Type
-        // 2. Handle Remote Documents (Direct to System Viewer)
-        if (value.startsWith('http')) {
-            console.log(`[DEBUG_DOCS] Opening remote document via Direct System Viewer: ${value}`);
-            setViewingDocs(prev => ({ ...prev, [key]: true }));
-            try {
-                const viewerUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(value)}`;
-                await WebBrowser.openBrowserAsync(viewerUrl, {
-                    toolbarColor: '#1E293B',
-                    showTitle: true,
-                });
-            } catch (error: any) {
-                console.error("[DEBUG_DOCS] WebBrowser error:", error);
-                Alert.alert("Error", "Could not open document viewer.");
-            } finally {
-                setViewingDocs(prev => ({ ...prev, [key]: false }));
-            }
-            return;
-        }
-
-        // 3. Handle Local/Base64 Documents (Newly Picked)
-        if (value.startsWith('data:')) {
-            if (value.startsWith('data:image')) {
-                // For local images, still use the direct modal for instant preview
-                setImgError(null);
-                setImgLoading(true);
-                setPreviewImage(value);
-                setPreviewVisible(true);
-            } else if (value.startsWith('data:application/pdf')) {
-                // For local PDFs, use Sharing as it's the only way for local files on Android
-                setViewingDocs(prev => ({ ...prev, [key]: true }));
-                try {
-                    const base64Content = value.split('base64,')[1];
-                    const filename = `${title.replace(/\s+/g, '_')}_PREVIEW.pdf`;
-                    const fileUri = `${cacheDirectory}${filename}`;
-                    await FileSystem.writeAsStringAsync(fileUri, base64Content, { encoding: 'base64' });
-                    await Sharing.shareAsync(fileUri, {
-                        mimeType: 'application/pdf',
-                        dialogTitle: 'Preview Document',
-                        UTI: 'com.adobe.pdf'
-                    });
-                } catch {
-                    Alert.alert("Error", "Could not preview local PDF.");
-                } finally {
-                    setViewingDocs(prev => ({ ...prev, [key]: false }));
-                }
-            }
-        }
+        // Since we are strictly using ImagePicker now, everything is an image. 
+        // We can safely open both base64 and http URLs in our Modal Image Viewer.
+        setImgError(null);
+        setImgLoading(true);
+        setPreviewImage(value);
+        setPreviewVisible(true);
     };
 
     const renderDocItem = (title: string, value: string, key: keyof typeof docs, icon: any) => {
@@ -272,103 +231,126 @@ export default function DocumentsScreen() {
         const isSaving = individualLoading[key];
         const isViewing = viewingDocs[key];
 
+        // Core requirement check:
+        const isLockedByAdmin = isVerified; 
+
         return (
             <View className="mb-6">
                 <View className="flex-row justify-between items-center mb-3 ml-1">
-                <View className="flex-row items-center flex-1 pr-2">
-                    <View className="w-1.5 h-4 bg-[#FFD700] rounded-full mr-2.5 shadow-sm shadow-[#FFD700]/50" />
-                    <Text className="text-slate-900 text-[12px] font-black uppercase tracking-[1.5px] flex-shrink" numberOfLines={1}>{title}</Text>
-                </View>
-                    {isUploaded && (
+                    <View className="flex-row items-center flex-1 pr-2">
+                        <View className={`w-1.5 h-4 ${isLockedByAdmin ? 'bg-[#166534]' : 'bg-[#FFD700]'} rounded-full mr-2.5`} />
+                        <Text className="text-slate-900 text-[12px] font-black uppercase tracking-[1.5px] flex-shrink" numberOfLines={1}>{title}</Text>
+                    </View>
+                    
+                    {/* Status Tags */}
+                    {isUploaded && isLockedByAdmin && (
                         <View className="flex-row items-center bg-green-100/50 px-3 py-1 rounded-full border border-green-200">
-                            <Ionicons name="lock-closed" size={10} color="#15803D" />
-                            <Text className="text-green-800 text-[9px] font-black uppercase ml-1 tracking-wider">LOCKED</Text>
+                            <Ionicons name="shield-checkmark" size={10} color="#15803D" />
+                            <Text className="text-green-800 text-[9px] font-black uppercase ml-1 tracking-wider">VERIFIED</Text>
+                        </View>
+                    )}
+                    {isUploaded && !isLockedByAdmin && (
+                        <View className="flex-row items-center bg-amber-100/50 px-3 py-1 rounded-full border border-amber-200">
+                            <Ionicons name="time" size={10} color="#D97706" />
+                            <Text className="text-amber-800 text-[9px] font-black uppercase ml-1 tracking-wider">PENDING REVIEW</Text>
                         </View>
                     )}
                 </View>
                 
-                <View className={`bg-white border ${isUploaded ? 'border-green-100' : 'border-slate-200'} rounded-[20px] px-4 py-4 shadow-sm`}>
+                <View className={`bg-white border ${isLockedByAdmin ? 'border-green-100' : 'border-slate-200'} rounded-[20px] px-4 py-4 shadow-sm`}>
+                    
                     <View className="flex-row items-center mb-3">
-                        <View className={`w-9 h-9 rounded-full ${isUploaded ? 'bg-green-50' : 'bg-slate-100'} items-center justify-center`}>
-                            <Ionicons name={icon} size={18} color={isUploaded ? "#166534" : "#64738B"} />
+                        <View className={`w-9 h-9 rounded-full ${isLockedByAdmin ? 'bg-green-50' : 'bg-slate-100'} items-center justify-center`}>
+                            <Ionicons name={icon} size={18} color={isLockedByAdmin ? "#166534" : "#64738B"} />
                         </View>
                         <View className="ml-3 flex-1">
-                            <Text className={`font-bold text-[13px] ${isUploaded ? 'text-green-700' : 'text-slate-700'}`}>
-                                {isUploaded ? 'Document Uploaded' : isLocal ? 'PDF Selected' : 'Pending Upload'}
+                            <Text className={`font-bold text-[13px] ${isLockedByAdmin ? 'text-green-700' : 'text-slate-700'}`}>
+                                {isLockedByAdmin ? 'Document Approved' : isUploaded ? 'Under Review' : isLocal ? 'Photo Ready to Upload' : 'Upload Required'}
                             </Text>
-                            {isUploaded && <Text className="text-green-600/60 text-[9px] font-bold">Successfully saved to cloud</Text>}
+                            {isLockedByAdmin && <Text className="text-green-600/60 text-[9px] font-bold">Successfully verified by Admin</Text>}
+                            {!isLockedByAdmin && isUploaded && <Text className="text-amber-600/60 text-[9px] font-bold">You can update this if needed</Text>}
                         </View>
                     </View>
 
+                    {/* View Document Area */}
                     {value ? (
                         <TouchableOpacity 
-                            onPress={() => viewDocument(value, title, key)}
+                            onPress={() => viewDocument(value)}
                             disabled={isViewing || isSaving}
-                            className={`h-24 rounded-[20px] border ${isViewing ? 'bg-slate-100 border-slate-300' : isUploaded ? 'border-green-200 bg-green-50/30' : 'border-blue-200 bg-blue-50/50'} items-center justify-center mb-4 flex-col`}
+                            className={`h-28 rounded-[20px] overflow-hidden items-center justify-center mb-4 ${isLockedByAdmin ? 'border border-green-200' : 'border border-blue-200'}`}
                             activeOpacity={0.7}
                         >
-                            {isViewing ? (
-                                <ActivityIndicator size="small" color={isUploaded ? "#166534" : "#3B82F6"} />
-                            ) : (
-                                <Ionicons name="eye-outline" size={28} color={isUploaded ? "#166534" : "#3B82F6"} />
-                            )}
-                            <Text className={`${isUploaded ? 'text-green-700' : 'text-blue-700'} text-xs font-black mt-2 uppercase tracking-widest`}>
-                                {isViewing ? 'PREPARING...' : isUploaded ? 'View & Download' : 'Preview & Confirm'}
-                            </Text>
+                            <Image 
+                                source={{ uri: value.startsWith('http') ? getImageUrl(value, { width: 400 }) : value }}
+                                className="w-full h-full opacity-60"
+                                style={{ backgroundColor: '#000' }}
+                                resizeMode="cover"
+                            />
+                            <View className="absolute items-center bg-black/40 px-4 py-2 rounded-full flex-row">
+                                <Ionicons name="eye" size={16} color="#FFF" />
+                                <Text className="text-white text-[10px] font-black uppercase ml-2 tracking-widest">Tap to View Image</Text>
+                            </View>
                         </TouchableOpacity>
                     ) : (
-                        <View className="h-24 rounded-2xl border border-dashed border-slate-300 items-center justify-center mb-4 bg-slate-50">
-                            <Ionicons name="cloud-upload-outline" size={32} color="#94A3B8" />
-                            <Text className="text-slate-400 text-[9px] uppercase font-black tracking-tighter mt-2">Tap below to select {title.toLowerCase()} PDF</Text>
-                        </View>
+                        <TouchableOpacity 
+                            onPress={() => handleImagePick(key, title)}
+                            className="h-24 rounded-2xl border border-dashed border-slate-300 items-center justify-center mb-4 bg-slate-50"
+                        >
+                            <Ionicons name="camera-outline" size={32} color="#94A3B8" />
+                            <Text className="text-slate-400 text-[9px] uppercase font-black tracking-tighter mt-2">Tap to take or select photo</Text>
+                        </TouchableOpacity>
                     )}
 
+                    {/* Action Buttons */}
                     <View className="flex-row gap-2">
-                        {!isUploaded ? (
+                        {isLocal && !isUploaded && (
                             <>
                                 <TouchableOpacity
-                                    onPress={() => isLocal ? handleIndividualSave(key, value, title) : pickDocumentImage(key, title)}
+                                    onPress={() => handleIndividualSave(key, value, title)}
                                     disabled={isSaving}
-                                    className={`flex-1 ${isLocal ? 'bg-indigo-600' : 'bg-slate-900'} py-4 rounded-xl flex-row items-center justify-center shadow-lg shadow-black/10`}
+                                    className="flex-1 bg-[#FFD700] py-4 rounded-xl flex-row items-center justify-center shadow-lg shadow-yellow-500/20"
                                 >
                                     {isSaving ? (
-                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                        <ActivityIndicator size="small" color="#000" />
                                     ) : (
                                         <>
-                                            <Ionicons name={isLocal ? "shield-checkmark-outline" : "document-attach-outline"} size={16} color="#FFFFFF" />
-                                            <Text className="text-white font-black text-xs uppercase tracking-wider ml-2">
-                                                {isLocal ? 'CONFIRM & UPLOAD' : 'SELECT PDF'}
-                                            </Text>
+                                            <Ionicons name="cloud-upload" size={16} color="#1E293B" />
+                                            <Text className="text-slate-900 font-black text-xs uppercase tracking-wider ml-2">UPLOAD PHOTO</Text>
                                         </>
                                     )}
                                 </TouchableOpacity>
 
-                                {isLocal && !isSaving && (
+                                {!isSaving && (
                                     <TouchableOpacity
                                         onPress={() => removeDocumentImage(key)}
                                         className="bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl items-center justify-center"
                                     >
-                                        <Ionicons name="close-circle-outline" size={20} color="#64738B" />
+                                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
                                     </TouchableOpacity>
                                 )}
                             </>
-                        ) : (
-                            <View className="flex-1 bg-slate-100/50 border border-slate-200 py-4 rounded-xl flex-row items-center justify-center">
-                                <Ionicons name="checkmark-done-circle" size={18} color="#166534" />
-                                <Text className="text-slate-500 font-black text-xs uppercase tracking-widest ml-2">UPLOADED & ARCHIVED</Text>
+                        )}
+
+                        {/* Allowed to Edit until Verified */}
+                        {isUploaded && !isLockedByAdmin && (
+                            <TouchableOpacity
+                                onPress={() => handleImagePick(key, title)}
+                                disabled={isSaving}
+                                className="flex-1 bg-slate-100 border border-slate-300 py-3 rounded-xl flex-row items-center justify-center"
+                            >
+                                <Ionicons name="camera-reverse-outline" size={16} color="#475569" />
+                                <Text className="text-slate-700 font-black text-[10px] uppercase tracking-wider ml-2">UPDATE PHOTO</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Completely Locked */}
+                        {isUploaded && isLockedByAdmin && (
+                            <View className="flex-1 bg-green-50/50 border border-green-100 py-3.5 rounded-xl flex-row items-center justify-center">
+                                <Ionicons name="lock-closed" size={16} color="#166534" />
+                                <Text className="text-green-700 font-black text-[10px] uppercase tracking-widest ml-2">LOCKED BY ADMIN</Text>
                             </View>
                         )}
                     </View>
-                    {!isUploaded && (
-                        <Text className="text-slate-400 text-[8px] font-bold mt-3 text-center uppercase tracking-tighter">
-                            {isLocal ? "Review PDF above then click Confirm to save permanently." : "Once uploaded, documents are locked for security."}
-                        </Text>
-                    )}
-                    {isUploaded && (
-                        <Text className="text-slate-400 text-[8px] font-bold mt-3 text-center uppercase tracking-tighter">
-                            Tip: Tap &apos;View&apos; to share or download this document.
-                        </Text>
-                    )}
                 </View>
             </View>
         );
@@ -399,17 +381,25 @@ export default function DocumentsScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20), width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}
             >
-                <View className="bg-amber-50 p-6 rounded-[24px] mb-8 border border-amber-100 flex-row items-center shadow-sm">
-                    <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center">
-                        <Ionicons name="alert-circle" size={24} color="#D97706" />
+                {/* Dynamic Notice Banner based on verification state */}
+                {!loading && (
+                    <View className={`p-6 rounded-[24px] mb-8 border flex-row items-center shadow-sm ${isVerified ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center ${isVerified ? 'bg-green-100' : 'bg-amber-100'}`}>
+                            <Ionicons name={isVerified ? "shield-checkmark" : "alert-circle"} size={24} color={isVerified ? "#15803D" : "#D97706"} />
+                        </View>
+                        <View className="ml-4 flex-1">
+                            <Text className={`text-[12px] font-black uppercase tracking-tighter ${isVerified ? 'text-green-800' : 'text-amber-800'}`}>
+                                {isVerified ? 'Account Verified' : 'Important Notice'}
+                            </Text>
+                            <Text className={`text-[10px] font-bold leading-4 mt-0.5 ${isVerified ? 'text-green-700/70' : 'text-amber-700/70'}`}>
+                                {isVerified 
+                                    ? "Your documents have been approved by the Admin and are securely locked." 
+                                    : "You can upload and edit photos of your documents until the admin approves them."
+                                }
+                            </Text>
+                        </View>
                     </View>
-                    <View className="ml-4 flex-1">
-                        <Text className="text-amber-800 text-[12px] font-black uppercase tracking-tighter">Important Notice</Text>
-                        <Text className="text-amber-700/70 text-[10px] font-bold leading-4 mt-0.5">
-                            Documents can only be uploaded <Text className="text-amber-900 font-black">ONE TIME</Text>. Maximum file size is <Text className="text-red-700 font-black">10MB</Text>. Please ensure your PDF is clear.
-                        </Text>
-                    </View>
-                </View>
+                )}
 
                 {loading ? (
                     <>
@@ -430,7 +420,7 @@ export default function DocumentsScreen() {
                 </View>
             </ScrollView>
 
-            {/* Image Preview Modal */}
+            {/* Universal Image Preview Modal */}
             <Modal
                 visible={previewVisible}
                 transparent={true}
@@ -453,26 +443,19 @@ export default function DocumentsScreen() {
                             {imgLoading && (
                                 <View className="absolute z-10 items-center">
                                     <ActivityIndicator color="#FFD700" size="large" />
-                                    <Text className="text-white/60 mt-4 font-bold text-[12px] tracking-widest uppercase">Fetching Document...</Text>
+                                    <Text className="text-white/60 mt-4 font-bold text-[12px] tracking-widest uppercase">Loading Image...</Text>
                                 </View>
                             )}
                             <Image 
-                                source={{ uri: getImageUrl(previewImage, { width: 1200, quality: 90, format: 'jpg', pg: 1 }) }}
+                                source={{ uri: previewImage.startsWith('http') ? getImageUrl(previewImage, { width: 1200, quality: 90 }) : previewImage }}
                                 style={{ 
                                     width: screenWidth, 
                                     height: screenHeight * 0.85,
                                     resizeMode: 'contain' 
                                 }}
-                                onLoadStart={() => {
-                                    console.log("[DEBUG_DOCS] Image loading started...");
-                                    setImgLoading(true);
-                                }}
-                                onLoadEnd={() => {
-                                    console.log("[DEBUG_DOCS] Image loading finished.");
-                                    setImgLoading(false);
-                                }}
+                                onLoadStart={() => setImgLoading(true)}
+                                onLoadEnd={() => setImgLoading(false)}
                                 onError={(e) => {
-                                    console.error("[DEBUG_DOCS] Image loading error:", e.nativeEvent.error);
                                     setImgError(e.nativeEvent.error);
                                     setImgLoading(false);
                                 }}
@@ -481,37 +464,26 @@ export default function DocumentsScreen() {
                     ) : (imgError || previewImage) ? (
                         <View className="items-center px-10">
                             <View className="w-20 h-20 bg-amber-500/10 rounded-full items-center justify-center mb-6">
-                                <Ionicons name="eye-off" size={48} color="#F59E0B" />
+                                <Ionicons name="alert" size={48} color="#F59E0B" />
                             </View>
-                            <Text className="text-white text-xl font-black mb-2 text-center">Format Not Supported</Text>
+                            <Text className="text-white text-xl font-black mb-2 text-center">Failed to Load</Text>
                             <Text className="text-white/40 text-center text-[12px] leading-5">
-                                This document cannot be previewed as an image. Click below to open it in the secure system viewer.
+                                The image couldn't be loaded properly. Try opening it externally.
                             </Text>
                             
                             <TouchableOpacity 
                                 onPress={async () => {
-                                    if (previewImage) {
-                                        const viewerUrl = previewImage.startsWith('http') 
-                                            ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(previewImage)}`
-                                            : previewImage;
-                                            
-                                        await WebBrowser.openBrowserAsync(viewerUrl, {
+                                    if (previewImage && previewImage.startsWith('http')) {
+                                        await WebBrowser.openBrowserAsync(previewImage, {
                                             toolbarColor: '#1E293B',
                                             showTitle: true,
                                         });
-                                        setPreviewVisible(false);
                                     }
+                                    setPreviewVisible(false);
                                 }}
                                 className="mt-8 bg-blue-600 px-10 py-4 rounded-2xl shadow-xl shadow-blue-900/40"
                             >
-                                <Text className="text-white font-black uppercase tracking-widest text-[12px]">Open in System Viewer</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity 
-                                onPress={() => setPreviewVisible(false)}
-                                className="mt-4 px-8 py-3"
-                            >
-                                <Text className="text-white/40 font-bold text-[12px]">Cancel</Text>
+                                <Text className="text-white font-black uppercase tracking-widest text-[12px]">Open in Browser</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
@@ -519,10 +491,6 @@ export default function DocumentsScreen() {
                             <ActivityIndicator color="#FFD700" size="large" />
                         </View>
                     )}
-
-                    <View className="absolute bottom-12 px-8 py-3 bg-white/5 rounded-full border border-white/5">
-                        <Text className="text-white/30 text-[9px] font-black uppercase tracking-[3px]">Secure Viewer Mode</Text>
-                    </View>
                 </View>
             </Modal>
         </View>

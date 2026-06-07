@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Text,
   View,
@@ -8,17 +8,21 @@ import {
   ScrollView,
   Platform,
   Animated,
-  KeyboardAvoidingView,
   Keyboard,
   BackHandler,
   ToastAndroid,
   Alert,
   ActivityIndicator,
-  AppState
+  AppState,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";
+
+// Notification imports disabled temporarily for Expo Go SDK 53 testing
+// import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";
+
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -34,8 +38,8 @@ import { showToast } from "../../components/NotificationToast";
 const HomeScreen = () => {
   const { width } = useWindowDimensions();
   const isSmallPhone = width < 360;
-  const params = useLocalSearchParams();
   const router = useRouter();
+  
   const [displayName, setDisplayName] = useState("User");
   const [assignedDriver, setAssignedDriver] = useState<any>(null);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
@@ -43,29 +47,30 @@ const HomeScreen = () => {
 
   const { user: authUser, refreshProfile } = useAuth();
 
+  // Card entrance animation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Scroll-based headline fade: measured dynamically so it works on all phones
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [headerMeasuredHeight, setHeaderMeasuredHeight] = useState(0);
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
         if (authUser) {
-          console.log("[Home] fetchUser: using authUser", authUser.name);
           setDisplayName(authUser.name || "User");
         } else {
-          console.log("[Home] fetchUser: authUser missing, triggering refresh...");
           await refreshProfile();
         }
 
         const userData = authUser;
-        if (!userData) {
-          console.warn("Home: No user data available for socket connection");
-          return;
-        }
+        if (!userData) return;
 
-        // Initialize Socket and join user room
         const { initSocket } = require("../../utils/socket");
         const socket = await initSocket();
 
         socket.on("connect", () => {
-          console.log("Socket connected, joining user room:", userData._id || userData.id);
           socket.emit("join", userData._id || userData.id);
         });
 
@@ -74,7 +79,6 @@ const HomeScreen = () => {
         }
 
         socket.on("rideAccepted", (data: any) => {
-          console.log("RIDE ACCEPTED:", data);
           const booking = data?.booking || {};
           const isScheduled = booking.bookingType === "schedule";
           const scheduledTime = booking.scheduledDate ? new Date(booking.scheduledDate).getTime() : null;
@@ -85,18 +89,7 @@ const HomeScreen = () => {
           setActiveBookingId(booking.id || null);
           setIsSearching(false);
 
-          if (!isRideReadyNow) {
-            sendLocalNotification(
-              "Driver Assigned For Scheduled Ride",
-              `Driver ${booking?.driver?.name || ""} assigned. Ride will start at scheduled time.`
-            );
-            return;
-          }
-
-          sendLocalNotification(
-            "Ride Accepted",
-            `${booking?.driver?.name || "Driver"} is on the way in a ${booking?.driver?.vehicleModel || "car"}`
-          );
+          if (!isRideReadyNow) return;
 
           router.push({
             pathname: "/screens/LiveRideTrackingScreen",
@@ -110,69 +103,32 @@ const HomeScreen = () => {
           });
         });
 
-        socket.on("bookingCancelledByDriver", (data: any) => {
-          console.log("Booking cancelled by driver:", data);
-          sendLocalNotification("Ride Cancelled", "The driver has cancelled your ride request.");
-          clearBookingState();
-        });
-
-        socket.on("bookingCancelledByUser", (data: any) => {
-          console.log("Booking cancelled by user (sync):", data);
-          clearBookingState();
-        });
+        socket.on("bookingCancelledByDriver", () => clearBookingState());
+        socket.on("bookingCancelledByUser", () => clearBookingState());
 
         socket.on("newNotification", (data: any) => {
-          console.log("NEW NOTIFICATION RECEIVED:", data);
-          // Sync with real unread count from backend if available
-          if (data.unreadCount !== undefined) {
-            setUnreadCount(data.unreadCount);
-          } else {
-            setUnreadCount(prev => prev + 1);
-          }
-          // Show toast for critical ride notifications
+          if (data.unreadCount !== undefined) setUnreadCount(data.unreadCount);
+          else setUnreadCount(prev => prev + 1);
+          
           if (data.notification.type.startsWith('ride_')) {
-            const toastType =
-              data.notification.type === 'ride_cancelled'
-                ? 'error'
-                : data.notification.type === 'ride_completed' || data.notification.type === 'ride_accepted'
-                  ? 'success'
-                  : 'info';
+            const toastType = data.notification.type === 'ride_cancelled' ? 'error' : 'success';
             showToast(data.notification.title, data.notification.body, toastType as any);
-            sendLocalNotification(data.notification.title, data.notification.body);
           }
         });
 
         socket.on("unreadCountUpdate", (data: any) => {
-          console.log("UNREAD COUNT SYNC:", data);
-          if (data.unreadCount !== undefined) {
-            setUnreadCount(data.unreadCount);
-          }
+          if (data.unreadCount !== undefined) setUnreadCount(data.unreadCount);
         });
 
-        // Initial unread count fetch
         try {
           const notifRes = await notificationAPI.getNotifications();
           setUnreadCount(notifRes.data.unreadCount || 0);
-        } catch (e) {
-          console.log("Unread count fetch error", e);
-        }
+        } catch (e) {}
 
-        // Register for push notifications
-        try {
-          const token = await registerForPushNotificationsAsync();
-          if (token) {
-            await userAPI.updateProfile({ pushToken: token });
-            console.log("Push token registered successfully");
-          }
-        } catch (tokenErr) {
-          console.log("Push token registration failed", tokenErr);
-        }
-
-        // --- RIDE PERSISTENCE ---
         await checkActiveBooking();
 
       } catch (err) {
-        console.error("Home: fetch profile or socket error", err);
+        console.error("Home error", err);
       }
     };
 
@@ -181,9 +137,6 @@ const HomeScreen = () => {
         const res = await bookingAPI.getActiveBooking();
         if (res.data.success && res.data.booking) {
           const b = res.data.booking;
-          console.log("ACTIVE BOOKING FOUND (Persistence):", b._id, b.status);
-
-          // Redirect to Live Ride Tracking screen
           router.replace({
             pathname: "/screens/LiveRideTrackingScreen",
             params: {
@@ -195,20 +148,14 @@ const HomeScreen = () => {
             }
           });
         }
-      } catch (err) {
-        console.error("Persistence check error:", err);
-      }
+      } catch (err) {}
     };
 
     fetchUser();
     fetchCurrentLocation();
 
-    // AppState listener for background/foreground persistence
     const subscription = AppState.addEventListener("change", nextAppState => {
-      if (nextAppState === "active") {
-        console.log("App foregrounded - checking for active ride");
-        checkActiveBooking();
-      }
+      if (nextAppState === "active") checkActiveBooking();
     });
 
     return () => {
@@ -234,58 +181,50 @@ const HomeScreen = () => {
   const [activeTab, setActiveTab] = useState("Home");
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
-  // Map state
   const [mapRegion, setMapRegion] = useState<any>(null);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [dropCoords, setDropCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [activeInput, setActiveInput] = useState<'source' | 'destination' | null>(null);
+  const [sourceSelection, setSourceSelection] = useState<{start: number, end: number} | undefined>(undefined);
+  const [destSelection, setDestSelection] = useState<{start: number, end: number} | undefined>(undefined);
   const [sourceCoords, setSourceCoords] = useState<{ lat: string; lon: string } | null>(null);
   const [destCoords, setDestCoords] = useState<{ lat: string; lon: string } | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-
-  // Function to fetch current location and reverse geocode
   const fetchCurrentLocation = async () => {
     try {
       setIsLoadingLocation(true);
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        showToast("Permission Denied", "Location permission is required to fetch current address.", "error");
+        showToast("Permission Denied", "Location permission is required.", "error");
         setIsLoadingLocation(false);
         return;
       }
 
       let loc = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = loc.coords;
+      
       setSourceCoords({ lat: latitude.toString(), lon: longitude.toString() });
       setPickupCoords({ latitude, longitude });
-      setMapRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      });
+      setMapRegion({ latitude, longitude, latitudeDelta: 0.05, longitudeDelta: 0.05 });
 
       const res = await locationAPI.reverseGeocode(latitude, longitude);
       if (res.data?.success && res.data.data?.display_name) {
         setSource(res.data.data.display_name);
+        setSourceSelection({ start: 0, end: 0 }); // show address from start, not tail
       }
     } catch (err: any) {
-      console.error("Fetch Location Error", err);
       showToast("Error", "Could not fetch current address.", "error");
     } finally {
       setIsLoadingLocation(false);
     }
   };
 
-  // Update map whenever source/dest coords change
   useEffect(() => {
     if (sourceCoords) {
       const sLat = parseFloat(sourceCoords.lat);
@@ -296,36 +235,9 @@ const HomeScreen = () => {
         const dLat = parseFloat(destCoords.lat);
         const dLon = parseFloat(destCoords.lon);
         setDropCoords({ latitude: dLat, longitude: dLon });
-        // Fit map to show both points
-        const midLat = (sLat + dLat) / 2;
-        const midLon = (sLon + dLon) / 2;
-        setMapRegion({
-          latitude: midLat,
-          longitude: midLon,
-          latitudeDelta: Math.abs(sLat - dLat) * 2.2 + 0.02,
-          longitudeDelta: Math.abs(sLon - dLon) * 2.2 + 0.02,
-        });
-        // Fetch driving route
-        locationAPI.getDirections(sLat, sLon, dLat, dLon)
-          .then((res) => {
-            if (res.data?.data?.geometry?.coordinates) {
-              const coords = res.data.data.geometry.coordinates
-                .filter((c: any) => Array.isArray(c) && c.length >= 2)
-                .map((c: any) => ({ latitude: Number(c[1]), longitude: Number(c[0]) }));
-              if (coords.length > 0) setRouteCoords(coords);
-            }
-          })
-          .catch(() => { });
       } else {
-        // Only source selected — show pickup pin, clear route/drop
         setRouteCoords([]);
         setDropCoords(null);
-        setMapRegion((prev: any) => prev ?? {
-          latitude: sLat,
-          longitude: sLon,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        });
       }
     } else {
       setRouteCoords([]);
@@ -333,9 +245,6 @@ const HomeScreen = () => {
       setDropCoords(null);
     }
   }, [sourceCoords, destCoords]);
-
-
-
 
   const clearBookingState = () => {
     setIsSearching(false);
@@ -345,7 +254,6 @@ const HomeScreen = () => {
     setIsCancelling(false);
   };
 
-  // Debounced search logic
   useEffect(() => {
     const query = activeInput === 'source' ? source : destination;
     if (!query || query.length < 2) {
@@ -355,55 +263,37 @@ const HomeScreen = () => {
 
     const timer = setTimeout(async () => {
       try {
-        // Pass user location so backend restricts to India and biases to 50km radius
         const userLat = sourceCoords ? parseFloat(sourceCoords.lat) : undefined;
         const userLon = sourceCoords ? parseFloat(sourceCoords.lon) : undefined;
         const response = await locationAPI.getAutocomplete(query, userLat, userLon);
         setSuggestions(response.data.data);
-      } catch (err) {
-        console.error("Autocomplete error", err);
-      }
+      } catch (err) {}
     }, 500);
 
     return () => clearTimeout(timer);
   }, [source, destination, activeInput, sourceCoords]);
 
-  // --- DOUBLE BACK PRESS TO EXIT LOGIC ---
   useEffect(() => {
     let backPressCount = 0;
-
     const backAction = () => {
       if (activeTab !== "Home") {
         setActiveTab("Home");
         return true;
       }
-
       if (backPressCount === 0) {
         backPressCount++;
-        if (Platform.OS === 'android') {
-          ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
-        }
-
-        setTimeout(() => {
-          backPressCount = 0;
-        }, 2000);
+        if (Platform.OS === 'android') ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
+        setTimeout(() => { backPressCount = 0; }, 2000);
         return true;
       } else {
         BackHandler.exitApp();
         return true;
       }
     };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction
-    );
-
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
     return () => backHandler.remove();
   }, [activeTab]);
 
-  // If activeTab becomes 'Activity' (e.g., from deep-link or previous state),
-  // redirect to the unified History screen to keep UX consistent.
   useEffect(() => {
     if (activeTab === 'Activity') {
       router.push({ pathname: '/screens/HistoryScreen' });
@@ -413,26 +303,40 @@ const HomeScreen = () => {
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
     ]).start();
   }, []);
 
   useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardVisible(true));
     const hideSub = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardVisible(false));
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  const handleFocus = () => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({ y: 120, animated: true });
-    }, 100);
-  };
+  // ─── DYNAMIC HEADER HEIGHT ────────────────────────────────────────────────
+  // We measure the actual rendered yellow header via onLayout so the white card
+  // overlap is always pixel-perfect regardless of phone size, notch height, or
+  // OS font scaling. CARD_OVERLAP is how many px the white card visually
+  // "bites into" the yellow section.
+  const CARD_OVERLAP = isSmallPhone ? 36 : 52;
+  // Fallback while layout hasn't fired yet (prevents flicker)
+  const headerHeight = headerMeasuredHeight > 0 ? headerMeasuredHeight : (isSmallPhone ? 220 : 250);
+
+  // Headline fade-out: starts fading after 20px scroll, fully gone by 80px
+  const headlineFade = scrollY.interpolate({
+    inputRange: [0, 20, 80],
+    outputRange: [1, 0.6, 0],
+    extrapolate: 'clamp',
+  });
+  // Headline also blurs upward slightly as it fades
+  const headlineTranslate = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [0, -12],
+    extrapolate: 'clamp',
+  });
+
+  const insets = useSafeAreaInsets();
 
   const TabItem = ({ name, icon, label }: { name: string, icon: any, label: string }) => (
     <TouchableOpacity
@@ -442,326 +346,551 @@ const HomeScreen = () => {
           router.push({ pathname: "/screens/BookingScreen", params: { mode: 'schedule' } });
           return;
         }
-
-        // Open unified History screen when History/Activity tab is tapped
         if (name === "Activity" || name === "History") {
           router.push({ pathname: "/screens/HistoryScreen" });
           return;
         }
-
         setActiveTab(name);
       }}
     >
-      <Ionicons
-        name={activeTab === name ? icon : `${icon}-outline`}
-        size={24}
-        color={activeTab === name ? "#1E293B" : "#94A3B8"}
-      />
-      <Text className={`text-[11px] font-bold mt-1 ${activeTab === name ? "text-slate-800" : "text-slate-400"}`}>
-        {label}
-      </Text>
+      <Ionicons name={activeTab === name ? icon : `${icon}-outline`} size={24} color={activeTab === name ? "#1E293B" : "#94A3B8"} />
+      <Text maxFontSizeMultiplier={1.2} className={`text-[11px] font-bold mt-1 ${activeTab === name ? "text-slate-800" : "text-slate-400"}`}>{label}</Text>
       {activeTab === name && <View className="w-1 h-1 rounded-full bg-slate-800 mt-1" />}
     </TouchableOpacity>
   );
 
-  const insets = useSafeAreaInsets();
-
   return (
-    <View className="flex-1 bg-white">
+    <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
       {activeTab === "Home" && (
         <>
-          <View className={`${isSmallPhone ? 'min-h-[320px] rounded-b-[36px] pb-8' : 'min-h-[350px] rounded-b-[50px] pb-10'} bg-[#FFD700] z-10 relative overflow-hidden`}>
-            <View className="absolute -bottom-[20%] self-center w-[150%] h-[20%] bg-white rounded-[100%] scale-x-[1.3] opacity-10" />
+          {/*
+           * ─── FIX EXPLAINED ────────────────────────────────────────────────────
+           * ROOT CAUSE: On Android, KeyboardAvoidingView with behavior="height"/
+           * undefined causes the parent View to shrink, dragging the yellow header
+           * DOWN and making the white card (which only has a negative marginTop)
+           * appear to slide BEHIND the yellow section.
+           *
+           * THE FIX:
+           * 1. The yellow header is `position: 'absolute'` with zIndex: 0 / elevation: 0.
+           *    It can NEVER push anything. It is purely a painted background layer.
+           * 2. The ScrollView fills the entire screen (flex:1) and sits above the
+           *    header in z-order (zIndex: 10, elevation: 10).
+           * 3. The ScrollView has a paddingTop equal to (HEADER_VISIBLE_HEIGHT - CARD_OVERLAP).
+           *    This creates the visual gap for the yellow header to show through, while
+           *    the white card then "overlaps" it by CARD_OVERLAP pixels.
+           * 4. KeyboardAvoidingView is REMOVED entirely. On Android it is the #1
+           *    cause of this bug. ScrollView with keyboardShouldPersistTaps="handled"
+           *    handles all keyboard interactions correctly without layout shifts.
+           * ──────────────────────────────────────────────────────────────────────
+           */}
 
-            <SafeAreaView className={`flex-1 ${isSmallPhone ? 'px-4 pt-1' : 'px-6 pt-1'}`}>
-              <View className="flex-row justify-between items-center">
+          {/* ── LAYER 1: Yellow Header — absolute, always behind everything ── */}
+          <View
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > 0) setHeaderMeasuredHeight(h);
+            }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: '#FFD700',
+              borderBottomLeftRadius: isSmallPhone ? 36 : 50,
+              borderBottomRightRadius: isSmallPhone ? 36 : 50,
+              zIndex: 0,
+              elevation: 0,
+              overflow: 'hidden',
+              // Add bottom padding so rounded edge + card overlap area is always visible
+              paddingBottom: CARD_OVERLAP + 8,
+            }}
+          >
+            {/* Subtle white oval glow at bottom of header */}
+            <View
+              style={{
+                position: 'absolute',
+                bottom: '-20%',
+                alignSelf: 'center',
+                width: '150%',
+                height: '20%',
+                backgroundColor: 'white',
+                borderRadius: 999,
+                opacity: 0.1,
+                transform: [{ scaleX: 1.3 }],
+              }}
+            />
+
+            <SafeAreaView style={{ paddingHorizontal: isSmallPhone ? 16 : 24, paddingTop: 4 }}>
+              {/* Top row: greeting + notification bell */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View>
-                  <Text className="text-base text-slate-800 font-medium opacity-70">Hello,</Text>
-                  <Text className="text-3xl text-slate-800 font-black tracking-tight">{displayName}</Text>
+                  <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 13, color: '#1E293B', fontWeight: '500', opacity: 0.7 }}>Hello,</Text>
+                  <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 18, color: '#1E293B', fontWeight: '900', letterSpacing: -0.5 }}>{displayName}</Text>
                 </View>
                 <TouchableOpacity
-                  className="bg-white p-3 rounded-full shadow-sm elevation-3 relative"
+                  style={{
+                    backgroundColor: 'white',
+                    padding: 12,
+                    borderRadius: 999,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    elevation: 3,
+                    position: 'relative',
+                  }}
                   onPress={() => router.push("/screens/NotificationsScreen")}
                 >
                   <Ionicons name="notifications-outline" size={24} color="#1E293B" />
                   {unreadCount > 0 && (
-                    <View className="absolute top-2 right-2 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center border-2 border-white px-1">
-                      <Text className="text-white text-[9px] font-black">{unreadCount}</Text>
-                    </View>
+                    <View style={{
+                      position: 'absolute', top: 8, right: 8,
+                      backgroundColor: '#EF4444',
+                      borderRadius: 999, width: 12, height: 12,
+                      borderWidth: 1.5, borderColor: 'white',
+                    }} />
                   )}
                 </TouchableOpacity>
               </View>
 
-              <View className={`${isSmallPhone ? 'mt-5' : 'mt-8'}`}>
-                <Text className={`${isSmallPhone ? 'text-[32px] leading-9' : 'text-4xl leading-[44px]'} font-black text-slate-800 italic`}>Where are you{"\n"}going today?</Text>
-                <Text className="text-base text-slate-800 mt-3 mb-5 font-semibold opacity-75">Book your ride with Hello11</Text>
-              </View>
+              {/* Headline — fades + slides up as user scrolls */}
+              <Animated.View
+                style={{
+                  marginTop: isSmallPhone ? 14 : 20,
+                  opacity: headlineFade,
+                  transform: [{ translateY: headlineTranslate }],
+                }}
+              >
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={{
+                    fontSize: isSmallPhone ? 24 : 28,
+                    lineHeight: isSmallPhone ? 30 : 36,
+                    fontWeight: '900',
+                    color: '#1E293B',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  {`Where are you\ngoing today?`}
+                </Text>
+              </Animated.View>
             </SafeAreaView>
           </View>
 
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-            className={`flex-1 z-20 ${isSmallPhone ? '-mt-12' : '-mt-16'}`}
+          {/* ── LAYER 2: Scrollable content — sits ON TOP of the yellow header ── */}
+          <Animated.ScrollView
+            ref={scrollViewRef}
+            style={{ flex: 1, zIndex: 10, elevation: 10 }}
+            contentContainerStyle={{
+              // Dynamic: measured header height minus overlap = correct card start position
+              paddingTop: headerHeight > 0 ? headerHeight - CARD_OVERLAP : (isSmallPhone ? 180 : 210),
+              paddingHorizontal: isSmallPhone ? 16 : 24,
+              paddingBottom: 120,
+            }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: true }
+            )}
+            scrollEventThrottle={16}
           >
-            <ScrollView
-              ref={scrollViewRef}
-              contentContainerClassName={`${isSmallPhone ? 'px-4' : 'px-6'} ${isKeyboardVisible ? 'pb-56' : 'pb-32'}`}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            {/* ── WHITE SEARCH CARD ── */}
+            <Animated.View
+              style={[
+                {
+                  backgroundColor: 'white',
+                  borderRadius: 35,
+                  padding: isSmallPhone ? 16 : 24,
+                  borderWidth: 1,
+                  borderColor: '#F8FAFC',
+                  // Android: elevation creates drop shadow AND puts this above header (elevation:0)
+                  elevation: 12,
+                  // iOS shadow
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 8 },
+                  shadowOpacity: 0.10,
+                  shadowRadius: 20,
+                  // Ensure it's above the yellow layer on both platforms
+                  zIndex: 100,
+                },
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
             >
-              <Animated.View
-                className={`bg-white rounded-[35px] ${isSmallPhone ? 'p-4' : 'p-6'} shadow-2xl shadow-slate-300 border border-slate-50 z-50 elevation-10`}
-                style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-              >
-                <View className="mb-4">
-                  <View className="flex-row items-center mb-2.5">
-                    <View className="w-8 items-center">
-                      <View className="w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-blue-200" />
-                      <View className="w-[2px] h-9 bg-slate-200 my-1 border-dashed" />
-                    </View>
-                    <View className="flex-1 ml-3 border-b border-slate-100 pb-2">
-                      <Text className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">From where</Text>
-                      <TextInput
-                        className="text-base text-slate-800 font-semibold mt-0.5"
-                        placeholder="Current Location"
-                        placeholderTextColor="#94A3B8"
-                        value={source}
-                        onChangeText={(txt) => {
-                          setSource(txt);
-                          setActiveInput('source');
-                        }}
-                        onFocus={() => {
-                          handleFocus();
-                          setActiveInput('source');
-                        }}
-                      />
-                    </View>
-                  </View>
-
-                  <View className="flex-row items-center mb-2.5">
-                    <View className="w-8 items-center pt-1"><Ionicons name="location" size={20} color="#F97316" /></View>
-                    <View className="flex-1 ml-3 border-b border-slate-100 pb-2">
-                      <Text className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Where to go</Text>
-                      <TextInput
-                        className="text-base text-slate-800 font-semibold mt-0.5"
-                        placeholder="Enter Destination"
-                        placeholderTextColor="#94A3B8"
-                        value={destination}
-                        onChangeText={(txt) => {
-                          setDestination(txt);
-                          setActiveInput('destination');
-                        }}
-                        onFocus={() => {
-                          handleFocus();
-                          setActiveInput('destination');
-                        }}
-                      />
-                    </View>
-                  </View>
-
-                  {suggestions.length > 0 && activeInput === 'destination' && (
-                    <View className="bg-slate-50 rounded-2xl p-2 mt-2 mb-2 border border-slate-100 shadow-sm z-20">
-                      {suggestions.map((item, idx) => (
-                        <TouchableOpacity
-                          key={idx}
-                          className="flex-row items-center p-3 border-b border-slate-200/50 last:border-0"
-                          onPress={() => {
-                            setDestination(item.display_name);
-                            setDestCoords({ lat: item.lat, lon: item.lon });
-                            setSuggestions([]);
-                            setActiveInput(null);
-                            Keyboard.dismiss();
-                          }}
-                        >
-                          <Ionicons name="pin-outline" size={16} color="#64748B" />
-                          <Text className="text-slate-700 text-sm font-medium ml-3 flex-1" numberOfLines={1}>
-                            {item.display_name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Hints / Suggestions List */}
-                  {activeInput === 'source' && (
-                    <TouchableOpacity
-                      className="flex-row items-center p-3 border-b border-slate-200/50 bg-blue-50/50 rounded-t-xl"
-                      onPress={() => {
-                        fetchCurrentLocation();
-                        setSuggestions([]);
-                        setActiveInput(null);
-                        Keyboard.dismiss();
-                      }}
-                    >
-                      <Ionicons name="navigate-outline" size={16} color="#3B82F6" />
-                      <Text className="text-blue-600 text-sm font-bold ml-3 flex-1">
-                        Use Current Location
-                      </Text>
-                      {isLoadingLocation && <ActivityIndicator size="small" color="#3B82F6" />}
+              {/* ── SOURCE INPUT ── */}
+              <View style={{ marginBottom: 16 }}>
+                <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 11, fontWeight: '900', color: '#3B82F6', marginBottom: 8, marginLeft: 4, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  From where
+                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: 'white',
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderWidth: 2,
+                    borderColor: activeInput === 'source' ? '#3B82F6' : '#F1F5F9',
+                  }}
+                >
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#3B82F6', marginRight: 12 }} />
+                  <TextInput
+                    maxFontSizeMultiplier={1.2}
+                    style={{ flex: 1, fontSize: 15, color: '#1E293B', fontWeight: '700', textAlign: 'left' }}
+                    placeholder="Current Location"
+                    placeholderTextColor="#94A3B8"
+                    value={source}
+                    selection={sourceSelection}
+                    onChangeText={(txt) => {
+                      setSource(txt);
+                      setActiveInput('source');
+                      setSourceSelection(undefined); // free cursor when user is typing
+                    }}
+                    onFocus={() => {
+                      setActiveInput('source');
+                      setSourceSelection({ start: 0, end: 0 }); // jump to start on focus
+                    }}
+                    onSelectionChange={() => setSourceSelection(undefined)} // release after first render
+                    textAlignVertical="center"
+                    selectTextOnFocus={false}
+                  />
+                  {source.length > 0 && (
+                    <TouchableOpacity style={{ padding: 4 }} onPress={() => { setSource(""); setSourceCoords(null); setSuggestions([]); }}>
+                      <Ionicons name="close-circle" size={20} color="#CBD5E1" />
                     </TouchableOpacity>
                   )}
+                </View>
 
-                  {suggestions.length > 0 && activeInput === 'source' && (
-                    <View className="bg-slate-50 rounded-2xl p-2 mt-2 border border-slate-100 shadow-sm">
+                {/* Use Current Location shortcut */}
+                {activeInput === 'source' && (
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: 14,
+                      borderWidth: 1,
+                      borderColor: '#EFF6FF',
+                      marginTop: 8,
+                      backgroundColor: '#EFF6FF',
+                      borderRadius: 16,
+                    }}
+                    onPress={() => {
+                      fetchCurrentLocation();
+                      setSuggestions([]);
+                      setActiveInput(null);
+                      Keyboard.dismiss();
+                    }}
+                  >
+                    <Ionicons name="navigate-outline" size={20} color="#3B82F6" />
+                    <Text maxFontSizeMultiplier={1.2} style={{ color: '#3B82F6', fontSize: 15, fontWeight: '700', marginLeft: 12, flex: 1 }}>
+                      Use Current Location
+                    </Text>
+                    {isLoadingLocation && <ActivityIndicator size="small" color="#3B82F6" />}
+                  </TouchableOpacity>
+                )}
+
+                {/* Source suggestions */}
+                {suggestions.length > 0 && activeInput === 'source' && (
+                  <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 8, marginTop: 8, borderWidth: 1, borderColor: '#F1F5F9', maxHeight: 180, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
+                    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
                       {suggestions.map((item, idx) => (
                         <TouchableOpacity
                           key={idx}
-                          className="flex-row items-center p-3 border-b border-slate-200/50 last:border-0"
+                          style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: idx < suggestions.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}
                           onPress={() => {
                             setSource(item.display_name);
                             setSourceCoords({ lat: item.lat, lon: item.lon });
+                            setSourceSelection({ start: 0, end: 0 }); // force text to show from start
                             setSuggestions([]);
                             setActiveInput(null);
                             Keyboard.dismiss();
                           }}
                         >
-                          <Ionicons name="pin-outline" size={16} color="#64748B" />
-                          <Text className="text-slate-700 text-sm font-medium ml-3 flex-1" numberOfLines={1}>
+                          <Ionicons name="pin-outline" size={18} color="#64748B" />
+                          <Text maxFontSizeMultiplier={1.2} style={{ color: '#334155', fontSize: 14, fontWeight: '500', marginLeft: 12, flex: 1 }} numberOfLines={1}>
                             {item.display_name}
                           </Text>
                         </TouchableOpacity>
                       ))}
-                    </View>
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              {/* Subtle divider between inputs (no dashed line per requirements) */}
+              <View style={{ height: 1, backgroundColor: '#F1F5F9', marginHorizontal: 4, marginBottom: 16 }} />
+
+              {/* ── DESTINATION INPUT ── */}
+              <View style={{ marginBottom: 8 }}>
+                <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 11, fontWeight: '900', color: '#F97316', marginBottom: 8, marginLeft: 4, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  Where to go
+                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: 'white',
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderWidth: 2,
+                    borderColor: activeInput === 'destination' ? '#F97316' : '#F1F5F9',
+                  }}
+                >
+                  <Ionicons name="location" size={20} color="#F97316" style={{ marginRight: 12 }} />
+                  <TextInput
+                    maxFontSizeMultiplier={1.2}
+                    style={{ flex: 1, fontSize: 15, color: '#1E293B', fontWeight: '700', textAlign: 'left' }}
+                    placeholder="Enter Destination"
+                    placeholderTextColor="#94A3B8"
+                    value={destination}
+                    selection={destSelection}
+                    onChangeText={(txt) => {
+                      setDestination(txt);
+                      setActiveInput('destination');
+                      setDestSelection(undefined); // free cursor when user is typing
+                    }}
+                    onFocus={() => {
+                      setActiveInput('destination');
+                      setDestSelection({ start: 0, end: 0 }); // jump to start on focus
+                    }}
+                    onSelectionChange={() => setDestSelection(undefined)}
+                    textAlignVertical="center"
+                    selectTextOnFocus={false}
+                  />
+                  {destination.length > 0 && (
+                    <TouchableOpacity style={{ padding: 4 }} onPress={() => { setDestination(""); setDestCoords(null); setSuggestions([]); }}>
+                      <Ionicons name="close-circle" size={20} color="#CBD5E1" />
+                    </TouchableOpacity>
                   )}
                 </View>
 
-                <TouchableOpacity
-                  className="bg-slate-800 py-4 rounded-[18px] items-center flex-row justify-center active:opacity-90"
-                  activeOpacity={0.8}
-                  onPress={async () => {
-                    Keyboard.dismiss();
-                    if (destination.trim() && sourceCoords && destCoords) {
-                      try {
-                        const res = await locationAPI.calculateDistanceAndRecommend(
-                          parseFloat(sourceCoords.lat), parseFloat(sourceCoords.lon),
-                          parseFloat(destCoords.lat), parseFloat(destCoords.lon)
-                        );
+                {/* Destination suggestions */}
+                {suggestions.length > 0 && activeInput === 'destination' && (
+                  <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 8, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: '#F1F5F9', maxHeight: 180, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, zIndex: 20 }}>
+                    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                      {suggestions.map((item, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: idx < suggestions.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}
+                          onPress={() => {
+                            setDestination(item.display_name);
+                            setDestCoords({ lat: item.lat, lon: item.lon });
+                            setDestSelection({ start: 0, end: 0 }); // force text to show from start
+                            setSuggestions([]);
+                            setActiveInput(null);
+                            Keyboard.dismiss();
+                          }}
+                        >
+                          <Ionicons name="pin-outline" size={18} color="#64748B" />
+                          <Text maxFontSizeMultiplier={1.2} style={{ color: '#334155', fontSize: 14, fontWeight: '500', marginLeft: 12, flex: 1 }} numberOfLines={1}>
+                            {item.display_name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
 
-                        const { distanceKm, recommendation } = res.data.data;
+              {/* ── SEARCH RIDE BUTTON ── */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#1E293B',
+                  paddingVertical: 16,
+                  borderRadius: 18,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  marginTop: 8,
+                }}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  Keyboard.dismiss();
+                  if (destination.trim() && sourceCoords && destCoords) {
+                    try {
+                      const res = await locationAPI.calculateDistanceAndRecommend(
+                        Number(sourceCoords.lat), Number(sourceCoords.lon),
+                        Number(destCoords.lat), Number(destCoords.lon)
+                      );
 
-                        if (recommendation === 'cab') {
-                          // Instead of creating booking immediately, redirect to BookingScreen
-                          // so the user can see Fare and Distance before confirmation.
-                          router.push({
-                            pathname: "/screens/BookingScreen",
-                            params: {
-                              pickup: source,
-                              drop: destination,
-                              pLat: sourceCoords.lat,
-                              pLon: sourceCoords.lon,
-                              dLat: destCoords.lat,
-                              dLon: destCoords.lon,
-                              dist: distanceKm.toString()
-                            }
-                          });
-                        } else {
-                          // Redirect to Outstation/Rental with pre-filled coords
-                          router.push({
-                            pathname: "/screens/OutstationBookingScreen",
-                            params: {
-                              pickup: source,
-                              drop: destination,
-                              pLat: sourceCoords.lat,
-                              pLon: sourceCoords.lon,
-                              dLat: destCoords.lat,
-                              dLon: destCoords.lon,
-                              dist: distanceKm.toString()
-                            }
-                          });
-                        }
-                      } catch (err: any) {
-                        console.error("Home Search Error", err);
-                        // API interceptor returns 'data' directly on error, so err is the response body
-                        const errorMessage = err.message || err.response?.data?.message || "";
-                        const existingBookingId = err.bookingId || err.response?.data?.bookingId;
+                      const { distanceKm, recommendation } = res.data.data;
 
-                        if (errorMessage.includes("already have an active ride") && existingBookingId) {
-                          Alert.alert(
-                            "Active Ride Found",
-                            "You have a ride in progress. Do you want to view it or cancel it?",
-                            [
-                              { text: "Close", style: "cancel" },
-                              {
-                                text: "Cancel Request",
-                                style: "destructive",
-                                onPress: async () => {
-                                  try {
-                                    await bookingAPI.cancelBooking(existingBookingId);
-                                    showToast("Success", "Ride request cancelled.", "success");
-                                  } catch (cancelErr) {
-                                    console.error("Cancel Error:", cancelErr);
-                                    showToast("Error", "Failed to cancel. Try viewing the ride instead.", "error");
-                                  }
-                                }
-                              },
-                              {
-                                text: "View Ride",
-                                onPress: () => {
-                                  setActiveBookingId(existingBookingId);
-                                  router.push({
-                                    pathname: "/screens/LiveRideTrackingScreen",
-                                    params: {
-                                      bookingId: existingBookingId,
-                                      pLat: err.response?.data?.booking?.pickupLatitude || '',
-                                      pLon: err.response?.data?.booking?.pickupLongitude || '',
-                                      dLat: err.response?.data?.booking?.dropLatitude || '',
-                                      dLon: err.response?.data?.booking?.dropLongitude || ''
-                                    }
-                                  });
+                      if (recommendation === 'cab') {
+                        router.push({
+                          pathname: "/screens/BookingScreen",
+                          params: {
+                            pickup: source,
+                            drop: destination,
+                            pLat: sourceCoords.lat,
+                            pLon: sourceCoords.lon,
+                            dLat: destCoords.lat,
+                            dLon: destCoords.lon,
+                            dist: distanceKm.toString()
+                          }
+                        });
+                      } else {
+                        router.push({
+                          pathname: "/screens/OutstationBookingScreen",
+                          params: {
+                            pickup: source,
+                            drop: destination,
+                            pLat: sourceCoords.lat,
+                            pLon: sourceCoords.lon,
+                            dLat: destCoords.lat,
+                            dLon: destCoords.lon,
+                            dist: distanceKm.toString()
+                          }
+                        });
+                      }
+                    } catch (err: any) {
+                      const errorMessage = err.message || err.response?.data?.message || "";
+                      const existingBookingId = err.bookingId || err.response?.data?.bookingId;
+
+                      if (errorMessage.includes("already have an active ride") && existingBookingId) {
+                        Alert.alert(
+                          "Active Ride Found",
+                          "You have a ride in progress. Do you want to view it or cancel it?",
+                          [
+                            { text: "Close", style: "cancel" },
+                            {
+                              text: "Cancel Request",
+                              style: "destructive",
+                              onPress: async () => {
+                                try {
+                                  await bookingAPI.cancelBooking(existingBookingId);
+                                  showToast("Success", "Ride request cancelled.", "success");
+                                } catch (cancelErr) {
+                                  showToast("Error", "Failed to cancel. Try viewing the ride instead.", "error");
                                 }
                               }
-                            ]
-                          );
-                        } else {
-                          showToast("Error", "Failed to calculate distance or create booking. Try again.", "error");
-                        }
+                            },
+                            {
+                              text: "View Ride",
+                              onPress: () => {
+                                setActiveBookingId(existingBookingId);
+                                router.push({
+                                  pathname: "/screens/LiveRideTrackingScreen",
+                                  params: {
+                                    bookingId: existingBookingId,
+                                    pLat: err.response?.data?.booking?.pickupLatitude || '',
+                                    pLon: err.response?.data?.booking?.pickupLongitude || '',
+                                    dLat: err.response?.data?.booking?.dropLatitude || '',
+                                    dLon: err.response?.data?.booking?.dropLongitude || ''
+                                  }
+                                });
+                              }
+                            }
+                          ]
+                        );
+                      } else {
+                        showToast("Error", "Failed to calculate distance. Try again.", "error");
                       }
-                    } else if (!destination.trim()) {
-                      if (Platform.OS === 'android') {
-                        ToastAndroid.show("Please enter a destination", ToastAndroid.SHORT);
-                      }
-                    } else {
-                      alert("Please select locations from the search suggestions.");
                     }
+                  } else if (!destination.trim()) {
+                    if (Platform.OS === 'android') {
+                      ToastAndroid.show("Please enter a destination", ToastAndroid.SHORT);
+                    }
+                  } else {
+                    alert("Please select locations from the search suggestions.");
+                  }
+                }}
+              >
+                <Text maxFontSizeMultiplier={1.2} style={{ color: 'white', fontSize: 17, fontWeight: '800', letterSpacing: 0.5 }}>Search Ride</Text>
+                <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* ── QUICK ACCESS BUTTONS ── */}
+            <Animated.View style={{ marginTop: 28, marginBottom: 16, opacity: fadeAnim }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'white',
+                    padding: 16,
+                    borderRadius: 20,
+                    alignItems: 'center',
+                    marginRight: 8,
+                    borderWidth: 1,
+                    borderColor: '#F1F5F9',
+                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                  }}
+                  onPress={() => {
+                    if (Platform.OS === 'android') ToastAndroid.show("Start a Trip", ToastAndroid.SHORT);
                   }}
                 >
-                  <Text className="text-white text-lg font-extrabold tracking-wide">Search Ride</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ marginLeft: 8 }} />
+                  <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 999, marginBottom: 8 }}>
+                    <Ionicons name="car" size={24} color="#1E293B" />
+                  </View>
+                  <Text maxFontSizeMultiplier={1.2} style={{ color: '#1E293B', fontWeight: '800', fontSize: 12 }}>Trip</Text>
                 </TouchableOpacity>
 
-              </Animated.View>
-
-              <Animated.View className="mt-8" style={[{ opacity: fadeAnim }]}>
-                <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-xl font-black text-slate-800 italic tracking-tighter">Your Travel Feed</Text>
-                </View>
-
-                <View className="flex-row gap-4">
-                  <View className="flex-1 bg-indigo-600 p-5 rounded-[35px] shadow-xl shadow-indigo-200 relative overflow-hidden">
-                    <View className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full" />
-                    <View className="bg-white/20 self-start p-2 rounded-2xl mb-3">
-                      <Ionicons name="gift" size={22} color="#FFF" />
-                    </View>
-                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Round-Trip Joy</Text>
-                    <Text className="text-white/90 text-[11px] font-bold mt-1">Grab a flat 50% discount on every return journey!</Text>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'white',
+                    padding: 16,
+                    borderRadius: 20,
+                    alignItems: 'center',
+                    marginHorizontal: 4,
+                    borderWidth: 1,
+                    borderColor: '#F1F5F9',
+                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                  }}
+                  onPress={() => {
+                    if (Platform.OS === 'android') ToastAndroid.show("Book Intercity", ToastAndroid.SHORT);
+                  }}
+                >
+                  <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 999, marginBottom: 8 }}>
+                    <Ionicons name="map" size={24} color="#1E293B" />
                   </View>
+                  <Text maxFontSizeMultiplier={1.2} style={{ color: '#1E293B', fontWeight: '800', fontSize: 12 }}>Intercity</Text>
+                </TouchableOpacity>
 
-                  <View className="flex-1 bg-slate-900 p-5 rounded-[35px] shadow-xl shadow-slate-400 relative overflow-hidden">
-                    <View className="absolute -right-6 -bottom-6 w-24 h-24 bg-white/5 rounded-full" />
-                    <View className="bg-white/10 self-start p-2 rounded-2xl mb-3">
-                      <Ionicons name="time" size={22} color="#FFD700" />
-                    </View>
-                    <Text className="text-white font-black text-lg mt-1 italic tracking-tighter">Relax, We&apos;ll Wait</Text>
-                    <Text className="text-white/90 text-[11px] font-bold mt-1">Enjoy 12 mins of complimentary wait time per KM.</Text>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'white',
+                    padding: 16,
+                    borderRadius: 20,
+                    alignItems: 'center',
+                    marginLeft: 8,
+                    borderWidth: 1,
+                    borderColor: '#F1F5F9',
+                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                  }}
+                  onPress={() => {
+                    router.push({ pathname: "/screens/BookingScreen", params: { mode: 'schedule' } });
+                  }}
+                >
+                  <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 999, marginBottom: 8 }}>
+                    <Ionicons name="calendar" size={24} color="#1E293B" />
                   </View>
-                </View>
-              </Animated.View>
-            </ScrollView>
-          </KeyboardAvoidingView>
+                  <Text maxFontSizeMultiplier={1.2} style={{ color: '#1E293B', fontWeight: '800', fontSize: 12 }}>Reserve</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </Animated.ScrollView>
         </>
       )}
 
@@ -773,12 +902,29 @@ const HomeScreen = () => {
 
       {/* Bottom Tab Bar */}
       <View
-        className="absolute bottom-0 w-full bg-white flex-row justify-around items-center border-t border-slate-100 shadow-2xl elevation-[25] z-50"
-        style={{ paddingBottom: Math.max(insets.bottom, 20), paddingTop: 10 }}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          width: '100%',
+          backgroundColor: 'white',
+          flexDirection: 'row',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          borderTopWidth: 1,
+          borderTopColor: '#F1F5F9',
+          paddingBottom: Math.max(insets.bottom, 20),
+          paddingTop: 10,
+          elevation: 25,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          zIndex: 50,
+        }}
       >
         <TabItem name="Home" icon="home" label="Home" />
+        <TabItem name="Schedule" icon="calendar" label="Ride" />
         <TabItem name="Activity" icon="list" label="History" />
-        <TabItem name="Schedule" icon="calendar" label="Schedule" />
         <TabItem name="Profile" icon="person" label="Profile" />
       </View>
 
@@ -791,9 +937,7 @@ const HomeScreen = () => {
           if (activeBookingId) {
             try {
               await bookingAPI.cancelBooking(activeBookingId);
-            } catch (err) {
-              console.error("Searching cancel error:", err);
-            }
+            } catch (err) {}
           }
           clearBookingState();
         }}
@@ -821,9 +965,7 @@ const HomeScreen = () => {
           if (activeBookingId) {
             try {
               await bookingAPI.cancelBooking(activeBookingId);
-            } catch (err) {
-              console.error("Assigned cancel error:", err);
-            }
+            } catch (err) {}
           }
           clearBookingState();
         }}
@@ -847,7 +989,6 @@ const HomeScreen = () => {
         }}
       />
     </View>
-
   );
 };
 
