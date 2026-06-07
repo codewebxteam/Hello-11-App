@@ -76,6 +76,41 @@ const BookingsList: React.FC = () => {
     [filtered, safePage]
   );
 
+  // --- ADMIN FORCE CANCEL LOGIC ---
+  const handleForceCancel = async (e: React.MouseEvent, bookingId: string) => {
+    e.stopPropagation(); // Prevents the modal from opening when clicking the cancel button
+    
+    if (!window.confirm("Are you sure you want to force cancel this ride? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      // Backend URL (Aapka jo bhi base URL hai Vite mein, .env se utha raha hai)
+      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const token = localStorage.getItem("token"); // Assuming admin token is in localStorage
+      
+      const response = await fetch(`${baseUrl}/api/admin/bookings/${bookingId}/cancel`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` 
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to cancel on server");
+      }
+
+      alert("Ride cancelled successfully by Admin.");
+      refreshAll(); // List ko update karne ke liye fetch call
+    } catch (err: any) {
+      console.error("Failed to force cancel:", err);
+      alert(err.message || "Failed to cancel the ride. Please check API.");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -138,6 +173,10 @@ const BookingsList: React.FC = () => {
       <div className="grid grid-cols-1 gap-4">
         {paginatedBookings.map((booking) => {
           const statusClass = STATUS_COLORS[booking.status] || "bg-gray-100 text-gray-700";
+          
+          // Only show cancel button if ride is not completed or already cancelled
+          const isCancellable = !["completed", "cancelled"].includes(booking.status);
+
           return (
             <div 
                 key={booking._id} 
@@ -204,9 +243,21 @@ const BookingsList: React.FC = () => {
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Fare</p>
                     <p className="text-xl font-bold text-gray-900 tracking-tight">₹{Math.round(getAmount(booking)).toLocaleString()}</p>
                   </div>
-                  <button className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors">
-                      View Profile
-                  </button>
+                  
+                  <div className="flex flex-col items-end gap-3 mt-auto">
+                    <button className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors">
+                        View Profile
+                    </button>
+                    {/* Admin Force Cancel Button */}
+                    {isCancellable && (
+                      <button 
+                        onClick={(e) => handleForceCancel(e, booking._id)}
+                        className="text-[10px] font-black uppercase tracking-widest text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                      >
+                          Cancel Ride
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -242,4 +293,3 @@ const BookingsList: React.FC = () => {
 };
 
 export default BookingsList;
-

@@ -12,6 +12,9 @@ import {
   getFinancialReports
 } from "../controllers/adminController.js";
 
+// Naya function import karein bookingController se
+import { adminForceCancelBooking } from "../controllers/bookingController.js"; 
+
 const router = express.Router();
 
 // Dashboard
@@ -30,6 +33,9 @@ router.put("/drivers/:id/reset-commission", manualPaymentReset);
 // Bookings management
 router.get("/bookings", getAllBookings);
 router.put("/bookings/:id/status", updateBookingStatus);
+
+// --- NAYA ROUTE: Admin Cancel Ride Ke Liye ---
+router.post("/bookings/:id/cancel", adminForceCancelBooking);
 
 // Financials
 router.get("/financials", getFinancialReports);

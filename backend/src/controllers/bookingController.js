@@ -1169,3 +1169,61 @@ export const startWaiting = async (req, res) => {
     res.status(500).json({ message: "Failed to start waiting", error: error.message });
   }
 };
+
+// ================= ADMIN FORCE CANCEL RIDE =================
+export const adminForceCancelBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    // Agar ride pehle hi complete ya cancel ho chuki hai
+    if (booking.status === "cancelled" || booking.status === "completed") {
+      return res.status(400).json({ success: false, message: `Ride is already ${booking.status}` });
+    }
+
+    // Direct Status Update by Admin
+    booking.status = "cancelled";
+    booking.cancelledBy = "admin";
+    booking.cancellationReason = "Force cancelled by Admin";
+    await booking.save();
+
+    // Socket Notifications (User aur Driver dono ko app par turant update bhejne ke liye)
+    try {
+      const io = getIO(); // Make sure getIO is imported in your bookingController
+      
+      // 1. Notify User
+      if (booking.user) {
+        io.to(booking.user.toString()).emit("bookingCancelledByUser", {
+          bookingId: booking._id.toString(),
+          message: "Your ride has been cancelled by the Admin."
+        });
+      }
+
+      // 2. Notify Driver (Agar koi driver assign ho chuka tha)
+      if (booking.driver) {
+        await Driver.findByIdAndUpdate(booking.driver, {
+          available: true,
+          currentBooking: null
+        });
+        
+        io.to(booking.driver.toString()).emit("bookingCancelledByUser", {
+          bookingId: booking._id.toString(),
+          message: "This ride was cancelled by the Admin."
+        });
+      } else {
+        // Agar driver assign nahi hua tha (Searching mode), toh sabhi drivers ke phone se request hata do
+        io.emit("rideRequestCancelled", { bookingId: booking._id.toString() });
+      }
+    } catch (socketError) {
+      console.log(`Admin cancel socket error: ${socketError.message}`);
+    }
+
+    res.json({ success: true, message: "Ride force-cancelled successfully by Admin." });
+  } catch (error) {
+    console.error("Admin Cancel Error:", error);
+    res.status(500).json({ success: false, message: "Server error during cancellation" });
+  }
+};
