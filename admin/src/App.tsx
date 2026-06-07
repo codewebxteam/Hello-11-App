@@ -22,7 +22,6 @@ function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Check agar admin pehle se login hai (Token localStorage mein hai)
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -30,7 +29,6 @@ function App() {
     }
   }, []);
 
-  // Login Handle karne ka function
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -49,13 +47,6 @@ function App() {
     }
   };
 
-  // Logout Handle karne ka function
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    setIsAuthenticated(false);
-  };
-
-  // Agar login nahi hai, toh ye secure Login Screen dikhao
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -82,7 +73,7 @@ function App() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition-all outline-none"
-                placeholder="hello11kld@gmail.com"
+                placeholder="Enter your email"
                 required
               />
             </div>
@@ -110,28 +101,23 @@ function App() {
     );
   }
 
-  // Agar login successful ho gaya, toh aapka original Router aur Routes dikhayenge
   return (
-    <>
-      <Routes>
-        <Route path="/" element={<DashboardLayout />}>
-          <Route index element={<DashboardHome />} />
-          <Route path="users" element={<UsersList />} />
-          <Route path="riders" element={<RidersList />} />
-          <Route path="bookings" element={<BookingsList />} />
-          <Route path="live-map" element={<LiveMapPage />} />
-          <Route path="allotment" element={<DispatchPage />} />
-          <Route path="ratings" element={<RatingsPage />} />
-          <Route path="coupons" element={<CouponsPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="finance" element={<FinanceReport />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-      
-    
-    </>
+    <Routes>
+      <Route path="/" element={<DashboardLayout />}>
+        <Route index element={<DashboardHome />} />
+        <Route path="users" element={<UsersList />} />
+        <Route path="riders" element={<RidersList />} />
+        <Route path="bookings" element={<BookingsList />} />
+        <Route path="live-map" element={<LiveMapPage />} />
+        <Route path="allotment" element={<DispatchPage />} />
+        <Route path="ratings" element={<RatingsPage />} />
+        <Route path="coupons" element={<CouponsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="finance" element={<FinanceReport />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   );
 }
 
