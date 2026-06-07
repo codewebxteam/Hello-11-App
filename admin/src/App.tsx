@@ -130,13 +130,7 @@ function App() {
         </Route>
       </Routes>
       
-      {/* Floating Logout Button */}
-      <button 
-        onClick={handleLogout}
-        className="fixed top-4 right-4 z-50 bg-white border border-gray-200 text-red-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-red-50 transition-all"
-      >
-        Logout
-      </button>
+    
     </>
   );
 }
