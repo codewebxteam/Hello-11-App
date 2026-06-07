@@ -6,7 +6,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat.native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate, runOnUI } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
@@ -426,64 +426,67 @@ export default function ActiveRideScreen() {
             {/* --- REAL MAP BACKGROUND --- */}
             <View className="absolute inset-0 bg-slate-200">
                 {region ? (
-                    <MapView
-                        style={{ width, height }}
-                        region={region}
-                        showsUserLocation={true}
-                        provider={PROVIDER_GOOGLE}
-                    >
+                   <MapView
+    style={{ width, height }}
+    region={region}
+    showsUserLocation={true}
+    provider={PROVIDER_GOOGLE}
+    // Ye 3 props map ka ghoomna aur tilt hona band kar denge
+    rotateEnabled={false}
+    pitchEnabled={false}
+    showsCompass={false}
+>
+    {routeCoords.length > 0 && (
+        <Polyline
+            coordinates={routeCoords}
+            strokeWidth={5}
+            strokeColor="#3b82f6"
+        />
+    )}
 
-                        {routeCoords.length > 0 && (
-                            <Polyline
-                                coordinates={routeCoords}
-                                strokeWidth={5}
-                                strokeColor="#3b82f6"
-                            />
-                        )}
+    {/* Markers show even before booking data loads if params are present */}
+    {Number(booking?.pickupLatitude || (isReturnTrip ? params.dLat : params.pLat)) !== 0 && (
+        <Marker
+            tracksViewChanges={false}
+            coordinate={{
+                latitude: Number(isReturnTrip ? (booking?.dropLatitude || params.dLat) : (booking?.pickupLatitude || params.pLat)) || 0,
+                longitude: Number(isReturnTrip ? (booking?.dropLongitude || params.dLon) : (booking?.pickupLongitude || params.pLon)) || 0
+            }}
+        >
+            <View className="items-center">
+                <View className="bg-blue-500 px-2 py-0.5 rounded mb-1 shadow-md">
+                    <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                        {isReturnTrip ? 'START' : 'PICKUP'}
+                    </Text>
+                </View>
+                <View className="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg">
+                    <Ionicons name="location" size={16} color="white" />
+                </View>
+            </View>
+        </Marker>
+    )}
 
-                        {/* Markers show even before booking data loads if params are present */}
-                        {Number(booking?.pickupLatitude || (isReturnTrip ? params.dLat : params.pLat)) !== 0 && (
-                            <Marker
-                                tracksViewChanges={false}
-                                coordinate={{
-                                    latitude: Number(isReturnTrip ? (booking?.dropLatitude || params.dLat) : (booking?.pickupLatitude || params.pLat)) || 0,
-                                    longitude: Number(isReturnTrip ? (booking?.dropLongitude || params.dLon) : (booking?.pickupLongitude || params.pLon)) || 0
-                                }}
-                            >
-                                <View className="items-center">
-                                    <View className="bg-blue-500 px-2 py-0.5 rounded mb-1 shadow-md">
-                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                                            {isReturnTrip ? 'START' : 'PICKUP'}
-                                        </Text>
-                                    </View>
-                                    <View className="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg">
-                                        <Ionicons name="location" size={16} color="white" />
-                                    </View>
-                                </View>
-                            </Marker>
-                        )}
-
-                        {Number(booking?.dropLatitude || (isReturnTrip ? params.pLat : params.dLat)) !== 0 && (
-                            <Marker
-                                tracksViewChanges={false}
-                                coordinate={{
-                                    latitude: Number(isReturnTrip ? (booking?.pickupLatitude || params.pLat) : (booking?.dropLatitude || params.dLat)) || 0,
-                                    longitude: Number(isReturnTrip ? (booking?.pickupLongitude || params.pLon) : (booking?.dropLongitude || params.dLon)) || 0
-                                }}
-                            >
-                                <View className="items-center">
-                                    <View className="bg-red-500 px-2 py-0.5 rounded mb-1 shadow-md">
-                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                                            {isReturnTrip ? 'HOME' : 'DROP'}
-                                        </Text>
-                                    </View>
-                                    <View className="bg-red-600 p-2 rounded-full border-2 border-white shadow-lg">
-                                        <Ionicons name="flag" size={18} color="white" />
-                                    </View>
-                                </View>
-                            </Marker>
-                        )}
-                    </MapView>
+    {Number(booking?.dropLatitude || (isReturnTrip ? params.pLat : params.dLat)) !== 0 && (
+        <Marker
+            tracksViewChanges={false}
+            coordinate={{
+                latitude: Number(isReturnTrip ? (booking?.pickupLatitude || params.pLat) : (booking?.dropLatitude || params.dLat)) || 0,
+                longitude: Number(isReturnTrip ? (booking?.pickupLongitude || params.pLon) : (booking?.dropLongitude || params.dLon)) || 0
+            }}
+        >
+            <View className="items-center">
+                <View className="bg-red-500 px-2 py-0.5 rounded mb-1 shadow-md">
+                    <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                        {isReturnTrip ? 'HOME' : 'DROP'}
+                    </Text>
+                </View>
+                <View className="bg-red-600 p-2 rounded-full border-2 border-white shadow-lg">
+                    <Ionicons name="flag" size={18} color="white" />
+                </View>
+            </View>
+        </Marker>
+    )}
+</MapView>
                 ) : (
                     <View className="flex-1 items-center justify-center">
                         <Text className="text-slate-400 font-bold">Loading Map...</Text>
