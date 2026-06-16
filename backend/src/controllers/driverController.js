@@ -438,6 +438,40 @@ export const updateDriverProfile = async (req, res) => {
   }
 };
 
+// ================= UPDATE DRIVER PROFILE IMAGE =================
+export const updateDriverProfileImage = async (req, res) => {
+  try {
+    const { profileImage } = req.body;
+    let newImageUrl = profileImage;
+    
+    if (profileImage && profileImage.startsWith('data:')) {
+      const fileName = `profile_${req.driverId}_${Date.now()}.jpg`;
+      const uploadResponse = await uploadToImageKit(profileImage, fileName, "/profiles");
+      newImageUrl = uploadResponse.url;
+    }
+
+    const driver = await Driver.findByIdAndUpdate(
+      req.driverId,
+      { profileImage: newImageUrl },
+      { new: true }
+    ).select("-password");
+
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    res.json({
+      message: "Profile image updated successfully",
+      profileImage: newImageUrl
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update profile image",
+      error: error.message
+    });
+  }
+};
+
 // ================= UPDATE VEHICLE DETAILS =================
 export const updateVehicleDetails = async (req, res) => {
   try {
@@ -1038,15 +1072,15 @@ export const getDriverDashboard = async (req, res) => {
 // ================= ACCEPT BOOKING =================
 export const acceptBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const initialBooking = await Booking.findById(req.params.id);
 
-    if (!booking) {
+    if (!initialBooking) {
       return res.status(404).json({
         message: "Booking not found"
       });
     }
 
-    if (!["pending", "driver_assigned", "scheduled"].includes(booking.status)) {
+    if (!["pending", "driver_assigned", "scheduled"].includes(initialBooking.status)) {
       return res.status(400).json({
         message: "This booking cannot be accepted"
       });
@@ -1090,10 +1124,27 @@ export const acceptBooking = async (req, res) => {
       }
     }
 
-    // Update booking with driver
-    booking.driver = req.driverId;
-    booking.status = "accepted";
-    await booking.save();
+    // ATOMIC UPDATE to prevent race conditions (Multiple drivers accepting same ride)
+    const booking = await Booking.findOneAndUpdate(
+      { 
+        _id: req.params.id, 
+        status: { $in: ["pending", "driver_assigned", "scheduled"] }
+      },
+      { 
+        $set: { 
+          driver: req.driverId, 
+          status: "accepted" 
+        } 
+      },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(400).json({
+        message: "Oops! Another driver has already accepted this ride or it is no longer available."
+      });
+    }
+
     serverLog(`Booking ${booking._id} accepted by driver ${req.driverId}`);
 
     // For future scheduled rides, keep driver available until ride-time reminder window.

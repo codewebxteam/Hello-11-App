@@ -244,6 +244,17 @@ bookingSchema.index({ user: 1, paymentStatus: 1, createdAt: -1 });
 // For date range queries
 // bookingSchema.index({ user: 1, createdAt: -1 }); // Duplicate of line 199
 
+// Partial unique index to strictly prevent multiple active bookings (race conditions)
+bookingSchema.index(
+  { user: 1 },
+  { 
+    unique: true, 
+    partialFilterExpression: { 
+      status: { $in: ["pending", "accepted", "driver_assigned", "arrived", "started", "waiting", "return_ride_started"] } 
+    } 
+  }
+);
+
 bookingSchema.pre('validate', function() {
   if (this.vehicleType) {
     const vType = this.vehicleType.toLowerCase();

@@ -17,7 +17,7 @@ interface FilterBarProps {
 
 const BOOKING_TYPE_OPTIONS = [
   { label: "Ride Now", value: "now", icon: "flash" as const },
-  { label: "Scheduled", value: "schedule", icon: "calendar" as const },
+  // { label: "Scheduled", value: "schedule", icon: "calendar" as const },
 ];
 
 const RIDE_TYPE_OPTIONS = [

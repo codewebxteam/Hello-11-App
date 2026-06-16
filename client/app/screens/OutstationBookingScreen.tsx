@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, useWindowDimensions
+  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, useWindowDimensions, AppState
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
@@ -137,7 +137,35 @@ const OutstationBookingScreen = () => {
         dropCoords.lat, dropCoords.lon
       );
       if (dirRes.data?.data?.distanceKm) {
-        setDistanceKm(parseFloat(dirRes.data.data.distanceKm));
+        const dist = parseFloat(dirRes.data.data.distanceKm);
+        setDistanceKm(dist);
+        
+        // --- REVERT TO NORMAL RULE ---
+        if (dist > 0 && dist < 40) {
+          Alert.alert(
+            "Short Distance Detected",
+            `This trip is ${dist.toFixed(1)} km. Rides under 40 km are categorized as Normal rides. Switching to Normal Ride.`,
+            [
+              {
+                text: "Switch to Normal",
+                onPress: () => {
+                  router.replace({
+                    pathname: "/screens/BookingScreen",
+                    params: {
+                      pickup, drop,
+                      pLat: pickupCoords.lat.toString(),
+                      pLon: pickupCoords.lon.toString(),
+                      dLat: dropCoords.lat.toString(),
+                      dLon: dropCoords.lon.toString(),
+                      dist: dist.toString(),
+                      mode: 'now'
+                    }
+                  });
+                }
+              }
+            ]
+          );
+        }
       }
 
       // Nearby drivers (Just to verify some availability, though for "Ride Now" we want to know if *any* exist)
@@ -168,6 +196,31 @@ const OutstationBookingScreen = () => {
       searchingDotAnim.setValue(0);
     }
   }, [isSearchingDriver]);
+
+  // ─── APP STATE LISTENER (BACKGROUND CONNECTION DROP FIX) ────────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
+      if (nextAppState === "active" && isSearchingDriver && activeBookingId) {
+        try {
+          const res = await bookingAPI.getBookingStatus(activeBookingId);
+          const status = res.data?.booking?.status;
+          if (status && status !== 'pending') {
+            clearInterval(pollInterval.current);
+            setIsSearchingDriver(false);
+            if (status === 'cancelled') {
+              Alert.alert('No Driver Found', 'Could not find a driver. Please try again.');
+            } else {
+              router.replace({
+                pathname: '/screens/LiveRideTrackingScreen',
+                params: { bookingId: activeBookingId }
+              });
+            }
+          }
+        } catch (err) {}
+      }
+    });
+    return () => subscription.remove();
+  }, [isSearchingDriver, activeBookingId]);
 
   // ─── Poll booking status when searching ──────────────────────────────────────
   useEffect(() => {
@@ -257,6 +310,16 @@ const OutstationBookingScreen = () => {
 
     if (bookingType === 'schedule' && scheduledDate <= new Date()) {
       Alert.alert('Invalid Time', 'Please select a future date and time for scheduling.');
+      return;
+    }
+
+    if (distanceKm < 2) {
+      Alert.alert('Distance Too Short', 'Minimum distance for a ride is 2 KM. Please select a farther destination.');
+      return;
+    }
+    
+    if (!fares[carType]?.fare || fares[carType].fare <= 0) {
+      Alert.alert('Calculating Fare', 'Please wait while we calculate the fare. Ride cannot be booked for ₹0.');
       return;
     }
 
@@ -592,26 +655,28 @@ const OutstationBookingScreen = () => {
         {/* ─── BOOKING PANEL ─── */}
         <View className={`bg-slate-900 ${isSmallPhone ? 'p-4 rounded-[24px]' : 'p-5 rounded-[35px]'} mt-4`}>
           {/* Ride Now / Schedule Toggle */}
-          <View className="flex-row bg-slate-800 p-1.5 rounded-[15px] mb-4">
-            <TouchableOpacity
-              onPress={() => setBookingType('now')}
-              className={`flex-1 py-3 items-center rounded-xl flex-row justify-center ${bookingType === 'now' ? 'bg-[#FFD700]' : ''}`}
-            >
-              <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
-              <Text className={`text-[11px] font-black ${bookingType === 'now' ? 'text-black' : 'text-slate-400'}`}>
-                RIDE NOW
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setBookingType('schedule')}
-              className={`flex-1 py-3 items-center rounded-xl flex-row justify-center ${bookingType === 'schedule' ? 'bg-[#FFD700]' : ''}`}
-            >
-              <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
-              <Text className={`text-[11px] font-black ${bookingType === 'schedule' ? 'text-black' : 'text-slate-400'}`}>
-                SCHEDULE
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {false && (
+            <View className="flex-row bg-slate-800 p-1.5 rounded-[15px] mb-4">
+              <TouchableOpacity
+                onPress={() => setBookingType('now')}
+                className={`flex-1 py-3 items-center rounded-xl flex-row justify-center ${bookingType === 'now' ? 'bg-[#FFD700]' : ''}`}
+              >
+                <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
+                <Text className={`text-[11px] font-black ${bookingType === 'now' ? 'text-black' : 'text-slate-400'}`}>
+                  RIDE NOW
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setBookingType('schedule')}
+                className={`flex-1 py-3 items-center rounded-xl flex-row justify-center ${bookingType === 'schedule' ? 'bg-[#FFD700]' : ''}`}
+              >
+                <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
+                <Text className={`text-[11px] font-black ${bookingType === 'schedule' ? 'text-black' : 'text-slate-400'}`}>
+                  SCHEDULE
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Schedule Date/Time Picker */}
           {bookingType === 'schedule' && (

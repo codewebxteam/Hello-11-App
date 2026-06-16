@@ -7,6 +7,7 @@ import {
   getDriverDashboard,
   getDriverProfile,
   updateDriverProfile,
+  updateDriverProfileImage,
   updateVehicleDetails,
   updateDriverLocation,
   toggleAvailability,
@@ -61,6 +62,9 @@ router.get("/profile", authenticateDriver, getDriverProfile);
 
 // PUT /api/drivers/profile - Update driver profile
 router.put("/profile", authenticateDriver, updateDriverProfile);
+
+// PUT /api/drivers/profile-image - Update driver profile image
+router.put("/profile-image", authenticateDriver, updateDriverProfileImage);
 
 // PUT /api/drivers/vehicle - Update vehicle details
 router.put("/vehicle", authenticateDriver, updateVehicleDetails);

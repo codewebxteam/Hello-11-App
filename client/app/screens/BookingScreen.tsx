@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, Keyboard, useWindowDimensions
+  Alert, ActivityIndicator, Platform, FlatList, Animated, BackHandler, Keyboard, useWindowDimensions, AppState
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +31,7 @@ const BookingScreen = () => {
   );
   const [selectedVehicle, setSelectedVehicle] = useState('5seater');
   const [isSearching, setIsSearching] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
 
   // Fare/Vehicle state
@@ -55,6 +56,7 @@ const BookingScreen = () => {
 
   // UI State
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [activeInput, setActiveInput] = useState<'pickup' | 'drop' | null>(null);
 
   // Schedule State
@@ -103,8 +105,13 @@ const BookingScreen = () => {
   // --- AUTOCOMPLETE LOGIC ---
   useEffect(() => {
     const query = activeInput === 'pickup' ? pickup : drop;
-    if (!query || query.length < 2) { setSuggestions([]); return; }
+    if (!query || query.length < 2) { 
+      setSuggestions([]); 
+      setIsLoadingSuggestions(false);
+      return; 
+    }
 
+    setIsLoadingSuggestions(true);
     const timer = setTimeout(async () => {
       try {
         // Pass pickup coords so backend restricts suggestions to India + 50km radius
@@ -113,7 +120,8 @@ const BookingScreen = () => {
         const res = await locationAPI.getAutocomplete(query, userLat, userLon);
         setSuggestions(res.data.data || []);
       } catch { setSuggestions([]); }
-    }, 500);
+      finally { setIsLoadingSuggestions(false); }
+    }, 800);
     return () => clearTimeout(timer);
   }, [pickup, drop, activeInput, pickupCoords]);
 
@@ -174,11 +182,10 @@ const BookingScreen = () => {
         if (dist >= 40 && rideMode === 'normal') {
           Alert.alert(
             "Long Distance Detected",
-            `This trip is ${dist.toFixed(1)} km. Rides over 40 km are categorized as Outstation trips. Switch to Long Distance?`,
+            `This trip is ${dist.toFixed(1)} km. Rides over 40 km are categorized as Outstation trips. Switching to Long Distance.`,
             [
-              { text: "Later", style: 'cancel' },
               {
-                text: "Switch Now",
+                text: "Switch to Outstation",
                 onPress: () => {
                   setRideMode('long');
                   router.push({
@@ -207,6 +214,30 @@ const BookingScreen = () => {
     fetchRideInfo();
   }, [fetchRideInfo]);
 
+  // --- APP STATE LISTENER (BACKGROUND CONNECTION DROP FIX) ---
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
+      if (nextAppState === "active" && isSearching && activeBookingId) {
+        try {
+          const res = await bookingAPI.getBookingStatus(activeBookingId);
+          const status = res.data?.booking?.status;
+          if (status && status !== 'pending') {
+            setIsSearching(false);
+            if (status === 'cancelled') {
+              Alert.alert("Ride Cancelled", "Sorry, no drivers could accept your ride or it was cancelled.");
+            } else {
+              router.replace({
+                pathname: "/screens/LiveRideTrackingScreen",
+                params: { bookingId: activeBookingId }
+              });
+            }
+          }
+        } catch (err) {}
+      }
+    });
+    return () => subscription.remove();
+  }, [isSearching, activeBookingId]);
+
   // --- SELECT SUGGESTION ---
   const selectSuggestion = (item: any) => {
     if (activeInput === 'pickup') {
@@ -222,6 +253,7 @@ const BookingScreen = () => {
 
   // --- HANDLE CONFIRM ---
   const handleConfirm = async () => {
+    if (isSubmitting) return;
     if (!pickup || !drop) {
       Alert.alert('Missing Info', 'Please enter pickup and drop locations.');
       return;
@@ -249,6 +281,17 @@ const BookingScreen = () => {
       return;
     }
 
+    if (distanceKm < 2) {
+      Alert.alert('Distance Too Short', 'Minimum distance for a ride is 2 KM. Please select a farther destination.');
+      return;
+    }
+    
+    if (!fares[selectedVehicle]?.fare || fares[selectedVehicle].fare <= 0) {
+      Alert.alert('Calculating Fare', 'Please wait while we calculate the fare. Ride cannot be booked for ₹0.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const payload = {
         pickupLocation: pickup,
@@ -285,8 +328,10 @@ const BookingScreen = () => {
         }
       }
     } catch (err: any) {
-      const msg = err.message || "Failed to create booking.";
+      const msg = err?.response?.data?.message || err.message || "Failed to create booking.";
       Alert.alert("Booking Error", msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -299,36 +344,40 @@ const BookingScreen = () => {
         <Text className={`${isSmallPhone ? 'text-[28px] mb-4' : 'text-3xl mb-6'} font-black text-slate-900`}>Plan Your Trip</Text>
 
         <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 4, borderRadius: 16, marginBottom: 24 }}>
-          <TouchableOpacity
-            onPress={() => setRideMode('normal')}
-            style={{
-              flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
-              backgroundColor: rideMode === 'normal' ? '#fff' : 'transparent',
-              ...(rideMode === 'normal' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 } : {})
-            }}
-          >
-            <Ionicons name="navigate-circle" size={18} color={rideMode === 'normal' ? "#000" : "#64748B"} />
-            <Text style={{ fontWeight: '900', marginLeft: 8, fontSize: 11, color: rideMode === 'normal' ? '#000' : '#64748B' }}>NORMAL</Text>
-          </TouchableOpacity>
+          {(distanceKm === 0 || distanceKm < 40) && (
+            <TouchableOpacity
+              onPress={() => setRideMode('normal')}
+              style={{
+                flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
+                backgroundColor: rideMode === 'normal' ? '#fff' : 'transparent',
+                ...(rideMode === 'normal' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 } : {})
+              }}
+            >
+              <Ionicons name="navigate-circle" size={18} color={rideMode === 'normal' ? "#000" : "#64748B"} />
+              <Text style={{ fontWeight: '900', marginLeft: 8, fontSize: 11, color: rideMode === 'normal' ? '#000' : '#64748B' }}>NORMAL</Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            onPress={() => setRideMode('long')}
-            style={{
-              flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
-              backgroundColor: rideMode === 'long' ? '#fff' : 'transparent',
-              ...(rideMode === 'long' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 } : {})
-            }}
-          >
-            <MaterialCommunityIcons name="map-marker-distance" size={18} color={rideMode === 'long' ? "#000" : "#64748B"} />
-            <Text style={{ fontWeight: '900', marginLeft: 8, fontSize: 11, color: rideMode === 'long' ? '#000' : '#64748B' }}>LONG DISTANCE</Text>
-          </TouchableOpacity>
+          {(distanceKm === 0 || distanceKm >= 40) && (
+            <TouchableOpacity
+              onPress={() => setRideMode('long')}
+              style={{
+                flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
+                backgroundColor: rideMode === 'long' ? '#fff' : 'transparent',
+                ...(rideMode === 'long' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 } : {})
+              }}
+            >
+              <MaterialCommunityIcons name="map-marker-distance" size={18} color={rideMode === 'long' ? "#000" : "#64748B"} />
+              <Text style={{ fontWeight: '900', marginLeft: 8, fontSize: 11, color: rideMode === 'long' ? '#000' : '#64748B' }}>LONG DISTANCE</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View className={`bg-white ${isSmallPhone ? 'p-3 rounded-[22px]' : 'p-4 rounded-[30px]'} shadow-sm`}>
           <View className="flex-row items-center h-12">
             <View className="w-2.5 h-2.5 rounded-full bg-blue-500 mr-4 border-2 border-blue-200" />
             <TextInput
-              placeholder="From where?"
+              placeholder={isLoadingLocation ? "Fetching your live location..." : "From where?"}
               className="flex-1 font-bold text-slate-800"
               placeholderTextColor="#94A3B8"
               value={pickup}
@@ -369,7 +418,16 @@ const BookingScreen = () => {
             </TouchableOpacity>
           )}
 
-          {suggestions.length > 0 && activeInput && (
+          {isLoadingSuggestions && activeInput ? (
+            <View className="mt-3 border-t border-slate-100 max-h-[220px]">
+              {[1, 2, 3].map((_, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: '#F1F5F9', opacity: 1 - i * 0.2 }}>
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#E2E8F0', marginRight: 12 }} />
+                  <View style={{ flex: 1, height: 14, backgroundColor: '#E2E8F0', borderRadius: 4 }} />
+                </View>
+              ))}
+            </View>
+          ) : suggestions.length > 0 && activeInput ? (
             <View className="mt-3 border-t border-slate-100 max-h-[220px]">
               <FlatList
                 data={suggestions.slice(0, 12)}
@@ -387,7 +445,7 @@ const BookingScreen = () => {
                 )}
               />
             </View>
-          )}
+          ) : null}
         </View>
       </View>
 
@@ -441,22 +499,24 @@ const BookingScreen = () => {
           </View>
         )}
 
-        <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 6, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9' }}>
-          <TouchableOpacity
-            onPress={() => setBookingType('now')}
-            style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'now' ? '#FFD700' : 'transparent' }}
-          >
-            <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
-            <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'now' ? '#000' : '#94a3b8' }}>RIDE NOW</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setBookingType('schedule')}
-            style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'schedule' ? '#FFD700' : 'transparent' }}
-          >
-            <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
-            <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'schedule' ? '#000' : '#94a3b8' }}>SCHEDULE</Text>
-          </TouchableOpacity>
-        </View>
+        {false && (
+          <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 6, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9' }}>
+            <TouchableOpacity
+              onPress={() => setBookingType('now')}
+              style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'now' ? '#FFD700' : 'transparent' }}
+            >
+              <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
+              <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'now' ? '#000' : '#94a3b8' }}>RIDE NOW</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setBookingType('schedule')}
+              style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'schedule' ? '#FFD700' : 'transparent' }}
+            >
+              <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
+              <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'schedule' ? '#000' : '#94a3b8' }}>SCHEDULE</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Scheduler */}
         {bookingType === 'schedule' && (
@@ -506,13 +566,14 @@ const BookingScreen = () => {
 
         <TouchableOpacity
           onPress={handleConfirm}
-          className={`bg-slate-900 ${isSmallPhone ? 'py-4 rounded-[20px]' : 'py-[22px] rounded-[28px]'} px-4 items-center shadow-lg active:scale-95`}
+          disabled={isSubmitting}
+          className={`bg-slate-900 ${isSmallPhone ? 'py-4 rounded-[20px]' : 'py-[22px] rounded-[28px]'} px-4 items-center shadow-lg active:scale-95 ${isSubmitting ? 'opacity-50' : 'opacity-100'}`}
         >
           <Text 
             numberOfLines={1}
             className="text-white font-black text-sm tracking-[1px] text-center uppercase"
           >
-            {rideMode === 'long' ? 'CONTINUE TO OUTSTATION' : (bookingType === 'schedule' ? 'PLAN MY TRIP' : 'SEARCH RIDE NOW')}
+            {isSubmitting ? 'PROCESSING...' : (rideMode === 'long' ? 'CONTINUE TO OUTSTATION' : (bookingType === 'schedule' ? 'PLAN MY TRIP' : 'SEARCH RIDE NOW'))}
           </Text>
         </TouchableOpacity>
 
@@ -538,20 +599,27 @@ const BookingScreen = () => {
         className="absolute bottom-0 w-full bg-white flex-row justify-around items-center border-t border-slate-100 shadow-2xl elevation-[25] z-50"
         style={{ paddingBottom: Math.max(insets.bottom, 20), paddingTop: 10 }}
       >
-        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HomeScreen')}>
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/5" onPress={() => router.replace('/screens/HomeScreen')}>
           <Ionicons name="home" size={24} color="#94A3B8" />
           <Text className="text-[11px] font-bold mt-1 text-slate-400">Home</Text>
         </TouchableOpacity>
-           <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
-          <Ionicons name="calendar" size={24} color="#1E293B" />
-          <Text className="text-[11px] font-bold mt-1 text-slate-800">Ride</Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/HistoryScreen')}>
+        {false && (
+          <TouchableOpacity className="items-center justify-center pt-2 w-1/5" onPress={() => router.replace({ pathname: '/screens/BookingScreen', params: { mode: 'schedule' } })}>
+            <Ionicons name="calendar" size={24} color="#1E293B" />
+            <Text className="text-[11px] font-bold mt-1 text-slate-800">Ride</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/5" onPress={() => router.replace('/screens/HistoryScreen')}>
           <Ionicons name="list" size={24} color="#94A3B8" />
           <Text className="text-[11px] font-bold mt-1 text-slate-400">History</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/5" onPress={() => router.replace('/screens/HelpScreen')}>
+          <Ionicons name="help-circle" size={24} color="#94A3B8" />
+          <Text className="text-[11px] font-bold mt-1 text-slate-400">Help</Text>
+        </TouchableOpacity>
      
-        <TouchableOpacity className="items-center justify-center pt-2 w-1/4" onPress={() => router.replace('/screens/ProfileScreen')}>
+        <TouchableOpacity className="items-center justify-center pt-2 w-1/5" onPress={() => router.replace('/screens/ProfileScreen')}>
           <Ionicons name="person" size={24} color="#94A3B8" />
           <Text className="text-[11px] font-bold mt-1 text-slate-400">Profile</Text>
         </TouchableOpacity>

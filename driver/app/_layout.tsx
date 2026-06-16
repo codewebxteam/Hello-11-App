@@ -29,8 +29,19 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     return;
   }
   if (data) {
-    // Just keeping the JS thread alive. The socket handles incoming rides.
-    console.log("Background location heartbeat received.");
+    const { locations } = data as any;
+    if (locations && locations.length > 0) {
+      const loc = locations[0];
+      try {
+        await driverAPI.updateLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+        console.log("Background location updated:", loc.coords.latitude, loc.coords.longitude);
+      } catch (e) {
+        console.log("Background location update failed", e);
+      }
+    }
   }
 });
 

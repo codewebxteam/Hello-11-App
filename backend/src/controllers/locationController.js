@@ -4,6 +4,19 @@ import { serverLog } from "../utils/logger.js";
 const GOOGLE_MAPS_API_URL = "https://maps.googleapis.com/maps/api";
 const getGoogleApiKey = () => process.env.GOOGLE_MAPS_API_KEY;
 
+// In-memory cache for location autocomplete
+const autocompleteCache = new Map();
+
+// Cleanup cache every hour to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of autocompleteCache.entries()) {
+    if (now - value.timestamp > 3600000) { // 1 hour
+      autocompleteCache.delete(key);
+    }
+  }
+}, 3600000);
+
 // Calculate distance between two points (Haversine formula) - shared helper
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Earth's radius in km
@@ -182,6 +195,16 @@ export const getAutocomplete = async (req, res) => {
     const userLon = lon ? parseFloat(lon) : null;
     const hasCoords = userLat !== null && userLon !== null && !isNaN(userLat) && !isNaN(userLon);
 
+    // ── Check Cache First ─────────────────────────────────────────────
+    const cacheKey = `${query.toLowerCase()}_${hasCoords ? `${userLat}_${userLon}` : 'no_coords'}`;
+    if (autocompleteCache.has(cacheKey)) {
+      const cachedResult = autocompleteCache.get(cacheKey);
+      if (Date.now() - cachedResult.timestamp < 3600000) { // Valid for 1 hour
+        serverLog(`Autocomplete Cache HIT for "${query}"`);
+        return res.json({ success: true, data: cachedResult.data });
+      }
+    }
+
     // ── Google Places Autocomplete API ─────────────────────────────────────
     // This is the right API for address input fields:
     //   • Prefix matching: "Bhop" → Bhopal, "Del" → Delhi
@@ -288,6 +311,7 @@ export const getAutocomplete = async (req, res) => {
       const valid = suggestions.filter((s) => s.lat && s.lon);
       if (valid.length > 0) {
         serverLog(`Google Autocomplete: ${valid.length} results for "${query}"`);
+        autocompleteCache.set(cacheKey, { timestamp: Date.now(), data: valid });
         return res.json({ success: true, data: valid });
       }
 
@@ -341,6 +365,7 @@ export const getAutocomplete = async (req, res) => {
 
         if (suggestions.length > 0) {
           serverLog(`Photon fallback: ${suggestions.length} India results for "${query}"`);
+          autocompleteCache.set(cacheKey, { timestamp: Date.now(), data: suggestions });
           return res.json({ success: true, data: suggestions });
         }
       }
@@ -361,15 +386,14 @@ export const getAutocomplete = async (req, res) => {
       const r = geoFinal.data?.results?.[0];
       const g = r?.geometry?.location;
       if (g?.lat !== undefined && g?.lng !== undefined) {
-        return res.json({
-          success: true,
-          data: [{
-            place_id: r.place_id || `geo_${Date.now()}`,
-            display_name: r.formatted_address || query,
-            lat: g.lat.toString(),
-            lon: g.lng.toString(),
-          }]
-        });
+        const fallbackData = [{
+          place_id: r.place_id || `geo_${Date.now()}`,
+          display_name: r.formatted_address || query,
+          lat: g.lat.toString(),
+          lon: g.lng.toString(),
+        }];
+        autocompleteCache.set(cacheKey, { timestamp: Date.now(), data: fallbackData });
+        return res.json({ success: true, data: fallbackData });
       }
     } catch (geoErr) {
       serverLog(`Final geocode fallback failed: ${geoErr.message}`);

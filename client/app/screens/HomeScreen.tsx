@@ -27,6 +27,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import ProfileScreen from "./ProfileScreen";
+import HelpScreen from "./HelpScreen";
 import SearchingRideOverlay from "../../components/SearchingRideOverlay";
 import DriverAssignedOverlay from "../../components/DriverAssignedOverlay";
 import ActivitySection from "../../components/ActivitySection";
@@ -189,6 +190,7 @@ const HomeScreen = () => {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [activeInput, setActiveInput] = useState<'source' | 'destination' | null>(null);
   const [sourceSelection, setSourceSelection] = useState<{start: number, end: number} | undefined>(undefined);
   const [destSelection, setDestSelection] = useState<{start: number, end: number} | undefined>(undefined);
@@ -258,9 +260,11 @@ const HomeScreen = () => {
     const query = activeInput === 'source' ? source : destination;
     if (!query || query.length < 2) {
       setSuggestions([]);
+      setIsLoadingSuggestions(false);
       return;
     }
 
+    setIsLoadingSuggestions(true);
     const timer = setTimeout(async () => {
       try {
         const userLat = sourceCoords ? parseFloat(sourceCoords.lat) : undefined;
@@ -268,6 +272,9 @@ const HomeScreen = () => {
         const response = await locationAPI.getAutocomplete(query, userLat, userLon);
         setSuggestions(response.data.data);
       } catch (err) {}
+      finally {
+        setIsLoadingSuggestions(false);
+      }
     }, 500);
 
     return () => clearTimeout(timer);
@@ -429,30 +436,8 @@ const HomeScreen = () => {
                   <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 13, color: '#1E293B', fontWeight: '500', opacity: 0.7 }}>Hello,</Text>
                   <Text maxFontSizeMultiplier={1.2} style={{ fontSize: 18, color: '#1E293B', fontWeight: '900', letterSpacing: -0.5 }}>{displayName}</Text>
                 </View>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: 'white',
-                    padding: 12,
-                    borderRadius: 999,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.08,
-                    shadowRadius: 4,
-                    elevation: 3,
-                    position: 'relative',
-                  }}
-                  onPress={() => router.push("/screens/NotificationsScreen")}
-                >
-                  <Ionicons name="notifications-outline" size={24} color="#1E293B" />
-                  {unreadCount > 0 && (
-                    <View style={{
-                      position: 'absolute', top: 8, right: 8,
-                      backgroundColor: '#EF4444',
-                      borderRadius: 999, width: 12, height: 12,
-                      borderWidth: 1.5, borderColor: 'white',
-                    }} />
-                  )}
-                </TouchableOpacity>
+                {/* Placeholder for Notification Bell (moved to Layer 3 for touchability) */}
+                <View style={{ width: 48, height: 48 }} />
               </View>
 
               {/* Headline — fades + slides up as user scrolls */}
@@ -544,7 +529,7 @@ const HomeScreen = () => {
                   <TextInput
                     maxFontSizeMultiplier={1.2}
                     style={{ flex: 1, fontSize: 15, color: '#1E293B', fontWeight: '700', textAlign: 'left' }}
-                    placeholder="Current Location"
+                    placeholder={isLoadingLocation ? "Fetching your live location..." : "Current Location"}
                     placeholderTextColor="#94A3B8"
                     value={source}
                     selection={sourceSelection}
@@ -597,7 +582,16 @@ const HomeScreen = () => {
                 )}
 
                 {/* Source suggestions */}
-                {suggestions.length > 0 && activeInput === 'source' && (
+                {isLoadingSuggestions && activeInput === 'source' ? (
+                  <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 8, marginTop: 8, borderWidth: 1, borderColor: '#F1F5F9', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
+                    {[1, 2, 3].map((_, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: '#F1F5F9', opacity: 1 - i * 0.2 }}>
+                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#E2E8F0', marginRight: 12 }} />
+                        <View style={{ flex: 1, height: 14, backgroundColor: '#E2E8F0', borderRadius: 4 }} />
+                      </View>
+                    ))}
+                  </View>
+                ) : suggestions.length > 0 && activeInput === 'source' && (
                   <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 8, marginTop: 8, borderWidth: 1, borderColor: '#F1F5F9', maxHeight: 180, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
                     <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
                       {suggestions.map((item, idx) => (
@@ -673,7 +667,16 @@ const HomeScreen = () => {
                 </View>
 
                 {/* Destination suggestions */}
-                {suggestions.length > 0 && activeInput === 'destination' && (
+                {isLoadingSuggestions && activeInput === 'destination' ? (
+                  <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 8, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: '#F1F5F9', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, zIndex: 20 }}>
+                    {[1, 2, 3].map((_, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: '#F1F5F9', opacity: 1 - i * 0.2 }}>
+                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#E2E8F0', marginRight: 12 }} />
+                        <View style={{ flex: 1, height: 14, backgroundColor: '#E2E8F0', borderRadius: 4 }} />
+                      </View>
+                    ))}
+                  </View>
+                ) : suggestions.length > 0 && activeInput === 'destination' && (
                   <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 8, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: '#F1F5F9', maxHeight: 180, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, zIndex: 20 }}>
                     <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
                       {suggestions.map((item, idx) => (
@@ -808,93 +811,77 @@ const HomeScreen = () => {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* ── QUICK ACCESS BUTTONS ── */}
-            <Animated.View style={{ marginTop: 28, marginBottom: 16, opacity: fadeAnim }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'white',
-                    padding: 16,
-                    borderRadius: 20,
-                    alignItems: 'center',
-                    marginRight: 8,
-                    borderWidth: 1,
-                    borderColor: '#F1F5F9',
-                    elevation: 2,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                  }}
-                  onPress={() => {
-                    if (Platform.OS === 'android') ToastAndroid.show("Start a Trip", ToastAndroid.SHORT);
-                  }}
-                >
-                  <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 999, marginBottom: 8 }}>
-                    <Ionicons name="car" size={24} color="#1E293B" />
-                  </View>
-                  <Text maxFontSizeMultiplier={1.2} style={{ color: '#1E293B', fontWeight: '800', fontSize: 12 }}>Trip</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'white',
-                    padding: 16,
-                    borderRadius: 20,
-                    alignItems: 'center',
-                    marginHorizontal: 4,
-                    borderWidth: 1,
-                    borderColor: '#F1F5F9',
-                    elevation: 2,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                  }}
-                  onPress={() => {
-                    if (Platform.OS === 'android') ToastAndroid.show("Book Intercity", ToastAndroid.SHORT);
-                  }}
-                >
-                  <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 999, marginBottom: 8 }}>
-                    <Ionicons name="map" size={24} color="#1E293B" />
-                  </View>
-                  <Text maxFontSizeMultiplier={1.2} style={{ color: '#1E293B', fontWeight: '800', fontSize: 12 }}>Intercity</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'white',
-                    padding: 16,
-                    borderRadius: 20,
-                    alignItems: 'center',
-                    marginLeft: 8,
-                    borderWidth: 1,
-                    borderColor: '#F1F5F9',
-                    elevation: 2,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                  }}
-                  onPress={() => {
-                    router.push({ pathname: "/screens/BookingScreen", params: { mode: 'schedule' } });
-                  }}
-                >
-                  <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 999, marginBottom: 8 }}>
-                    <Ionicons name="calendar" size={24} color="#1E293B" />
-                  </View>
-                  <Text maxFontSizeMultiplier={1.2} style={{ color: '#1E293B', fontWeight: '800', fontSize: 12 }}>Reserve</Text>
-                </TouchableOpacity>
+            {/* ── PREMIUM INFO CARDS (GRID) ── */}
+            <Animated.View style={{ marginTop: 24, marginBottom: 24, opacity: fadeAnim, flexDirection: 'row', justifyContent: 'space-between' }}>
+              
+              {/* Card 1 */}
+              <View style={{
+                flex: 1, backgroundColor: '#1E293B', borderRadius: 24, padding: 16, marginRight: 6, overflow: 'hidden', position: 'relative', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12,
+              }}>
+                <View style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: '#334155', opacity: 0.4 }} />
+                <View style={{ position: 'absolute', bottom: -20, left: -20, width: 60, height: 60, borderRadius: 30, backgroundColor: '#3B82F6', opacity: 0.2 }} />
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'flex-start', padding: 10, borderRadius: 16, marginBottom: 12 }}>
+                  <Ionicons name="sparkles" size={22} color="#60A5FA" />
+                </View>
+                <Text maxFontSizeMultiplier={1.2} style={{ color: 'white', fontSize: 13, fontWeight: '900', letterSpacing: 0.3, marginBottom: 4 }}>Verified & Clean</Text>
+                <Text maxFontSizeMultiplier={1.2} style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', lineHeight: 15 }}>Safe drivers with spotless cars.</Text>
               </View>
+
+              {/* Card 2 */}
+              <View style={{
+                flex: 1, backgroundColor: '#1E293B', borderRadius: 24, padding: 16, marginLeft: 6, overflow: 'hidden', position: 'relative', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12,
+              }}>
+                <View style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: '#334155', opacity: 0.4 }} />
+                <View style={{ position: 'absolute', bottom: -20, left: -20, width: 60, height: 60, borderRadius: 30, backgroundColor: '#10B981', opacity: 0.15 }} />
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'flex-start', padding: 10, borderRadius: 16, marginBottom: 12 }}>
+                  <Ionicons name="pricetag" size={22} color="#34D399" />
+                </View>
+                <Text maxFontSizeMultiplier={1.2} style={{ color: 'white', fontSize: 13, fontWeight: '900', letterSpacing: 0.3, marginBottom: 4 }}>50% Flat Off</Text>
+                <Text maxFontSizeMultiplier={1.2} style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', lineHeight: 15 }}>Massive discount on return trips.</Text>
+              </View>
+
             </Animated.View>
           </Animated.ScrollView>
         </>
       )}
 
+      {/* ── LAYER 3: Interactive Header Elements (Placed above ScrollView) ── */}
+      {activeTab === "Home" && (
+        <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 40, elevation: 40 }}>
+          <SafeAreaView pointerEvents="box-none" style={{ paddingHorizontal: isSmallPhone ? 16 : 24, paddingTop: 4 }}>
+            <View pointerEvents="box-none" style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: 'white',
+                  padding: 12,
+                  borderRadius: 999,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 4,
+                  elevation: 3,
+                  position: 'relative',
+                }}
+                onPress={() => router.push("/screens/NotificationsScreen")}
+              >
+                <Ionicons name="notifications-outline" size={24} color="#1E293B" />
+                {unreadCount > 0 && (
+                  <View style={{
+                    position: 'absolute', top: 8, right: 8,
+                    backgroundColor: '#EF4444',
+                    borderRadius: 999, width: 12, height: 12,
+                    borderWidth: 1.5, borderColor: 'white',
+                  }} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
+
       {activeTab === "Profile" && <ProfileScreen />}
+      
+      {activeTab === "Help" && <HelpScreen />}
 
       {activeTab === "Activity" && (
         <ActivitySection onBookRide={() => setActiveTab("Home")} />
@@ -923,8 +910,9 @@ const HomeScreen = () => {
         }}
       >
         <TabItem name="Home" icon="home" label="Home" />
-        <TabItem name="Schedule" icon="calendar" label="Ride" />
+        {false && <TabItem name="Schedule" icon="calendar" label="Ride" />}
         <TabItem name="Activity" icon="list" label="History" />
+        <TabItem name="Help" icon="help-circle" label="Help" />
         <TabItem name="Profile" icon="person" label="Profile" />
       </View>
 

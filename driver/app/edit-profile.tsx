@@ -7,7 +7,9 @@ import {
     ScrollView,
     Alert,
     ActivityIndicator,
-    Image
+    Image,
+    KeyboardAvoidingView,
+    Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
@@ -118,8 +120,13 @@ export default function EditProfileScreen() {
 
             <Header title="Edit Profile" />
 
-            <ScrollView 
-                className="flex-1 px-6 mt-8" 
+            <KeyboardAvoidingView 
+                style={{ flex: 1 }} 
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+            >
+                <ScrollView 
+                    className="flex-1 px-6 mt-8"  
                 contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
             >
@@ -213,6 +220,7 @@ export default function EditProfileScreen() {
                     )}
                 </TouchableOpacity>
             </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }

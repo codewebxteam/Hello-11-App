@@ -317,6 +317,12 @@ export const createBooking = async (req, res) => {
   } catch (error) {
     serverLog(`CREATE BOOKING ERROR: ${error.message}`);
     console.error("Booking Creation Error:", error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "You already have an active ride request processing. Please wait or cancel it to book a new one.",
+        requiresPayment: false
+      });
+    }
     res.status(500).json({
       message: "Failed to create booking",
       error: error.message
