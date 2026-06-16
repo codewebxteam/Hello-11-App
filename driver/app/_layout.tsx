@@ -235,14 +235,13 @@ function DriverRealtimeOverlay() {
 
         requestTimerRef.current = setTimeout(() => {
           clearRideRequest();
-        }, 30000);
+        }, 120000);
 
         Vibration.vibrate([0, 1000, 500, 1000, 500], true);
         timerLine.setValue(1);
         Animated.spring(requestSlide, { toValue: 0, tension: 45, friction: 8, useNativeDriver: true }).start();
-        Animated.timing(timerLine, { toValue: 0, duration: 30000, easing: Easing.linear, useNativeDriver: false }).start(({ finished }) => { if (finished) clearRideRequest(); });
+        Animated.timing(timerLine, { toValue: 0, duration: 120000, easing: Easing.linear, useNativeDriver: false }).start(({ finished }) => { if (finished) clearRideRequest(); });
 
-        // Play audio regardless of AppState to ensure driver hears the 'Call' sound
         try {
           if (player && typeof player.play === 'function') {
             player.loop = true;

@@ -16,6 +16,8 @@ interface SearchingRideOverlayProps {
     dropLocation?: string;
     rideMode?: string;
     timeoutSeconds?: number;
+    totalFare?: number;
+    tollFee?: number;
 }
 
 const SearchingRideOverlay = ({
@@ -24,7 +26,9 @@ const SearchingRideOverlay = ({
     pickupLocation = "Current Location",
     dropLocation = "Select Destination",
     rideMode = "Standard",
-    timeoutSeconds = 120
+    timeoutSeconds = 120,
+    totalFare,
+    tollFee
 }: SearchingRideOverlayProps) => {
     const { isSmallPhone, isTablet } = useResponsive();
     const [remainingSeconds, setRemainingSeconds] = useState(timeoutSeconds);
@@ -151,6 +155,23 @@ const SearchingRideOverlay = ({
                                     {mm}:{ss} LEFT
                                 </Text>
                             </View>
+
+                            {totalFare !== undefined && totalFare > 0 && (
+                                <View style={{ marginTop: 20, alignItems: 'center' }}>
+                                    <Text style={{ fontSize: 36, fontWeight: '900', color: '#1E293B' }}>
+                                        ₹{totalFare}
+                                    </Text>
+                                    {tollFee !== undefined && tollFee > 0 ? (
+                                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#10B981', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            ₹{tollFee} Toll Included
+                                        </Text>
+                                    ) : (
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            Tolls & Parking extra
+                                        </Text>
+                                    )}
+                                </View>
+                            )}
                         </View>
 
                         {/* Ride Details Card */}

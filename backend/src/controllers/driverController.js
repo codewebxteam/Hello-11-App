@@ -815,6 +815,21 @@ export const toggleOnlineStatus = async (req, res) => {
       driver.lastOnlineToggle = now;
     } else {
       // Transitioning from OFFLINE to ONLINE
+      if (!driver.isVerified) {
+        return res.status(403).json({
+          message: "Your account is pending verification. You can accept rides once an admin approves your documents.",
+          requiresVerification: true
+        });
+      }
+
+      if (driver.unpaidRideCount >= 3 && driver.pendingCommission > 0) {
+        return res.status(403).json({
+          message: "Aapka 3 rides ka commission pending hai. Kripya online jaane se pehle payment karein.",
+          requiresPayment: true,
+          pendingCommission: driver.pendingCommission
+        });
+      }
+
       driver.online = true;
       driver.available = true; // Fix: Ensure driver is available when going online
       driver.lastOnlineToggle = now;

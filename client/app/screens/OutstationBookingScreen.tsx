@@ -220,11 +220,19 @@ const OutstationBookingScreen = () => {
         try {
           const res = await bookingAPI.getBookingStatus(activeBookingId);
           const status = res.data?.booking?.status;
+          const cancellationReason = res.data?.booking?.cancellationReason;
           if (status && status !== 'pending') {
             clearInterval(pollInterval.current);
             setIsSearchingDriver(false);
             if (status === 'cancelled') {
-              Alert.alert('No Driver Found', 'Could not find a driver. Please try again.');
+              if (cancellationReason === 'No driver accepted within timeout limit') {
+                Alert.alert(
+                  "Sorry for the inconvenience",
+                  "No drivers are available right now. Please try again after some time."
+                );
+              } else {
+                Alert.alert('No Driver Found', 'Could not find a driver. Please try again.');
+              }
             } else {
               router.replace({
                 pathname: '/screens/LiveRideTrackingScreen',
@@ -246,11 +254,19 @@ const OutstationBookingScreen = () => {
       try {
         const res = await bookingAPI.getBookingStatus(activeBookingId);
         const status = res.data?.booking?.status;
+        const cancellationReason = res.data?.booking?.cancellationReason;
         if (status && status !== 'pending') {
           clearInterval(pollInterval.current);
           setIsSearchingDriver(false);
           if (status === 'cancelled') {
-            Alert.alert('No Driver Found', 'Could not find a driver. Please try again.');
+            if (cancellationReason === 'No driver accepted within timeout limit') {
+              Alert.alert(
+                "Sorry for the inconvenience",
+                "No drivers are available right now. Please try again after some time."
+              );
+            } else {
+              Alert.alert('No Driver Found', 'Could not find a driver. Please try again.');
+            }
           } else {
             router.replace({
               pathname: '/screens/LiveRideTrackingScreen',
@@ -273,10 +289,24 @@ const OutstationBookingScreen = () => {
         if (String(data.bookingId) === String(activeBookingId) && data.status !== 'pending') {
           clearInterval(pollInterval.current);
           setIsSearchingDriver(false);
-          router.replace({
-            pathname: '/screens/LiveRideTrackingScreen',
-            params: { bookingId: activeBookingId }
-          });
+          if (data.status === 'cancelled') {
+            Alert.alert('No Driver Found', 'Could not find a driver. Please try again.');
+          } else {
+            router.replace({
+              pathname: '/screens/LiveRideTrackingScreen',
+              params: { bookingId: activeBookingId }
+            });
+          }
+        }
+      });
+      socket?.on('bookingCancelledBySystemTimeout', (data: any) => {
+        if (String(data.bookingId) === String(activeBookingId)) {
+          clearInterval(pollInterval.current);
+          setIsSearchingDriver(false);
+          Alert.alert(
+            "Sorry for the inconvenience",
+            "No drivers are available right now. Please try again after some time."
+          );
         }
       });
       socket?.on('bookingCancelledByUser', (data: any) => {
@@ -289,8 +319,11 @@ const OutstationBookingScreen = () => {
 
     return () => {
       clearInterval(pollInterval.current);
-      socketRef?.off('rideStatusUpdate');
-      socketRef?.off('bookingCancelledByUser');
+      if (socketRef) {
+        socketRef.off('rideStatusUpdate');
+        socketRef.off('bookingCancelledBySystemTimeout');
+        socketRef.off('bookingCancelledByUser');
+      }
     };
   }, [isSearchingDriver, activeBookingId]);
 
@@ -448,8 +481,17 @@ const OutstationBookingScreen = () => {
             )}
             <View className="h-[1px] bg-slate-700 w-full mb-2" />
             <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Estimated Total</Text>
-            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare}</Text>
-            <View className="flex-row items-center mt-1">
+            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare + (tollCost || 0)}</Text>
+            {tollCost > 0 ? (
+              <Text className="text-emerald-400 text-[11px] font-black mt-1 uppercase tracking-wider">
+                ₹{tollCost} Toll Included
+              </Text>
+            ) : (
+              <Text className="text-slate-500 text-[10px] font-bold mt-1 uppercase tracking-wider">
+                Tolls & Parking extra
+              </Text>
+            )}
+            <View className="flex-row items-center mt-2.5">
               <Ionicons name="speedometer-outline" size={11} color="#94A3B8" />
               <Text className="text-slate-500 text-[10px] font-bold ml-1">{distanceKm.toFixed(1)} km</Text>
               <Text className="text-slate-600 text-[10px] font-bold mx-1.5">•</Text>

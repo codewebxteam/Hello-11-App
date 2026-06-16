@@ -301,6 +301,51 @@ export const createBooking = async (req, res) => {
       }
     }
 
+    // Start a 2-minute (120,000ms) timer to check if the ride is accepted
+    if (bookingType !== "schedule") {
+      setTimeout(async () => {
+        try {
+          const freshBooking = await Booking.findById(booking._id);
+          if (freshBooking && freshBooking.status === "pending") {
+            freshBooking.status = "cancelled";
+            freshBooking.cancelledBy = "system";
+            freshBooking.cancellationReason = "No driver accepted within timeout limit";
+            await freshBooking.save();
+
+            serverLog(`[Auto-Cancel-Timeout] Booking ${freshBooking._id} auto-cancelled because no driver accepted within 2 minutes.`);
+
+            try {
+              const io = getIO();
+              
+              // Notify User
+              io.to(freshBooking.user.toString()).emit("bookingCancelledBySystemTimeout", {
+                bookingId: freshBooking._id.toString(),
+                message: "Sorry for the inconvenience, no drivers are available right now. Please try again after some time."
+              });
+
+              // Notify Drivers to hide request
+              io.emit("rideRequestCancelled", {
+                bookingId: freshBooking._id.toString()
+              });
+
+              // Create database notification for user
+              await createNotification({
+                userId: freshBooking.user,
+                title: "Ride Cancelled",
+                body: "Sorry for the inconvenience, no drivers are available right now. Please try again after some time.",
+                type: "ride_cancelled",
+                bookingId: freshBooking._id
+              });
+            } catch (socketErr) {
+              serverLog(`[Auto-Cancel-Timeout Socket Error] ${socketErr.message}`);
+            }
+          }
+        } catch (err) {
+          serverLog(`[Auto-Cancel-Timeout Error] ${err.message}`);
+        }
+      }, 120000);
+    }
+
     if (req.userId) await clearUserCache(req.userId, 'user');
     res.status(201).json({
       message: "Booking created successfully",

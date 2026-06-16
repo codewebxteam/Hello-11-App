@@ -231,10 +231,18 @@ const BookingScreen = () => {
         try {
           const res = await bookingAPI.getBookingStatus(activeBookingId);
           const status = res.data?.booking?.status;
+          const cancellationReason = res.data?.booking?.cancellationReason;
           if (status && status !== 'pending') {
             setIsSearching(false);
             if (status === 'cancelled') {
-              Alert.alert("Ride Cancelled", "Sorry, no drivers could accept your ride or it was cancelled.");
+              if (cancellationReason === 'No driver accepted within timeout limit') {
+                Alert.alert(
+                  "Sorry for the inconvenience",
+                  "No drivers are available right now. Please try again after some time."
+                );
+              } else {
+                Alert.alert("Ride Cancelled", "Sorry, no drivers could accept your ride or it was cancelled.");
+              }
             } else {
               router.replace({
                 pathname: "/screens/LiveRideTrackingScreen",
@@ -246,6 +254,90 @@ const BookingScreen = () => {
       }
     });
     return () => subscription.remove();
+  }, [isSearching, activeBookingId]);
+
+  // Poll & Socket listener for booking status when searching
+  useEffect(() => {
+    if (!isSearching || !activeBookingId) return;
+
+    let socketRef: any;
+    let pollIntervalId: any;
+
+    const checkStatus = async () => {
+      try {
+        const res = await bookingAPI.getBookingStatus(activeBookingId);
+        const status = res.data?.booking?.status;
+        const cancellationReason = res.data?.booking?.cancellationReason;
+        if (status && status !== 'pending') {
+          clearInterval(pollIntervalId);
+          setIsSearching(false);
+          if (status === 'cancelled') {
+            if (cancellationReason === 'No driver accepted within timeout limit') {
+              Alert.alert(
+                "Sorry for the inconvenience",
+                "No drivers are available right now. Please try again after some time."
+              );
+            } else {
+              Alert.alert("Ride Cancelled", "Sorry, no drivers could accept your ride or it was cancelled.");
+            }
+          } else {
+            router.replace({
+              pathname: "/screens/LiveRideTrackingScreen",
+              params: { bookingId: activeBookingId }
+            });
+          }
+        }
+      } catch (err) {}
+    };
+
+    // Poll every 4 seconds
+    pollIntervalId = setInterval(checkStatus, 4000);
+    checkStatus();
+
+    // Also listen via socket
+    const { initSocket } = require("../../utils/socket");
+    initSocket().then((socket: any) => {
+      socketRef = socket;
+      
+      socket.on("rideAccepted", (data: any) => {
+        const booking = data?.booking || {};
+        if (String(booking.id || booking._id) === String(activeBookingId)) {
+          clearInterval(pollIntervalId);
+          setIsSearching(false);
+          router.replace({
+            pathname: "/screens/LiveRideTrackingScreen",
+            params: { bookingId: activeBookingId }
+          });
+        }
+      });
+
+      socket.on("bookingCancelledBySystemTimeout", (data: any) => {
+        if (String(data.bookingId) === String(activeBookingId)) {
+          clearInterval(pollIntervalId);
+          setIsSearching(false);
+          Alert.alert(
+            "Sorry for the inconvenience",
+            "No drivers are available right now. Please try again after some time."
+          );
+        }
+      });
+
+      socket.on("bookingCancelledByUser", (data: any) => {
+        if (String(data.bookingId) === String(activeBookingId)) {
+          clearInterval(pollIntervalId);
+          setIsSearching(false);
+        }
+      });
+    });
+
+    return () => {
+      clearInterval(pollIntervalId);
+      if (socketRef) {
+        socketRef.off("rideAccepted");
+        socketRef.off("bookingCancelledBySystemTimeout");
+        socketRef.off("bookingCancelledByUser");
+      }
+    };
   }, [isSearching, activeBookingId]);
 
   const selectSuggestion = (item: any) => {
@@ -613,6 +705,8 @@ const BookingScreen = () => {
         pickupLocation={pickup || "Current Location"}
         dropLocation={drop || "Select Destination"}
         rideMode="Normal Ride"
+        totalFare={(fares[selectedVehicle]?.total || 0) + (tollCost || 0)}
+        tollFee={tollCost || 0}
       />
 
       {/* Bottom Tab Bar (visible on this screen to match Home) */}

@@ -68,6 +68,11 @@ export default function DriverDashboard() {
   const [driverId, setDriverId] = useState<string | null>(null);
   const { driver: authDriver, refreshProfile, profileVersion } = useDriverAuth();
 
+  const [showPaymentBlockModal, setShowPaymentBlockModal] = useState(false);
+  const unpaidRidesDone = walletData?.unpaidRideCount ?? authDriver?.unpaidRideCount ?? 0;
+  const pendingDues = Number(walletData?.pendingCommission ?? authDriver?.pendingCommission ?? 0);
+  const isBlocked = unpaidRidesDone >= 3 && pendingDues > 0;
+
   const profileImageSource = React.useMemo(() => {
     if (!authDriver?.profileImage) return null;
     const url = getImageUrl(authDriver.profileImage, { width: 100, height: 100, quality: 80, version: profileVersion });
@@ -224,6 +229,12 @@ export default function DriverDashboard() {
   }, [isOnline, driverId]);
 
   useEffect(() => {
+    if (isOnline && isBlocked) {
+      setShowPaymentBlockModal(true);
+    }
+  }, [isOnline, isBlocked]);
+
+  useEffect(() => {
     // Also keep the initial load for reliability
     loadStats();
     fetchWalletData();
@@ -255,6 +266,57 @@ export default function DriverDashboard() {
       subscription.remove();
     };
   }, [loadStats]);
+
+  const executeGoOnline = async () => {
+    let fgStatus = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus.status !== 'granted') {
+      Alert.alert('Permission Error', 'Foreground location permission is required to go online.');
+      return false;
+    }
+
+    let bgStatus = await Location.requestBackgroundPermissionsAsync();
+    if (bgStatus.status !== 'granted') {
+      Alert.alert('Permission Error', 'Background location permission is required to go online.');
+      return false;
+    }
+
+    let loc;
+    try {
+      loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+    } catch (e) {
+      console.log("Error getting current position in pre-setup:", e);
+      Alert.alert("Location Error", "Could not get current location. Please ensure GPS is enabled.");
+      return false;
+    }
+
+    if (!loc || !loc.coords) {
+      Alert.alert("Location Error", "Could not get current location coordinates.");
+      return false;
+    }
+
+    try {
+      await driverAPI.updateLocation({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude
+      });
+    } catch (err) {
+      console.log("Pre-online location update error:", err);
+      Alert.alert("Connection Error", "Failed to update location on server. Please try again.");
+      return false;
+    }
+
+    setLocation(loc);
+    setRegion({
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+
+    return true;
+  };
 
   const startLocationTracking = async () => {
     let fgStatus = await Location.requestForegroundPermissionsAsync();
@@ -454,21 +516,33 @@ export default function DriverDashboard() {
     }
   };
 
-  // Nayi logic for checking block condition accurately
-  const unpaidRidesDone = walletData?.unpaidRideCount ?? authDriver?.unpaidRideCount ?? 0;
-  const pendingDues = Number(walletData?.pendingCommission ?? authDriver?.pendingCommission ?? 0);
-  const isBlocked = unpaidRidesDone >= 3 && pendingDues > 0;
+  const handleCancelModal = async () => {
+    if (isOnline) {
+      try {
+        isTogglingOnlineRef.current = true;
+        setIsTogglingOnline(true);
+        const res = await driverAPI.toggleOnline();
+        setIsOnline(res.data.online);
+        applySearchState(false);
+      } catch (err) {
+        console.log("Modal cancel toggle online error:", err);
+      } finally {
+        setIsTogglingOnline(false);
+        isTogglingOnlineRef.current = false;
+      }
+    }
+    setShowPaymentBlockModal(false);
+  };
 
   return (
     <View className="flex-1 bg-slate-100">
       <StatusBar style="dark" />
 
-      {/* STRICT PAYMENT BLOCKING MODAL (UPDATED) */}
       <Modal
-        visible={isBlocked}
+        visible={showPaymentBlockModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => {}} // This completely disables the Android physical back button
+        onRequestClose={handleCancelModal}
       >
         <View className="flex-1 bg-slate-900/95 justify-center items-center px-6">
           <View className="bg-white p-8 rounded-[32px] items-center shadow-2xl w-full max-w-md">
@@ -477,12 +551,12 @@ export default function DriverDashboard() {
               <Ionicons name="lock-closed" size={36} color="#EF4444" />
             </View>
             
-            <Text className="text-3xl font-black text-slate-900 text-center tracking-tight mb-3">
-              Account Locked
+            <Text className="text-2xl font-black text-slate-900 text-center tracking-tight mb-3">
+              Commission Pending
             </Text>
 
             <Text className="text-slate-500 text-center text-sm font-bold mb-8 leading-5 px-2">
-              Aapne <Text className="text-red-500 font-black">{unpaidRidesDone} rides</Text> puri kar li hain. Agli ride lene ke liye kripya pending admin dues clear karein.
+              Aapne aakhiri <Text className="text-red-500 font-black">{unpaidRidesDone} rides</Text> ka payment nahi kiya hai. Online jaane ke liye dues clear karein.
             </Text>
 
             <View className="bg-slate-50 border border-slate-100 w-full p-5 rounded-[20px] mb-8 flex-row justify-between items-center shadow-sm">
@@ -506,6 +580,17 @@ export default function DriverDashboard() {
                   </Text>
                 </>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleCancelModal}
+              disabled={isPayNowLoading}
+              className="w-full bg-slate-100 py-4 rounded-[20px] items-center justify-center mt-3 border border-slate-200"
+            >
+              <Text className="text-slate-600 font-black text-sm uppercase tracking-widest">
+                {isOnline ? "Go Offline & Close" : "Close"}
+              </Text>
             </TouchableOpacity>
 
           </View>
@@ -591,6 +676,11 @@ export default function DriverDashboard() {
                 onValueChange={async (val) => {
                   if (isTogglingOnlineRef.current) return;
                   
+                  if (val && isBlocked) {
+                    setShowPaymentBlockModal(true);
+                    return;
+                  }
+                  
                   // Safety check: Cannot go online if not verified
                   if (val && !authDriver?.isVerified) {
                     const hasDocs = authDriver?.documents && (
@@ -622,6 +712,16 @@ export default function DriverDashboard() {
                   try {
                     isTogglingOnlineRef.current = true;
                     setIsTogglingOnline(true);
+
+                    if (val) {
+                      const setupSuccess = await executeGoOnline();
+                      if (!setupSuccess) {
+                        isTogglingOnlineRef.current = false;
+                        setIsTogglingOnline(false);
+                        return;
+                      }
+                    }
+
                     const res = await driverAPI.toggleOnline();
                     setIsOnline(res.data.online);
                     if (!res.data.online) {
@@ -677,6 +777,11 @@ export default function DriverDashboard() {
               onPress={async () => {
                 if (isTogglingOnlineRef.current) return;
                 
+                if (isBlocked) {
+                  setShowPaymentBlockModal(true);
+                  return;
+                }
+                
                 // Safety check: Cannot go online if not verified
                 if (!authDriver?.isVerified) {
                   const hasDocs = authDriver?.documents && (
@@ -708,6 +813,14 @@ export default function DriverDashboard() {
                 try {
                   isTogglingOnlineRef.current = true;
                   setIsTogglingOnline(true);
+
+                  const setupSuccess = await executeGoOnline();
+                  if (!setupSuccess) {
+                    isTogglingOnlineRef.current = false;
+                    setIsTogglingOnline(false);
+                    return;
+                  }
+
                   const res = await driverAPI.toggleOnline();
                   setIsOnline(res.data.online);
                   if (res.data.online) {

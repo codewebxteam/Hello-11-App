@@ -106,6 +106,13 @@ const HomeScreen = () => {
 
         socket.on("bookingCancelledByDriver", () => clearBookingState());
         socket.on("bookingCancelledByUser", () => clearBookingState());
+        socket.on("bookingCancelledBySystemTimeout", () => {
+          clearBookingState();
+          Alert.alert(
+            "Sorry for the inconvenience",
+            "No drivers are available right now. Please try again after some time."
+          );
+        });
 
         socket.on("newNotification", (data: any) => {
           if (data.unreadCount !== undefined) setUnreadCount(data.unreadCount);
@@ -169,6 +176,7 @@ const HomeScreen = () => {
         socket.off("rideAccepted");
         socket.off("bookingCancelledByDriver");
         socket.off("bookingCancelledByUser");
+        socket.off("bookingCancelledBySystemTimeout");
       }
     };
   }, []);
