@@ -227,11 +227,16 @@ export default function StartRideScreen() {
           <View className="flex-row justify-between mb-6">
             <View>
               <Text className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">
-                Estimated Fare
+                Estimated Total
               </Text>
               <Text className="text-white text-2xl font-black italic">
-                ₹{booking?.fare || 0}
+                ₹{booking?.totalFare || booking?.fare || 0}
               </Text>
+              {booking?.tollFee > 0 && (
+                <View className="bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 rounded mt-1 align-self-start">
+                  <Text className="text-emerald-400 font-black uppercase text-[8px] tracking-wider">+₹{booking.tollFee} Toll Included</Text>
+                </View>
+              )}
             </View>
             <View className="items-end">
               <Text className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">

@@ -597,10 +597,17 @@ function DriverRealtimeOverlay() {
                   )}
                   <Text className="text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: isSmallPhone ? 10 : 11 }}>Incoming Ride</Text>
                 </View>
-                <Text className="text-white font-black italic tracking-tighter" style={{ fontSize: fareTextSize }}>₹{incomingRide?.fare || 0}</Text>
-                <Text className="text-slate-400 font-bold uppercase tracking-widest mt-1" style={{ fontSize: metaTextSize }}>Estimated Fare</Text>
+                <Text className="text-white font-black italic tracking-tighter" style={{ fontSize: fareTextSize }}>₹{incomingRide?.totalFare || incomingRide?.fare || 0}</Text>
+                <View className="flex-row items-center mt-1 flex-wrap gap-2">
+                  <Text className="text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: metaTextSize }}>Estimated Total</Text>
+                  {incomingRide?.tollFee > 0 && (
+                    <View className="bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                      <Text className="text-emerald-400 font-black uppercase text-[8px] tracking-wider">+₹{incomingRide.tollFee} Toll Included</Text>
+                    </View>
+                  )}
+                </View>
                 {scheduledDateLabel && (
-                  <Text className="text-sky-300 font-black uppercase tracking-wider mt-1" style={{ fontSize: metaTextSize }}>
+                  <Text className="text-sky-300 font-black uppercase tracking-wider mt-2" style={{ fontSize: metaTextSize }}>
                     {scheduledDateLabel}
                   </Text>
                 )}

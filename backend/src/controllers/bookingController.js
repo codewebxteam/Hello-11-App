@@ -217,7 +217,9 @@ export const createBooking = async (req, res) => {
             distance: booking.distance,
             rideType: booking.rideType,
             vehicleType: booking.vehicleType,
-            bookingType: booking.bookingType
+            bookingType: booking.bookingType,
+            tollFee: booking.tollFee || 0,
+            totalFare: booking.totalFare
           });
 
           // Send Push Notification if token exists
@@ -225,7 +227,7 @@ export const createBooking = async (req, res) => {
             sendPushNotification(
               driver.pushToken,
               "New Ride Request",
-              `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.fare}`,
+              `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Total Fare: ₹${booking.totalFare}`,
               {
                 bookingId: booking._id.toString(),
                 type: 'new_ride'
@@ -275,7 +277,9 @@ export const createBooking = async (req, res) => {
             rideType: booking.rideType,
             vehicleType: booking.vehicleType,
             bookingType: "schedule",
-            scheduledDate: booking.scheduledDate
+            scheduledDate: booking.scheduledDate,
+            tollFee: booking.tollFee || 0,
+            totalFare: booking.totalFare
           });
 
           if (driver.pushToken) {

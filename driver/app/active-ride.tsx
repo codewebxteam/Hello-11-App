@@ -30,8 +30,6 @@ export default function ActiveRideScreen() {
     // penaltyAmount: use live state (updated by API and socket), fallback to params
     const [penaltyAmount, setPenaltyAmount] = React.useState<number>(params.penalty ? Number(params.penalty) : 0);
     const [tollAmount, setTollAmount] = React.useState<number>(params.toll ? Number(params.toll) : 0);
-    const [tollInput, setTollInput] = React.useState<string>(params.toll ? String(params.toll) : "");
-
     const bookingId = params.bookingId as string;
     const distanceKm = params.distance ? parseFloat(params.distance as string) : 12.4;
 
@@ -124,7 +122,6 @@ export default function ActiveRideScreen() {
                     if (b.tollFee !== undefined) {
                         const nextToll = Number(b.tollFee) || 0;
                         setTollAmount(nextToll);
-                        setTollInput(nextToll > 0 ? String(nextToll) : "");
                     }
 
                     // 2. Set initial region
@@ -268,7 +265,6 @@ export default function ActiveRideScreen() {
                     if (String(data.bookingId) === String(bookingId)) {
                         const nextToll = Number(data.tollFee) || 0;
                         setTollAmount(nextToll);
-                        setTollInput(nextToll > 0 ? String(nextToll) : "");
                         setBooking((prev: any) => prev ? { ...prev, tollFee: data.tollFee, totalFare: data.totalFare } : prev);
                     }
                 });
@@ -277,31 +273,7 @@ export default function ActiveRideScreen() {
         setupSocket();
     }, [bookingId, router]);
 
-    const updateTollFee = (value: number) => {
-        const next = Math.max(0, Number(value) || 0);
-        driverAPI.updateTollFee(bookingId, next)
-            .then(() => {
-                setTollAmount(next);
-                setTollInput(next > 0 ? String(next) : "");
-                setBooking((prev: any) => prev ? { ...prev, tollFee: next } : prev);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            })
-            .catch(() => Alert.alert("Error", "Failed to update toll fee."));
-    };
-
-    const handleApplyManualToll = () => {
-        const parsed = Number((tollInput || "").trim());
-        if (!Number.isFinite(parsed) || parsed < 0) {
-            Alert.alert("Invalid Toll", "Please enter a valid toll amount.");
-            return;
-        }
-        updateTollFee(parsed);
-    };
-
-    const handleClearToll = () => {
-        setTollInput("");
-        updateTollFee(0);
-    };
+    
 
     const handleEndRide = () => {
         const normalizedBaseFare = booking?.baseFare || Math.max(0, Number(booking?.fare || 0) - Number(booking?.nightSurcharge || 0));
@@ -663,29 +635,7 @@ export default function ActiveRideScreen() {
                                         <Text className="text-amber-400 text-sm font-bold">+₹{tollAmount || 0}</Text>
                                     </View>
                                 )}
-                                <View className="flex-row items-center gap-2 mb-3">
-                                    <TextInput
-                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white text-sm"
-                                        placeholder="Add Manual Toll (₹)"
-                                        placeholderTextColor="#64748b"
-                                        keyboardType="numeric"
-                                        value={tollInput}
-                                        onChangeText={setTollInput}
-                                    />
-                                    <TouchableOpacity 
-                                        onPress={handleApplyManualToll}
-                                        className="bg-amber-500/20 border border-amber-500/30 px-3 py-2 rounded-xl"
-                                    >
-                                        <Text className="text-amber-400 font-bold text-[10px] uppercase">Add Toll</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity 
-                                        onPress={handleClearToll}
-                                        className="bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-xl"
-                                    >
-                                        <Text className="text-red-400 font-bold text-[10px] uppercase">Clear</Text>
-                                    </TouchableOpacity>
-                                </View>
-
+                                
                                 <View className="h-[1px] bg-slate-700/50 w-full my-3" />
 
                                 <View className="flex-row justify-between items-center">
