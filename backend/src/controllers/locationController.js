@@ -182,6 +182,56 @@ export const getDirections = async (req, res) => {
   }
 };
 
+// Get exact toll cost between two points using Google Routes API
+export const getTolls = async (req, res) => {
+  try {
+    const { lat1, lon1, lat2, lon2 } = req.query;
+    if (!lat1 || !lon1 || !lat2 || !lon2) return res.status(400).json({ error: "All coordinates required" });
+
+    const payload = {
+      origin: { location: { latLng: { latitude: parseFloat(lat1), longitude: parseFloat(lon1) } } },
+      destination: { location: { latLng: { latitude: parseFloat(lat2), longitude: parseFloat(lon2) } } },
+      travelMode: "DRIVE",
+      extraComputations: ["TOLLS"]
+    };
+
+    const response = await axios.post("https://routes.googleapis.com/directions/v2:computeRoutes", payload, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": getGoogleApiKey(),
+        "X-Goog-FieldMask": "routes.travelAdvisory.tollInfo.estimatedPrice"
+      }
+    });
+
+    let tollPrice = 0;
+    if (response.data && response.data.routes && response.data.routes.length > 0) {
+      const tollInfo = response.data.routes[0].travelAdvisory?.tollInfo;
+      if (tollInfo && tollInfo.estimatedPrice && tollInfo.estimatedPrice.length > 0) {
+        // Find INR or just take the first
+        const priceObj = tollInfo.estimatedPrice.find(p => p.currencyCode === "INR") || tollInfo.estimatedPrice[0];
+        tollPrice = parseInt(priceObj.units || "0");
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        tollPrice: tollPrice
+      }
+    });
+  } catch (error) {
+    serverLog(`Tolls error: ${error.message}`);
+    // Safe fallback to 0 instead of crashing the flow
+    res.json({
+      success: true,
+      data: {
+        tollPrice: 0,
+        error: "Failed to fetch tolls, defaulting to 0"
+      }
+    });
+  }
+};
+
 // Get autocomplete suggestions for address input fields
 // Uses Google Places Autocomplete API - prefix matching, India-restricted, wider proximity-biased
 export const getAutocomplete = async (req, res) => {

@@ -201,6 +201,10 @@ export const locationAPI = {
   getDirections: (lat1: number, lon1: number, lat2: number, lon2: number) =>
     api.get(API_ENDPOINTS.DIRECTIONS, { params: { lat1, lon1, lat2, lon2 } }),
 
+  // Get tolls between two points
+  getTolls: (lat1: number, lon1: number, lat2: number, lon2: number) =>
+    api.get("/api/location/tolls", { params: { lat1, lon1, lat2, lon2 } }),
+
   // Get autocomplete suggestions (India-restricted with wider proximity bias)
   getAutocomplete: (query: string, lat?: number, lon?: number) =>
     api.get(API_ENDPOINTS.AUTOCOMPLETE, { params: { query, lat, lon } }),

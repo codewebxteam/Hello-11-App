@@ -31,9 +31,9 @@ const OutstationBookingScreen = () => {
 
   // Fare/Vehicle state
   const [carType, setCarType] = useState<'5seater' | '7seater'>('5seater');
-  const [fares, setFares] = useState<{ [key: string]: { fare: number; total: number; time: number; nightSurcharge: number; isNight: boolean } }>({
-    '5seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false },
-    '7seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false },
+  const [fares, setFares] = useState<any>({
+    '5seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false, tollCost: 0 },
+    '7seater': { fare: 0, total: 0, time: 0, nightSurcharge: 0, isNight: false, tollCost: 0 }
   });
   const [loadingFares, setLoadingFares] = useState(false);
 
@@ -45,6 +45,7 @@ const OutstationBookingScreen = () => {
 
   const [bookingType, setBookingType] = useState<'now' | 'schedule'>('now');
   const [isBooking, setIsBooking] = useState(false);
+  const [tollCost, setTollCost] = useState(0);
 
   // Searching state — shown after booking is created
   const [isSearchingDriver, setIsSearchingDriver] = useState(false);
@@ -104,7 +105,8 @@ const OutstationBookingScreen = () => {
               total: res5.data.data.totalFare,
               time: res5.data.data.allowedTimeMinutes,
               nightSurcharge: res5.data.data.nightSurcharge ?? 0,
-              isNight: res5.data.data.isNightSurcharge ?? false
+              isNight: res5.data.data.isNightSurcharge ?? false,
+              tollCost: tollCost
             };
           }
           if (res7.data?.success) {
@@ -113,7 +115,8 @@ const OutstationBookingScreen = () => {
               total: res7.data.data.totalFare,
               time: res7.data.data.allowedTimeMinutes,
               nightSurcharge: res7.data.data.nightSurcharge ?? 0,
-              isNight: res7.data.data.isNightSurcharge ?? false
+              isNight: res7.data.data.isNightSurcharge ?? false,
+              tollCost: tollCost
             };
           }
           setFares(newFares);
@@ -125,20 +128,33 @@ const OutstationBookingScreen = () => {
       };
       fetchFares();
     }
-  }, [distanceKm, bookingType, scheduledDate]);
+  }, [distanceKm, bookingType, scheduledDate, tollCost]);
 
   // ─── Distance + Drivers (Availability Check) ─────────────────────────────────
   const fetchDistanceAndDrivers = useCallback(async () => {
     if (!pickupCoords || !dropCoords) return;
     try {
-      // Distance
-      const dirRes = await locationAPI.getDirections(
-        pickupCoords.lat, pickupCoords.lon,
-        dropCoords.lat, dropCoords.lon
-      );
+      // Distance & Tolls in parallel
+      const [dirRes, tollRes] = await Promise.all([
+        locationAPI.getDirections(
+          pickupCoords.lat, pickupCoords.lon,
+          dropCoords.lat, dropCoords.lon
+        ),
+        locationAPI.getTolls(
+          pickupCoords.lat, pickupCoords.lon,
+          dropCoords.lat, dropCoords.lon
+        ).catch(() => ({ data: { data: { tollPrice: 0 } } })) // Safe fallback
+      ]);
+
+      const tollPrice = tollRes.data?.data?.tollPrice || 0;
+
       if (dirRes.data?.data?.distanceKm) {
         const dist = parseFloat(dirRes.data.data.distanceKm);
         setDistanceKm(dist);
+
+        // Save toll info globally or update fare objects (temporarily we can store it in a ref or directly in fares after fare fetches)
+        // Since fares fetch triggers on distanceKm change, we will store tollPrice in state
+        setTollCost(tollPrice);
         
         // --- REVERT TO NORMAL RULE ---
         if (dist > 0 && dist < 40) {
@@ -338,8 +354,9 @@ const OutstationBookingScreen = () => {
         fare: fares[carType].fare,
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
         nightSurcharge: fares[carType].nightSurcharge || 0,
+        tollFee: fares[carType].tollCost || 0,
         returnTripFare: 0,
-        totalFare: fares[carType].total,
+        totalFare: fares[carType].total + (fares[carType].tollCost || 0),
         hasReturnTrip: false,
         distance: distanceKm,
         vehicleType: carType,
@@ -634,7 +651,7 @@ const OutstationBookingScreen = () => {
                   ) : (
                     <>
                       <Text className={`${isSelected ? 'text-slate-900' : 'text-slate-600'} font-black text-xl`}>
-                        ₹{vehicleFare || '--'}
+                        ₹{vehicleFare + (fares[option.type].tollCost || 0) || '--'}
                       </Text>
                       {vehicleTime > 0 && (
                         <View className="flex-row items-center mt-1">
@@ -642,6 +659,11 @@ const OutstationBookingScreen = () => {
                           <Text className="text-slate-400 text-[10px] font-bold ml-0.5">
                             {formatTime(vehicleTime)}
                           </Text>
+                        </View>
+                      )}
+                      {(fares[option.type].tollCost || 0) > 0 && (
+                        <View className="flex-row items-center mt-1 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          <Text className="text-emerald-600 text-[9px] font-black">+₹{fares[option.type].tollCost} Toll</Text>
                         </View>
                       )}
                     </>
@@ -761,9 +783,19 @@ const OutstationBookingScreen = () => {
                 </View>
               )}
 
+              {fares[carType].tollCost > 0 && (
+                <View className="flex-row justify-between items-center mb-3 pt-3 border-t border-slate-700">
+                  <View className="flex-row items-center">
+                    <Ionicons name="location" size={12} color="#10b981" style={{ marginRight: 6 }} />
+                    <Text className="text-emerald-400 text-[10px] font-black uppercase">Toll Charges (Included)</Text>
+                  </View>
+                  <Text className="text-emerald-400 font-black text-sm">+₹{fares[carType].tollCost}</Text>
+                </View>
+              )}
+
               <View className="flex-row justify-between items-center pt-3 border-t border-slate-700">
                 <Text className="text-[#FFD700] text-[10px] font-black uppercase tracking-widest">Total Estimate</Text>
-                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare}</Text>
+                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + (fares[carType].tollCost || 0)}</Text>
               </View>
             </View>
           )}
@@ -772,7 +804,7 @@ const OutstationBookingScreen = () => {
           <View style={{ backgroundColor: '#1E293B', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#334155', flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="information-circle" size={22} color="#F87171" />
             <Text style={{ flex: 1, marginLeft: 10, color: '#F87171', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-              Note: Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.
+              Note: {fares[carType]?.tollCost > 0 ? `₹${fares[carType].tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
             </Text>
           </View>
 

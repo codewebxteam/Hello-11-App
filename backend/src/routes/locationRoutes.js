@@ -3,6 +3,7 @@ import {
   geocodeAddress,
   reverseGeocode,
   getDirections,
+  getTolls,
   getAutocomplete,
   getApiKeyStatus,
   calculateDistanceAndRecommend,
@@ -14,6 +15,7 @@ const router = express.Router();
 router.get("/geocode", geocodeAddress); // Forward geocoding: address -> coordinates
 router.get("/reverse", reverseGeocode); // Reverse geocoding: coordinates -> address
 router.get("/directions", getDirections); // Get route between two points
+router.get("/tolls", getTolls); // Get tolls between two points
 router.get("/autocomplete", getAutocomplete); // Address autocomplete suggestions
 
 // Distance calculation endpoint

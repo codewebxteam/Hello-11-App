@@ -32,12 +32,13 @@ const BookingScreen = () => {
   const [selectedVehicle, setSelectedVehicle] = useState('5seater');
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tollCost, setTollCost] = useState(0);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
 
   // Fare/Vehicle state
-  const [fares, setFares] = useState<{ [key: string]: { fare: number; total: number; isNight: boolean; nightSurcharge: number } }>({
-    '5seater': { fare: 0, total: 0, isNight: false, nightSurcharge: 0 },
-    '7seater': { fare: 0, total: 0, isNight: false, nightSurcharge: 0 },
+  const [fares, setFares] = useState<any>({
+    '5seater': { fare: 0, total: 0, isNight: false, nightSurcharge: 0, tollCost: 0 },
+    '7seater': { fare: 0, total: 0, isNight: false, nightSurcharge: 0, tollCost: 0 }
   });
   const [loadingFares, setLoadingFares] = useState(false);
 
@@ -114,7 +115,6 @@ const BookingScreen = () => {
     setIsLoadingSuggestions(true);
     const timer = setTimeout(async () => {
       try {
-        // Pass pickup coords so backend restricts suggestions to India + 50km radius
         const userLat = pickupCoords?.lat;
         const userLon = pickupCoords?.lon;
         const res = await locationAPI.getAutocomplete(query, userLat, userLon);
@@ -144,7 +144,8 @@ const BookingScreen = () => {
               fare: res5.data.data.totalFare,
               total: res5.data.data.totalFare,
               isNight: res5.data.data.isNightSurcharge ?? false,
-              nightSurcharge: res5.data.data.nightSurcharge || 0
+              nightSurcharge: res5.data.data.nightSurcharge || 0,
+              tollCost: tollCost
             };
           }
           if (res7.data?.success) {
@@ -152,7 +153,8 @@ const BookingScreen = () => {
               fare: res7.data.data.totalFare,
               total: res7.data.data.totalFare,
               isNight: res7.data.data.isNightSurcharge ?? false,
-              nightSurcharge: res7.data.data.nightSurcharge || 0
+              nightSurcharge: res7.data.data.nightSurcharge || 0,
+              tollCost: tollCost
             };
           }
           setFares(newFares);
@@ -164,21 +166,30 @@ const BookingScreen = () => {
       };
       fetchFares();
     }
-  }, [distanceKm, bookingType, scheduledDate, rideMode]);
+  }, [distanceKm, bookingType, scheduledDate, rideMode, tollCost]);
 
   // --- DISTANCE & DRIVER STATS LOGIC ---
   const fetchRideInfo = useCallback(async () => {
     if (!pickupCoords || !dropCoords) return;
     try {
-      const dirRes = await locationAPI.getDirections(
-        pickupCoords.lat, pickupCoords.lon,
-        dropCoords.lat, dropCoords.lon
-      );
+      const [dirRes, tollRes] = await Promise.all([
+        locationAPI.getDirections(
+          pickupCoords.lat, pickupCoords.lon,
+          dropCoords.lat, dropCoords.lon
+        ),
+        locationAPI.getTolls(
+          pickupCoords.lat, pickupCoords.lon,
+          dropCoords.lat, dropCoords.lon
+        ).catch(() => ({ data: { data: { tollPrice: 0 } } })) 
+      ]);
+      
+      const tollPrice = tollRes.data?.data?.tollPrice || 0;
+
       if (dirRes.data?.data?.distanceKm) {
         const dist = parseFloat(dirRes.data.data.distanceKm);
         setDistanceKm(dist);
+        setTollCost(tollPrice);
 
-        // --- 40KM RULE (Always check distance) ---
         if (dist >= 40 && rideMode === 'normal') {
           Alert.alert(
             "Long Distance Detected",
@@ -214,7 +225,6 @@ const BookingScreen = () => {
     fetchRideInfo();
   }, [fetchRideInfo]);
 
-  // --- APP STATE LISTENER (BACKGROUND CONNECTION DROP FIX) ---
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (nextAppState) => {
       if (nextAppState === "active" && isSearching && activeBookingId) {
@@ -238,7 +248,6 @@ const BookingScreen = () => {
     return () => subscription.remove();
   }, [isSearching, activeBookingId]);
 
-  // --- SELECT SUGGESTION ---
   const selectSuggestion = (item: any) => {
     if (activeInput === 'pickup') {
       setPickup(item.display_name);
@@ -251,7 +260,6 @@ const BookingScreen = () => {
     setActiveInput(null);
   };
 
-  // --- HANDLE CONFIRM ---
   const handleConfirm = async () => {
     if (isSubmitting) return;
     if (!pickup || !drop) {
@@ -293,6 +301,7 @@ const BookingScreen = () => {
 
     setIsSubmitting(true);
     try {
+      const carType = selectedVehicle;
       const payload = {
         pickupLocation: pickup,
         dropLocation: drop,
@@ -305,9 +314,10 @@ const BookingScreen = () => {
         vehicleType: selectedVehicle,
         scheduledDate: bookingType === 'schedule' ? scheduledDate.toISOString() : undefined,
         fare: fares[selectedVehicle].fare,
-        baseFare: Math.max(0, fares[selectedVehicle].fare - (fares[selectedVehicle].nightSurcharge || 0)),
-        nightSurcharge: fares[selectedVehicle].nightSurcharge || 0,
-        distance: distanceKm,
+        baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
+        nightSurcharge: fares[carType].nightSurcharge || 0,
+        tollFee: fares[carType].tollCost || 0,
+        totalFare: fares[carType].total + (fares[carType].tollCost || 0),
       };
 
       const res = await bookingAPI.createBooking(payload);
@@ -339,7 +349,6 @@ const BookingScreen = () => {
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       <StatusBar style="dark" />
 
-      {/* Header Section */}
       <View className={`bg-[#FFD700] ${isSmallPhone ? 'pt-12 pb-6 px-4 rounded-b-[32px]' : 'pt-14 pb-8 px-6 rounded-b-[45px]'} shadow-lg`}>
         <Text className={`${isSmallPhone ? 'text-[28px] mb-4' : 'text-3xl mb-6'} font-black text-slate-900`}>Plan Your Trip</Text>
 
@@ -451,7 +460,6 @@ const BookingScreen = () => {
 
       <ScrollView className={`flex-1 ${isSmallPhone ? 'px-4 pt-4' : 'px-6 pt-6'}`} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
 
-        {/* Long Distance Message */}
         {rideMode === 'long' && (
           <View className={`bg-blue-600 ${isSmallPhone ? 'p-5 rounded-[26px] mb-6' : 'p-8 rounded-[40px] mb-8'} shadow-xl`}>
             <View className="bg-white/20 w-12 h-12 rounded-2xl items-center justify-center mb-4">
@@ -464,7 +472,6 @@ const BookingScreen = () => {
           </View>
         )}
 
-        {/* Fare Summary (For Normal) */}
         {distanceKm > 0 && rideMode === 'normal' && (
           <View className="mb-8">
             <View className={`bg-white ${isSmallPhone ? 'p-4 rounded-[24px]' : 'p-6 rounded-[35px]'} border border-slate-100 flex-row items-center justify-between shadow-sm`}>
@@ -485,13 +492,29 @@ const BookingScreen = () => {
                   </View>
                 ) : (
                   <>
-                    <Text className="text-slate-900 font-black text-3xl">₹{Math.max(0, (fares['5seater']?.fare || 0) - (fares['5seater']?.nightSurcharge || 0))}</Text>
-                    {fares['5seater']?.isNight && (
-                      <View className="flex-row items-center mt-1">
-                        <Ionicons name="moon" size={10} color="#6366F1" />
-                        <Text className="text-[#6366F1] text-[8px] font-black uppercase ml-1">Night Fare +₹{fares['5seater']?.nightSurcharge}</Text>
+                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1 text-right">Total Fare</Text>
+                    <Text className="text-slate-900 font-black text-3xl">₹{(fares['5seater']?.total || 0) + (fares['5seater']?.tollCost || 0)}</Text>
+                    
+                    <View className="flex-col mt-2 w-full items-end gap-1">
+                      <View className="flex-row items-center justify-end">
+                        <Text className="text-slate-500 text-[10px] font-bold mr-2">Base Fare</Text>
+                        <Text className="text-slate-700 text-[10px] font-bold">₹{Math.max(0, (fares['5seater']?.fare || 0) - (fares['5seater']?.nightSurcharge || 0))}</Text>
                       </View>
-                    )}
+                      
+                      {fares['5seater']?.isNight && (
+                        <View className="flex-row items-center justify-end">
+                          <Text className="text-[#6366F1] text-[10px] font-bold mr-2">Night Fare</Text>
+                          <Text className="text-[#6366F1] text-[10px] font-bold">+₹{fares['5seater']?.nightSurcharge}</Text>
+                        </View>
+                      )}
+                      
+                      {(fares['5seater']?.tollCost || 0) > 0 && (
+                        <View className="flex-row items-center justify-end">
+                          <Text className="text-emerald-600 text-[10px] font-bold mr-2">Toll Charge</Text>
+                          <Text className="text-emerald-600 text-[10px] font-bold">+₹{fares['5seater']?.tollCost}</Text>
+                        </View>
+                      )}
+                    </View>
                   </>
                 )}
               </View>
@@ -499,7 +522,6 @@ const BookingScreen = () => {
           </View>
         )}
 
-        {false && (
           <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 6, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9' }}>
             <TouchableOpacity
               onPress={() => setBookingType('now')}
@@ -516,7 +538,6 @@ const BookingScreen = () => {
               <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'schedule' ? '#000' : '#94a3b8' }}>SCHEDULE</Text>
             </TouchableOpacity>
           </View>
-        )}
 
         {/* Scheduler */}
         {bookingType === 'schedule' && (
@@ -560,7 +581,7 @@ const BookingScreen = () => {
         <View style={{ backgroundColor: '#FEF2F2', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center' }}>
           <Ionicons name="information-circle" size={22} color="#EF4444" />
           <Text style={{ flex: 1, marginLeft: 10, color: '#DC2626', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-            Note: Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.
+            Note: {fares['5seater']?.tollCost > 0 ? `₹${fares['5seater'].tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
           </Text>
         </View>
 
