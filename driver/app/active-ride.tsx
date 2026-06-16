@@ -242,6 +242,16 @@ export default function ActiveRideScreen() {
                 socket.on("returnTripAccepted", (data: any) => {
                     if (String(data.bookingId) === String(bookingId)) {
                         setHasReturnTrip(true);
+                        if (data.tollFee !== undefined) {
+                            setTollAmount(Number(data.tollFee) || 0);
+                        }
+                        setBooking((prev: any) => prev ? {
+                            ...prev,
+                            hasReturnTrip: true,
+                            returnTripFare: data.returnTripFare || prev.returnTripFare,
+                            tollFee: data.tollFee !== undefined ? data.tollFee : prev.tollFee,
+                            totalFare: data.totalFare !== undefined ? data.totalFare : prev.totalFare
+                        } : prev);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     }
                 });

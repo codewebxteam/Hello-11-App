@@ -989,20 +989,29 @@ export const acceptReturnOffer = async (req, res) => {
     booking.returnTripFare = returnFare;
     booking.discount = 50; // 50% off
 
+    // Double the tollFee since return trip crosses tolls twice
+    const originalTollFee = booking.tollFee || 0;
+    const newTollFee = originalTollFee * 2;
+    booking.tollFee = newTollFee;
+
     // Update totalFare
-    booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0) + (booking.tollFee || 0);
+    booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0) + newTollFee;
 
     await booking.save();
 
     const io = getIO();
     io.to(booking.user.toString()).emit("returnTripAccepted", {
       bookingId: booking._id,
-      returnTripFare: returnFare
+      returnTripFare: returnFare,
+      tollFee: newTollFee,
+      totalFare: booking.totalFare
     });
     if (booking.driver) {
       io.to(booking.driver.toString()).emit("returnTripAccepted", {
         bookingId: booking._id,
-        returnTripFare: returnFare
+        returnTripFare: returnFare,
+        tollFee: newTollFee,
+        totalFare: booking.totalFare
       });
 
       // Create persistent notification for driver
