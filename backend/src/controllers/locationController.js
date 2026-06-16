@@ -213,6 +213,15 @@ export const getTolls = async (req, res) => {
       }
     }
 
+    // Fallback: If Google did not return any toll information, but it is an outstation trip, estimate the toll.
+    if (tollPrice === 0) {
+      const distance = calculateDistance(parseFloat(lat1), parseFloat(lon1), parseFloat(lat2), parseFloat(lon2));
+      // Estimate toll at ₹1.7 per km for outstation rides (distance >= 40km)
+      if (distance >= 40) {
+        tollPrice = Math.round((distance * 1.7) / 10) * 10;
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -221,12 +230,24 @@ export const getTolls = async (req, res) => {
     });
   } catch (error) {
     serverLog(`Tolls error: ${error.message}`);
-    // Safe fallback to 0 instead of crashing the flow
+    // Safe fallback: Estimate toll from coordinates even on API error
+    let tollPrice = 0;
+    try {
+      const { lat1, lon1, lat2, lon2 } = req.query;
+      if (lat1 && lon1 && lat2 && lon2) {
+        const distance = calculateDistance(parseFloat(lat1), parseFloat(lon1), parseFloat(lat2), parseFloat(lon2));
+        if (distance >= 40) {
+          tollPrice = Math.round((distance * 1.7) / 10) * 10;
+        }
+      }
+    } catch (e) {
+      serverLog(`Tolls fallback error: ${e.message}`);
+    }
     res.json({
       success: true,
       data: {
-        tollPrice: 0,
-        error: "Failed to fetch tolls, defaulting to 0"
+        tollPrice: tollPrice,
+        error: error.message
       }
     });
   }

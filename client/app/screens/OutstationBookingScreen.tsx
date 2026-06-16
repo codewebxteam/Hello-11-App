@@ -354,9 +354,9 @@ const OutstationBookingScreen = () => {
         fare: fares[carType].fare,
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
         nightSurcharge: fares[carType].nightSurcharge || 0,
-        tollFee: fares[carType].tollCost || 0,
+        tollFee: tollCost || 0,
         returnTripFare: 0,
-        totalFare: fares[carType].total + (fares[carType].tollCost || 0),
+        totalFare: (fares[carType]?.total || 0) + (tollCost || 0),
         hasReturnTrip: false,
         distance: distanceKm,
         vehicleType: carType,
@@ -651,7 +651,7 @@ const OutstationBookingScreen = () => {
                   ) : (
                     <>
                       <Text className={`${isSelected ? 'text-slate-900' : 'text-slate-600'} font-black text-xl`}>
-                        ₹{vehicleFare + (fares[option.type].tollCost || 0) || '--'}
+                        ₹{vehicleFare + (tollCost || 0) || '--'}
                       </Text>
                       {vehicleTime > 0 && (
                         <View className="flex-row items-center mt-1">
@@ -661,9 +661,9 @@ const OutstationBookingScreen = () => {
                           </Text>
                         </View>
                       )}
-                      {(fares[option.type].tollCost || 0) > 0 && (
+                      {(tollCost || 0) > 0 && (
                         <View className="flex-row items-center mt-1 bg-emerald-50 px-1.5 py-0.5 rounded">
-                          <Text className="text-emerald-600 text-[9px] font-black">+₹{fares[option.type].tollCost} Toll</Text>
+                          <Text className="text-emerald-600 text-[9px] font-black">+₹{tollCost} Toll</Text>
                         </View>
                       )}
                     </>
@@ -783,19 +783,19 @@ const OutstationBookingScreen = () => {
                 </View>
               )}
 
-              {fares[carType].tollCost > 0 && (
+              {tollCost > 0 && (
                 <View className="flex-row justify-between items-center mb-3 pt-3 border-t border-slate-700">
                   <View className="flex-row items-center">
                     <Ionicons name="location" size={12} color="#10b981" style={{ marginRight: 6 }} />
                     <Text className="text-emerald-400 text-[10px] font-black uppercase">Toll Charges (Included)</Text>
                   </View>
-                  <Text className="text-emerald-400 font-black text-sm">+₹{fares[carType].tollCost}</Text>
+                  <Text className="text-emerald-400 font-black text-sm">+₹{tollCost}</Text>
                 </View>
               )}
 
               <View className="flex-row justify-between items-center pt-3 border-t border-slate-700">
                 <Text className="text-[#FFD700] text-[10px] font-black uppercase tracking-widest">Total Estimate</Text>
-                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + (fares[carType].tollCost || 0)}</Text>
+                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + (tollCost || 0)}</Text>
               </View>
             </View>
           )}
@@ -804,7 +804,7 @@ const OutstationBookingScreen = () => {
           <View style={{ backgroundColor: '#1E293B', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#334155', flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="information-circle" size={22} color="#F87171" />
             <Text style={{ flex: 1, marginLeft: 10, color: '#F87171', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-              Note: {fares[carType]?.tollCost > 0 ? `₹${fares[carType].tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
+              Note: {tollCost > 0 ? `₹${tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
             </Text>
           </View>
 
