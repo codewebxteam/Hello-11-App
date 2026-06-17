@@ -148,10 +148,8 @@ export const loginDriver = async (req, res) => {
       });
     }
 
-    // ---> TEST ACCOUNT BYPASS LOGIC START <---
-    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    // OTP generation (uses isTestAccount from above)
     const otp = isTestAccount ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
-    // ---> TEST ACCOUNT BYPASS LOGIC END <---
 
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
