@@ -38,6 +38,7 @@ function App() {
       const res = await adminAPI.login({ email, password });
       if (res.data.success) {
         localStorage.setItem("token", res.data.token);
+        localStorage.setItem("adminEmail", email);
         setIsAuthenticated(true);
       }
     } catch (err: any) {

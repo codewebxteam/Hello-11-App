@@ -10,7 +10,8 @@ import {
   updateBookingStatus,
   manualPaymentReset,
   getFinancialReports,
-  adminLogin // <-- Naya import
+  adminLogin,
+  changeAdminPassword
 } from "../controllers/adminController.js";
 import { adminForceCancelBooking } from "../controllers/bookingController.js"; 
 import { adminAuth } from "../middleware/adminAuth.js"; // <-- Middleware import
@@ -25,6 +26,9 @@ router.use(adminAuth);
 
 // Dashboard
 router.get("/stats", getDashboardStats);
+
+// Profile
+router.put("/change-password", changeAdminPassword);
 
 // Users management
 router.get("/users", getAllUsers);

@@ -3,6 +3,12 @@ import Driver from "../models/Driver.js";
 import Booking from "../models/Booking.js";
 import Transaction from "../models/Transaction.js";
 import jwt from "jsonwebtoken";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const getOneWayFare = (booking) => {
   const fare = Number(booking?.fare || 0);
@@ -395,5 +401,45 @@ export const adminLogin = async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const changeAdminPassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "@Hello11";
+
+    if (oldPassword !== ADMIN_PASSWORD) {
+      return res.status(400).json({ success: false, message: "Incorrect current password" });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: "New password must be at least 6 characters long" });
+    }
+
+    // Path to the .env file in the backend root
+    const envPath = path.resolve(__dirname, "../../.env");
+    
+    if (fs.existsSync(envPath)) {
+      let envContent = fs.readFileSync(envPath, "utf8");
+      
+      if (envContent.includes("ADMIN_PASSWORD=")) {
+        // Replace existing password
+        envContent = envContent.replace(/ADMIN_PASSWORD=.*/g, `ADMIN_PASSWORD=${newPassword}`);
+      } else {
+        // Append if it doesn't exist
+        envContent += `\nADMIN_PASSWORD=${newPassword}\n`;
+      }
+      
+      fs.writeFileSync(envPath, envContent, "utf8");
+      // Update in memory for immediate effect
+      process.env.ADMIN_PASSWORD = newPassword;
+      
+      return res.json({ success: true, message: "Password updated successfully" });
+    } else {
+      return res.status(500).json({ success: false, message: ".env file not found on server" });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 };

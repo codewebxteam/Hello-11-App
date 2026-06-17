@@ -1,17 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { Search, LogOut, Menu, Bell } from 'lucide-react';
+import { Search, LogOut, Menu, Bell, KeyRound, X } from 'lucide-react';
+import { adminAPI } from '../services/api';
 
 const DashboardLayout: React.FC = () => {
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [oldPassword, setOldPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [pwdStatus, setPwdStatus] = useState({ type: '', msg: '' });
+    
+    const adminEmail = localStorage.getItem("adminEmail") || "Admin User";
+    const initialLetter = adminEmail !== "Admin User" ? adminEmail.charAt(0).toUpperCase() : "A";
 
     const handleLogout = () => {
         localStorage.removeItem("token");
+        localStorage.removeItem("adminEmail");
         window.location.reload();
+    };
+
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPwdStatus({ type: 'loading', msg: 'Updating password...' });
+        try {
+            const res = await adminAPI.changePassword({ oldPassword, newPassword });
+            if (res.data.success) {
+                setPwdStatus({ type: 'success', msg: 'Password updated successfully!' });
+                setTimeout(() => {
+                    setShowPasswordModal(false);
+                    setOldPassword("");
+                    setNewPassword("");
+                    setPwdStatus({ type: '', msg: '' });
+                }, 2000);
+            }
+        } catch (err: any) {
+            setPwdStatus({ type: 'error', msg: err.response?.data?.message || 'Failed to update password' });
+        }
     };
 
     useEffect(() => {
@@ -103,7 +131,7 @@ const DashboardLayout: React.FC = () => {
                                 className="flex items-center gap-3 p-1 pr-4 rounded-full bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all focus:outline-none focus:ring-4 focus:ring-slate-100 active:scale-95"
                             >
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-800 to-black flex items-center justify-center font-bold shadow-inner text-yellow-400 text-lg">
-                                    A
+                                    {initialLetter}
                                 </div>
                                 <span className="hidden md:block text-base font-bold text-slate-700">Admin</span>
                             </button>
@@ -111,10 +139,16 @@ const DashboardLayout: React.FC = () => {
                             {isProfileOpen && (
                                 <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-4 transform origin-top-right">
                                     <div className="px-5 py-3 border-b border-slate-100 mb-1">
-                                        <p className="text-sm font-black text-slate-900">Admin User</p>
-                                        <p className="text-xs font-medium text-slate-500 truncate">admin@hello11.in</p>
+                                        <p className="text-sm font-black text-slate-900">Admin</p>
+                                        <p className="text-xs font-medium text-slate-500 truncate">{adminEmail}</p>
                                     </div>
                                     <div className="px-2">
+                                        <button 
+                                            onClick={() => { setIsProfileOpen(false); setShowPasswordModal(true); }} 
+                                            className="w-full text-left px-4 py-2.5 rounded-xl text-slate-700 hover:bg-slate-50 text-sm font-bold flex items-center gap-3 transition-colors mb-1"
+                                        >
+                                            <KeyRound size={16} /> Change Password
+                                        </button>
                                         <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 rounded-xl text-red-600 hover:bg-red-50 text-sm font-bold flex items-center gap-3 transition-colors">
                                             <LogOut size={16} /> Secure Logout
                                         </button>
@@ -129,6 +163,65 @@ const DashboardLayout: React.FC = () => {
                     <Outlet />
                 </main>
             </div>
+
+            {/* Change Password Modal */}
+            {showPasswordModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                            <h2 className="text-xl font-black text-slate-900">Change Password</h2>
+                            <button onClick={() => setShowPasswordModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleChangePassword} className="p-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Password</label>
+                                    <input 
+                                        type="password" 
+                                        required
+                                        value={oldPassword}
+                                        onChange={(e) => setOldPassword(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all"
+                                        placeholder="Enter current password"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Password</label>
+                                    <input 
+                                        type="password" 
+                                        required
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all"
+                                        placeholder="Enter new password"
+                                    />
+                                </div>
+                            </div>
+                            
+                            {pwdStatus.msg && (
+                                <div className={`mt-4 p-3 rounded-xl text-sm font-bold ${
+                                    pwdStatus.type === 'error' ? 'bg-red-50 text-red-600' : 
+                                    pwdStatus.type === 'success' ? 'bg-green-50 text-green-600' : 
+                                    'bg-blue-50 text-blue-600'
+                                }`}>
+                                    {pwdStatus.msg}
+                                </div>
+                            )}
+
+                            <div className="mt-8 flex gap-3">
+                                <button type="button" onClick={() => setShowPasswordModal(false)} className="flex-1 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">
+                                    Cancel
+                                </button>
+                                <button type="submit" disabled={pwdStatus.type === 'loading'} className="flex-1 py-3 rounded-xl font-bold text-yellow-400 bg-slate-900 hover:bg-slate-800 transition-colors disabled:opacity-70">
+                                    {pwdStatus.type === 'loading' ? 'Updating...' : 'Update Password'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -19,10 +19,25 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Interceptor for handling unauthorized responses
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('adminEmail');
+      // Using window.location to force a hard reload and clear react state
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ================= ADMIN API =================
 export const adminAPI = {
   // Auth
   login: (credentials: any) => api.post('/api/admin/login', credentials),
+  changePassword: (data: any) => api.put('/api/admin/change-password', data),
 
   // Dashboard
   getStats: () => api.get('/api/admin/stats'),
