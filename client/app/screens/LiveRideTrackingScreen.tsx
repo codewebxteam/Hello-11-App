@@ -359,14 +359,6 @@ const LiveRideTrackingScreen = () => {
                     sendLocalNotification("Ride Started", "Have a safe journey!");
                 }
 
-                // Reliability Check: If ride started but we haven't accepted return trip yet, 
-                // and it's not already shown, double check if we should show offer
-                // Use a ref or local state to ensure we don't reopen if actively accepting
-                if (data.status === 'started' && !bookingRef.current?.hasReturnTrip && !showReturnOffer && !isAcceptingReturnRef.current) {
-                    console.log("[Client] Ride started, checking for return trip offer...");
-                    setShowReturnOffer(true);
-                }
-
                 if (data.status === 'completed') {
                     setShowPaymentPrompt(false);
                     router.replace({
@@ -900,7 +892,7 @@ const LiveRideTrackingScreen = () => {
             />
 
             {/* Persistent Book Return Trip Button - visible until ride completes or return already booked */}
-            {booking && !booking.hasReturnTrip && !optimisticReturnBooked && currentStatus === 'started' && (
+            {booking && !booking.hasReturnTrip && !optimisticReturnBooked && ['arrived', 'started', 'waiting'].includes(currentStatus) && (
                 <TouchableOpacity
                     onPress={() => setShowReturnOffer(true)}
                     disabled={isAcceptingReturn || optimisticReturnBooked}

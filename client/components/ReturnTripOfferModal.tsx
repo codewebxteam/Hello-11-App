@@ -20,27 +20,10 @@ const ReturnTripOfferModal = ({
   onAccept,
 }: ReturnTripOfferModalProps) => {
   const { isSmallPhone, isTablet } = useResponsive();
-  const clickLockRef = useRef(false);
-
   if (!isVisible) return null;
 
-  const handleAcceptPress = () => {
-    if (clickLockRef.current || isAccepting) return;
-    clickLockRef.current = true;
-    onAccept();
-  };
-
-  const handleClosePress = () => {
-    if (clickLockRef.current || isAccepting) return;
-    clickLockRef.current = true;
-    onClose();
-    setTimeout(() => {
-      clickLockRef.current = false;
-    }, 1000);
-  };
-
   return (
-    <Modal transparent visible={isVisible} animationType="none" onRequestClose={isAccepting ? undefined : handleClosePress}>
+    <Modal transparent visible={isVisible} animationType="none" onRequestClose={isAccepting ? undefined : onClose}>
       <View className="flex-1 bg-black/70 justify-center items-center" style={{ paddingHorizontal: isSmallPhone ? 12 : 16 }}>
         <Animated.View
           entering={ZoomIn.duration(400).springify()}
@@ -91,7 +74,7 @@ const ReturnTripOfferModal = ({
 
           <View className="px-5 pb-8 flex-row gap-3">
             <TouchableOpacity
-              onPress={handleClosePress}
+              onPress={onClose}
               disabled={isAccepting}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               className={`flex-1 py-4 bg-slate-100 rounded-2xl items-center justify-center ${isAccepting ? "opacity-50" : "active:bg-slate-200"}`}
@@ -100,7 +83,7 @@ const ReturnTripOfferModal = ({
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={handleAcceptPress}
+              onPress={onAccept}
               disabled={isAccepting}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               className={`flex-[2] py-4 bg-slate-900 rounded-2xl items-center justify-center shadow-lg shadow-slate-300 flex-row ${isAccepting ? "opacity-70" : "active:scale-95"}`}

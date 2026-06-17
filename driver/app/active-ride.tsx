@@ -35,7 +35,7 @@ export default function ActiveRideScreen() {
 
     const [hasReturnTrip, setHasReturnTrip] = React.useState(false);
     const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
-    const [region, setRegion] = React.useState<any>(() => {
+    const [initialRegion] = React.useState<any>(() => {
         if (params.pLat && params.pLon) {
             return {
                 latitude: Number(params.pLat),
@@ -44,13 +44,41 @@ export default function ActiveRideScreen() {
                 longitudeDelta: 0.05
             };
         }
-        return null;
+        return { latitude: 28.6139, longitude: 77.2090, latitudeDelta: 0.05, longitudeDelta: 0.05 };
     });
 
     const [distance, setDistance] = React.useState<string>("---");
     const [eta, setEta] = React.useState<string>("---");
     const [sheetMeasuredHeight, setSheetMeasuredHeight] = React.useState<number>(SHEET_MAX_HEIGHT);
     const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
+    const mapRef = useRef<any>(null);
+    const userInteractingRef = useRef(false);
+    const recenterTimerRef = useRef<any>(null);
+    const [isFollowing, setIsFollowing] = React.useState(true);
+
+    const handleMapInteraction = () => {
+        userInteractingRef.current = true;
+        setIsFollowing(false);
+        if (recenterTimerRef.current) clearTimeout(recenterTimerRef.current);
+        recenterTimerRef.current = setTimeout(() => {
+            userInteractingRef.current = false;
+            setIsFollowing(true);
+        }, 15000); // 15 sec baad auto-follow resume
+    };
+
+    const handleRecenter = () => {
+        userInteractingRef.current = false;
+        setIsFollowing(true);
+        if (recenterTimerRef.current) clearTimeout(recenterTimerRef.current);
+        if (mapRef.current && lastUpdateCoords.current) {
+            mapRef.current.animateToRegion({
+                latitude: lastUpdateCoords.current.lat,
+                longitude: lastUpdateCoords.current.lon,
+                latitudeDelta: 0.015,
+                longitudeDelta: 0.015,
+            }, 500);
+        }
+    };
 
     // Animation Shared Values
     const translateY = useSharedValue(0);
@@ -129,12 +157,14 @@ export default function ActiveRideScreen() {
                     const pLon = Number(b.pickupLongitude);
 
                     if (!isNaN(pLat) && !isNaN(pLon) && pLat !== 0 && pLon !== 0) {
-                        setRegion({
-                            latitude: pLat,
-                            longitude: pLon,
-                            latitudeDelta: 0.05,
-                            longitudeDelta: 0.05,
-                        });
+                        if (mapRef.current) {
+                            mapRef.current.animateToRegion({
+                                latitude: pLat,
+                                longitude: pLon,
+                                latitudeDelta: 0.05,
+                                longitudeDelta: 0.05,
+                            }, 500);
+                        }
                     }
 
                     // 3. Get directions to target
@@ -191,12 +221,15 @@ export default function ActiveRideScreen() {
                     },
                     (newLoc) => {
                         const { latitude, longitude } = newLoc.coords;
-                        setRegion((prev: any) => ({
-                            latitude,
-                            longitude,
-                            latitudeDelta: prev?.latitudeDelta || 0.05,
-                            longitudeDelta: prev?.longitudeDelta || 0.05,
-                        }));
+                        // Only auto-move map if user is NOT manually interacting
+                        if (!userInteractingRef.current && mapRef.current) {
+                            mapRef.current.animateToRegion({
+                                latitude,
+                                longitude,
+                                latitudeDelta: 0.015,
+                                longitudeDelta: 0.015,
+                            }, 800);
+                        }
                         driverAPI.updateLocation({ latitude, longitude }).catch(() => { });
 
                         const targetLat = isReturnTrip ? Number(booking?.pickupLatitude) : Number(booking?.dropLatitude);
@@ -407,16 +440,18 @@ export default function ActiveRideScreen() {
 
             {/* --- REAL MAP BACKGROUND --- */}
             <View className="absolute inset-0 bg-slate-200">
-                {region ? (
+                {initialRegion ? (
                    <MapView
+    ref={mapRef}
     style={{ width, height }}
-    region={region}
+    initialRegion={initialRegion}
     showsUserLocation={true}
     provider={PROVIDER_GOOGLE}
-    // Ye 3 props map ka ghoomna aur tilt hona band kar denge
-    rotateEnabled={false}
-    pitchEnabled={false}
-    showsCompass={false}
+    rotateEnabled={true}
+    pitchEnabled={true}
+    showsCompass={true}
+    onPanDrag={handleMapInteraction}
+    onRegionChangeComplete={() => {}}
 >
     {routeCoords.length > 0 && (
         <Polyline
@@ -475,6 +510,17 @@ export default function ActiveRideScreen() {
                     </View>
                 )}
             </View>
+
+            {/* Re-center button — shows when driver manually moved map */}
+            {!isFollowing && (
+                <TouchableOpacity
+                    onPress={handleRecenter}
+                    className="absolute right-4 bg-white rounded-full p-3 shadow-xl border border-slate-200 z-10"
+                    style={{ top: insets.top + 120 }}
+                >
+                    <Ionicons name="navigate" size={22} color="#0F172A" />
+                </TouchableOpacity>
+            )}
 
             {/* --- TOP BAR (NAVIGATION) --- */}
             <View className="absolute top-0 w-full z-10 px-4" style={{ paddingTop: insets.top + 8 }}>
