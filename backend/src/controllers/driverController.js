@@ -65,7 +65,9 @@ export const registerDriver = async (req, res) => {
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // --> TEST ACCOUNT: Auto-verify and skip WhatsApp <--
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    const otp = isTestAccount ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
     const vType = vehicleType || "5seater";
@@ -80,8 +82,14 @@ export const registerDriver = async (req, res) => {
       serviceType: sType,
       loginOtp: otp,
       loginOtpExpiry: otpExpiry,
-      available: true
+      available: true,
+      isVerified: isTestAccount ? true : false // Auto-verify test account
     });
+
+    // Skip WhatsApp for test account
+    if (isTestAccount) {
+      return res.status(201).json({ message: "Driver registration OTP sent successfully (Test Account)", mobile });
+    }
 
     const result = await sendWhatsAppOTP(mobile, otp);
 
@@ -113,7 +121,27 @@ export const loginDriver = async (req, res) => {
       });
     }
 
-    const driver = await Driver.findOne({ mobile });
+    let driver = await Driver.findOne({ mobile });
+
+    // --> TEST ACCOUNT: Auto-create if not registered <--
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    if (!driver && isTestAccount) {
+      driver = await Driver.create({
+        name: "Test Driver",
+        mobile: "7004046637",
+        vehicleNumber: "UP32 XX 1111",
+        vehicleModel: "Swift Dzire",
+        vehicleType: "5seater",
+        serviceType: "cab",
+        available: true,
+        isVerified: true,
+        online: true,
+        loginOtp: "123456",
+        loginOtpExpiry: new Date(Date.now() + 10 * 60 * 1000)
+      });
+      return res.json({ message: "OTP sent successfully (Test Account)", mobile });
+    }
+
     if (!driver) {
       return res.status(404).json({
         message: "Mobile number not registered. Please register as a driver."

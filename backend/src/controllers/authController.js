@@ -16,13 +16,27 @@ export const requestLoginOTP = async (req, res) => {
 
     let user = await User.findOne({ mobile });
     
+    // --> TEST ACCOUNT: Auto-create if not registered <--
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    if (!user && isTestAccount) {
+      user = await User.create({
+        name: "Test User",
+        mobile: "7004046637",
+        loginOtp: "123456",
+        loginOtpExpiry: new Date(Date.now() + 10 * 60 * 1000)
+      });
+      return res.json({ message: "OTP sent successfully (Test Account)", mobile });
+    }
+
     // If user doesn't exist, we can optionally redirect to signup or just allow registration via OTP
     // For now, let's assume they must be registered, or we create a "pending" user.
     if (!user) {
       return res.status(404).json({ message: "Mobile number not registered. Please sign up." });
     }
 
-    const otp = generateOTP();
+    // --> TEST ACCOUNT BYPASS (Play Store Review) <--
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    const otp = isTestAccount ? "123456" : generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
     // Use atomic update to avoid failing on unrelated legacy field validations
@@ -31,6 +45,11 @@ export const requestLoginOTP = async (req, res) => {
       { _id: user._id },
       { $set: { loginOtp: otp, loginOtpExpiry: otpExpiry } }
     );
+
+    // Skip WhatsApp for test account
+    if (isTestAccount) {
+      return res.json({ message: "OTP sent successfully (Test Account Bypass)", mobile });
+    }
 
     const result = await sendWhatsAppOTP(mobile, otp);
 
@@ -55,16 +74,23 @@ export const verifyLoginOTP = async (req, res) => {
 
     const user = await User.findOne({ mobile });
 
-    if (!user || !user.loginOtp) {
-      return res.status(400).json({ message: "Invalid request" });
-    }
+    // --> TEST ACCOUNT BYPASS (Play Store Review) <--
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
 
-    if (user.loginOtp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
+    if (isTestAccount && otp === "123456") {
+      // Test account bypass — skip OTP and expiry checks
+    } else {
+      if (!user.loginOtp) {
+        return res.status(400).json({ message: "Invalid request" });
+      }
 
-    if (user.loginOtpExpiry < new Date()) {
-      return res.status(400).json({ message: "OTP expired" });
+      if (user.loginOtp !== otp) {
+        return res.status(400).json({ message: "Invalid OTP" });
+      }
+
+      if (user.loginOtpExpiry < new Date()) {
+        return res.status(400).json({ message: "OTP expired" });
+      }
     }
 
     // Clear OTP with atomic update to avoid unrelated validation failures.
@@ -107,7 +133,9 @@ export const signup = async (req, res) => {
       return res.status(400).json({ message: "Mobile number already registered" });
     }
 
-    const otp = generateOTP();
+    // --> TEST ACCOUNT BYPASS (Play Store Review) <--
+    const isTestAccount = (mobile === "7004046637" || mobile === "+917004046637");
+    const otp = isTestAccount ? "123456" : generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
     // We can store a temporary user or just send the OTP and expect the frontend to send details back during verification
@@ -119,6 +147,11 @@ export const signup = async (req, res) => {
       loginOtp: otp,
       loginOtpExpiry: otpExpiry
     });
+
+    // Skip WhatsApp for test account
+    if (isTestAccount) {
+      return res.status(201).json({ message: "Registration OTP sent successfully (Test Account Bypass)", mobile });
+    }
 
     const result = await sendWhatsAppOTP(mobile, otp);
 
