@@ -45,7 +45,7 @@ export const sendWhatsAppOTP = async (mobile, otp) => {
               button_1: {
                 subtype: "url",
                 type: "text",
-                value: "verify", // Placeholder for button variable
+                value: otp,
               },
             },
           },

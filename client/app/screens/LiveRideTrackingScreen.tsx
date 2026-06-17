@@ -8,6 +8,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import ReturnTripOfferModal from '../../components/ReturnTripOfferModal';
 import PaymentPromptModal from '../../components/PaymentPromptModal';
 import { bookingAPI, locationAPI } from '../../utils/api';
+// @ts-ignore - TS doesn't resolve .native.ts and .web.tsx automatically without a matching .ts file
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../../utils/mapCompat';
 import * as Location from 'expo-location';
 import { getSocket, initSocket } from '../../utils/socket';
@@ -447,42 +448,6 @@ const LiveRideTrackingScreen = () => {
             }
         };
 
-        const onReturnRideStartRequested = (data: any) => {
-            if (String(data.bookingId) !== String(bookingId)) return;
-            if (returnStartPromptOpenRef.current) return;
-            returnStartPromptOpenRef.current = true;
-
-            Alert.alert(
-                "Confirm Return Ride",
-                "Driver return trip start karna chahta hai. Kya aap confirm karte ho?",
-                [
-                    {
-                        text: "No",
-                        style: "cancel",
-                        onPress: () => {
-                            returnStartPromptOpenRef.current = false;
-                            showToast("Not Confirmed", "Return ride tab start hogi jab aap confirm karoge.", "info");
-                        }
-                    },
-                    {
-                        text: "Yes, Start",
-                        onPress: async () => {
-                            try {
-                                await bookingAPI.confirmReturnStart(String(bookingId));
-                                showToast("Confirmed", "Return ride started.", "success");
-                            } catch (error) {
-                                console.error("Return start confirmation failed:", error);
-                                showToast("Error", "Return ride start confirm nahi hua. Dobara try karein.", "error");
-                            } finally {
-                                returnStartPromptOpenRef.current = false;
-                            }
-                        }
-                    }
-                ],
-                { cancelable: false }
-            );
-        };
-
         socket.on("waitingStarted", onWaitingStarted);
         socket.on("penaltyApplied", onPenaltyApplied);
         socket.on("tollFeeUpdated", onTollUpdated);
@@ -492,7 +457,6 @@ const LiveRideTrackingScreen = () => {
         socket.on("driverArrived", onDriverArrived);
         socket.on("paymentRequested", onPaymentRequested);
         socket.on("paymentResolved", onPaymentResolved);
-        socket.on("returnRideStartRequested", onReturnRideStartRequested);
 
         return () => {
             console.log(`[Socket] Cleaning up tracking listeners for booking: ${bookingId}`);
@@ -505,7 +469,6 @@ const LiveRideTrackingScreen = () => {
             socket.off("driverArrived", onDriverArrived);
             socket.off("paymentRequested", onPaymentRequested);
             socket.off("paymentResolved", onPaymentResolved);
-            socket.off("returnRideStartRequested", onReturnRideStartRequested);
         };
     }, [socketReady, bookingId, fetchInitialData]);
 

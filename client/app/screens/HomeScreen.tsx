@@ -23,7 +23,7 @@ import * as Location from 'expo-location';
 // Notification imports disabled temporarily for Expo Go SDK 53 testing
 // import { registerForPushNotificationsAsync, sendLocalNotification } from "../../utils/notifications";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import ProfileScreen from "./ProfileScreen";
@@ -45,6 +45,8 @@ const HomeScreen = () => {
   const [assignedDriver, setAssignedDriver] = useState<any>(null);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeRide, setActiveRide] = useState<any>(null);
+  const pulseAnim = useRef(new Animated.Value(0)).current;
 
   const { user: authUser, refreshProfile } = useAuth();
 
@@ -55,6 +57,19 @@ const HomeScreen = () => {
   // Scroll-based headline fade: measured dynamically so it works on all phones
   const scrollY = useRef(new Animated.Value(0)).current;
   const [headerMeasuredHeight, setHeaderMeasuredHeight] = useState(0);
+
+  useEffect(() => {
+    if (activeRide) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 1500, useNativeDriver: true })
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(0);
+    }
+  }, [activeRide]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -144,19 +159,13 @@ const HomeScreen = () => {
       try {
         const res = await bookingAPI.getActiveBooking();
         if (res.data.success && res.data.booking) {
-          const b = res.data.booking;
-          router.replace({
-            pathname: "/screens/LiveRideTrackingScreen",
-            params: {
-              bookingId: b._id,
-              pLat: b.pickupLatitude,
-              pLon: b.pickupLongitude,
-              dLat: b.dropLatitude,
-              dLon: b.dropLongitude
-            }
-          });
+          setActiveRide(res.data.booking);
+        } else {
+          setActiveRide(null);
         }
-      } catch (err) {}
+      } catch (err) {
+        setActiveRide(null);
+      }
     };
 
     fetchUser();
@@ -180,6 +189,24 @@ const HomeScreen = () => {
       }
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const fetchActive = async () => {
+        try {
+          const res = await bookingAPI.getActiveBooking();
+          if (res.data.success && res.data.booking) {
+            setActiveRide(res.data.booking);
+          } else {
+            setActiveRide(null);
+          }
+        } catch (e) {
+          setActiveRide(null);
+        }
+      };
+      fetchActive();
+    }, [])
+  );
 
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
@@ -377,6 +404,50 @@ const HomeScreen = () => {
   return (
     <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
       <StatusBar style="dark" translucent backgroundColor="transparent" />
+
+      {/* Active Ride Floating Banner */}
+      {activeRide && (
+        <Animated.View style={{
+          position: 'absolute',
+          top: insets.top + 10,
+          left: 16,
+          right: 16,
+          zIndex: 999,
+          transform: [
+            { scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }
+          ]
+        }}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => {
+              router.push({
+                pathname: "/screens/LiveRideTrackingScreen",
+                params: {
+                  bookingId: activeRide._id,
+                  pLat: activeRide.pickupLatitude,
+                  pLon: activeRide.pickupLongitude,
+                  dLat: activeRide.dropLatitude,
+                  dLon: activeRide.dropLongitude
+                }
+              });
+            }}
+            className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 flex-row items-center justify-between border border-white/20 shadow-2xl"
+          >
+            <View className="flex-row items-center flex-1">
+              <View className="w-10 h-10 rounded-full bg-emerald-500/20 items-center justify-center mr-3 border border-emerald-500/50">
+                <Ionicons name="car-sport" size={20} color="#34d399" />
+              </View>
+              <View className="flex-1 pr-2">
+                <Text className="text-white font-black text-sm uppercase tracking-wide">Active Ride in Progress</Text>
+                <Text className="text-emerald-400 font-bold text-xs">
+                  {activeRide.status === 'started' ? 'On Trip' : 'Driver Arriving'} • Tap to view
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {activeTab === "Home" && (
         <>

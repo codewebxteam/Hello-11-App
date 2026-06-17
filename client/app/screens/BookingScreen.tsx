@@ -42,6 +42,12 @@ const BookingScreen = () => {
   });
   const [loadingFares, setLoadingFares] = useState(false);
 
+  useEffect(() => {
+    if (rideMode === 'normal' && bookingType === 'schedule') {
+      setBookingType('now');
+    }
+  }, [rideMode, bookingType]);
+
   // Location State
   const [pickup, setPickup] = useState(params.pickup as string || '');
   const [drop, setDrop] = useState(params.drop as string || '');
@@ -407,6 +413,7 @@ const BookingScreen = () => {
         scheduledDate: bookingType === 'schedule' ? scheduledDate.toISOString() : undefined,
         fare: fares[selectedVehicle].fare,
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
+        distance: distanceKm,
         nightSurcharge: fares[carType].nightSurcharge || 0,
         tollFee: tollCost || 0,
         totalFare: (fares[carType]?.total || 0) + (tollCost || 0),
@@ -614,60 +621,7 @@ const BookingScreen = () => {
           </View>
         )}
 
-          <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', padding: 6, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9' }}>
-            <TouchableOpacity
-              onPress={() => setBookingType('now')}
-              style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'now' ? '#FFD700' : 'transparent' }}
-            >
-              <Ionicons name="flash" size={14} color={bookingType === 'now' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
-              <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'now' ? '#000' : '#94a3b8' }}>RIDE NOW</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setBookingType('schedule')}
-              style={{ flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: bookingType === 'schedule' ? '#FFD700' : 'transparent' }}
-            >
-              <Ionicons name="calendar" size={14} color={bookingType === 'schedule' ? 'black' : '#94a3b8'} style={{ marginRight: 6 }} />
-              <Text style={{ fontWeight: '900', fontSize: 11, color: bookingType === 'schedule' ? '#000' : '#94a3b8' }}>SCHEDULE</Text>
-            </TouchableOpacity>
-          </View>
-
-        {/* Scheduler */}
-        {bookingType === 'schedule' && (
-          <View className={`bg-white ${isSmallPhone ? 'p-4 rounded-[24px]' : 'p-6 rounded-[35px]'} border border-slate-100 mb-6`}>
-            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Select Date & Time</Text>
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                className="flex-1 bg-slate-50 p-4 rounded-2xl flex-row items-center justify-between border border-slate-100"
-              >
-                <Ionicons name="calendar-outline" size={18} color="#FFD700" />
-                <Text className="text-slate-600 font-black text-xs">{scheduledDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</Text>
-                <Ionicons name="chevron-down" size={14} color="#64748B" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setShowTimePicker(true)}
-                className="flex-1 bg-slate-50 p-4 rounded-2xl flex-row items-center justify-between border border-slate-100"
-              >
-                <Ionicons name="time-outline" size={18} color="#FFD700" />
-                <Text className="text-slate-600 font-black text-xs">{scheduledDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</Text>
-                <Ionicons name="chevron-down" size={14} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {(showDatePicker || showTimePicker) && (
-              <DateTimePicker
-                value={scheduledDate}
-                mode={showDatePicker ? 'date' : 'time'}
-                minimumDate={new Date()}
-                onChange={(_, d) => {
-                  setShowDatePicker(false);
-                  setShowTimePicker(false);
-                  if (d) setScheduledDate(d);
-                }}
-              />
-            )}
-          </View>
-        )}
+        {/* Scheduler removed */}
 
         {/* --- TOLLS & PARKING DISCLAIMER ADDED HERE --- */}
         <View style={{ backgroundColor: '#FEF2F2', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center' }}>

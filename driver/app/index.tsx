@@ -56,6 +56,22 @@ export default function DriverDashboard() {
   // Naya state Wallet data live lane ke liye
   const [walletData, setWalletData] = useState<any>(null);
 
+  const [activeRide, setActiveRide] = useState<any>(null);
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (activeRide) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 1500, useNativeDriver: true })
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(0);
+    }
+  }, [activeRide]);
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -126,9 +142,11 @@ export default function DriverDashboard() {
         setIsSearching(driver.available || false);
 
         // Check for active booking and redirect ONLY on initial load OR app foregrounding
-        if (currentBooking && !hasNavigatedRef.current) {
-          console.log("Found active booking on dashboard load:", currentBooking);
-          hasNavigatedRef.current = true; // Mark as navigated
+        if (currentBooking) {
+          setActiveRide(currentBooking);
+          if (!hasNavigatedRef.current) {
+            console.log("Found active booking on dashboard load:", currentBooking);
+            hasNavigatedRef.current = true; // Mark as navigated
 
           const bookingId = currentBooking.id || currentBooking._id;
 
@@ -177,7 +195,9 @@ export default function DriverDashboard() {
               }
             });
           }
-        } else if (!currentBooking) {
+        } // Close if (!hasNavigatedRef.current)
+      } else if (!currentBooking) {
+          setActiveRide(null);
           // Reset navigation flag when no active booking
           hasNavigatedRef.current = false;
         }
@@ -596,6 +616,86 @@ export default function DriverDashboard() {
           </View>
         </View>
       </Modal>
+
+      {/* Active Ride Floating Banner for Driver */}
+      {activeRide && (
+        <Animated.View style={{
+          position: 'absolute',
+          top: insets.top + 70, // Below the profile icon and status switch
+          left: 16,
+          right: 16,
+          zIndex: 999,
+          transform: [
+            { scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }
+          ]
+        }}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => {
+              const bookingId = activeRide.id || activeRide._id;
+              if (activeRide.status === "accepted" || activeRide.status === "driver_assigned") {
+                router.push({
+                  pathname: "/pickup",
+                  params: { 
+                    bookingId,
+                    pLat: activeRide.pickupLatitude,
+                    pLon: activeRide.pickupLongitude,
+                    dLat: activeRide.dropLatitude,
+                    dLon: activeRide.dropLongitude
+                  }
+                });
+              } else if (activeRide.status === "arrived") {
+                router.push({
+                  pathname: "/start-ride",
+                  params: { bookingId }
+                });
+              } else if (activeRide.status === "started") {
+                router.push({
+                  pathname: "/active-ride",
+                  params: { 
+                    bookingId,
+                    pLat: activeRide.pickupLatitude,
+                    pLon: activeRide.pickupLongitude,
+                    dLat: activeRide.dropLatitude,
+                    dLon: activeRide.dropLongitude
+                  }
+                });
+              } else if (activeRide.status === "waiting") {
+                router.push({
+                  pathname: "/waiting-for-return",
+                  params: { bookingId }
+                });
+              } else if (activeRide.status === "return_ride_started") {
+                router.push({
+                  pathname: "/active-ride",
+                  params: {
+                    bookingId,
+                    mode: 'return',
+                    pLat: activeRide.pickupLatitude,
+                    pLon: activeRide.pickupLongitude,
+                    dLat: activeRide.dropLatitude,
+                    dLon: activeRide.dropLongitude
+                  }
+                });
+              }
+            }}
+            className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 flex-row items-center justify-between border border-white/20 shadow-2xl"
+          >
+            <View className="flex-row items-center flex-1">
+              <View className="w-10 h-10 rounded-full bg-emerald-500/20 items-center justify-center mr-3 border border-emerald-500/50">
+                <Ionicons name="navigate" size={20} color="#34d399" />
+              </View>
+              <View className="flex-1 pr-2">
+                <Text className="text-white font-black text-sm uppercase tracking-wide">Ongoing Ride</Text>
+                <Text className="text-emerald-400 font-bold text-xs">
+                  {activeRide.status === 'started' || activeRide.status === 'return_ride_started' ? 'On Trip' : 'Action Required'} • Tap to view
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       <View className="absolute inset-0 bg-slate-200">
         <MapView

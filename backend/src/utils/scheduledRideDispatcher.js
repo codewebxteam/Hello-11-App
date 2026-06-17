@@ -30,6 +30,7 @@ const dispatchBooking = async (booking) => {
             available: true,
             online: true,
             isVerified: true,
+            currentBooking: null,
             location: {
                 $near: {
                     $geometry: {

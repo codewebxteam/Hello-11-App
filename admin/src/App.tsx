@@ -49,53 +49,90 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white max-w-md w-full rounded-3xl shadow-xl p-8 border border-gray-100">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-yellow-400 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-yellow-200">
-              <span className="text-2xl font-black text-black">H11</span>
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center p-4 relative overflow-hidden selection:bg-yellow-400 selection:text-black">
+        {/* Animated Background Gradients */}
+        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-yellow-500/10 blur-[120px] animate-pulse"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-blue-600/10 blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+        
+        <div className="w-full max-w-5xl bg-white/5 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden flex flex-col md:flex-row relative z-10 animate-in zoom-in-95 duration-700">
+          
+          {/* Left Side - Branding */}
+          <div className="md:w-5/12 bg-gradient-to-br from-slate-900 to-black p-10 flex flex-col justify-between relative overflow-hidden border-r border-white/5">
+            <div className="absolute -right-20 -top-20 w-64 h-64 bg-yellow-400/20 blur-[80px] rounded-full"></div>
+            
+            <div className="relative z-10">
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-2xl flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(250,204,21,0.3)]">
+                <span className="text-3xl font-black text-black tracking-tighter">H11</span>
+                </div>
+                <h2 className="text-4xl font-black text-white leading-tight tracking-tight mb-4">
+                  Command<br/>Center.
+                </h2>
+                <p className="text-slate-400 font-medium text-lg">
+                  Advanced management console for the Hello-11 mobility network.
+                </p>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Admin Portal</h1>
-            <p className="text-gray-500 text-sm mt-1">Sign in to manage Hello-11</p>
+            
+            <div className="relative z-10 mt-12 md:mt-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                    <span className="text-slate-300 font-bold text-xs uppercase tracking-widest">System Secure</span>
+                </div>
+            </div>
           </div>
 
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-medium mb-4 text-center border border-red-100">
-              {error}
-            </div>
-          )}
+          {/* Right Side - Login Form */}
+          <div className="md:w-7/12 p-10 sm:p-14 md:p-20 flex flex-col justify-center bg-slate-950/50">
+            <div className="max-w-md w-full mx-auto">
+                <div className="mb-10 text-center md:text-left">
+                    <h1 className="text-3xl font-black text-white tracking-tight mb-2">Welcome Back</h1>
+                    <p className="text-slate-400 font-medium">Authenticate to access the admin portal.</p>
+                </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition-all outline-none"
-                placeholder="Enter your email"
-                required
-              />
+                {error && (
+                    <div className="bg-rose-500/10 text-rose-400 p-4 rounded-2xl text-sm font-bold mb-8 border border-rose-500/20 flex items-start gap-3">
+                        <div className="mt-0.5">⚠️</div>
+                        <div>{error}</div>
+                    </div>
+                )}
+
+                <form onSubmit={handleLogin} className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Admin Email</label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full px-5 py-4 bg-slate-900/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all focus:bg-slate-900 font-medium"
+                            placeholder="admin@hello11.in"
+                            required
+                        />
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center pl-1 pr-2">
+                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Security Key</label>
+                            <a href="#" className="text-xs font-bold text-yellow-500 hover:text-yellow-400 transition-colors">Forgot?</a>
+                        </div>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full px-5 py-4 bg-slate-900/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all focus:bg-slate-900 font-medium tracking-widest"
+                            placeholder="••••••••"
+                            required
+                        />
+                    </div>
+                    
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className={`w-full py-4 mt-8 rounded-2xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-black uppercase tracking-widest shadow-[0_0_20px_rgba(250,204,21,0.3)] hover:shadow-[0_0_30px_rgba(250,204,21,0.5)] hover:-translate-y-0.5 transition-all active:scale-95 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                        {loading ? "Authenticating..." : "Authorize Access"}
+                    </button>
+                </form>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition-all outline-none"
-                placeholder="Enter password"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-3.5 rounded-xl bg-black text-white font-bold tracking-wide shadow-lg hover:bg-gray-900 transition-all mt-6 ${loading ? 'opacity-70' : ''}`}
-            >
-              {loading ? "Verifying..." : "Secure Login"}
-            </button>
-          </form>
+          </div>
         </div>
       </div>
     );

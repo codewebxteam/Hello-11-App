@@ -126,6 +126,19 @@ export default function EditVehicleScreen() {
                                     <Ionicons name="lock-closed-outline" size={16} color="#94A3B8" />
                                 </View>
                             </View>
+
+                            <View className="mt-4">
+                                <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-4">Vehicle Category</Text>
+                                <View className="bg-slate-100 border border-slate-200 rounded-[24px] px-5 py-5 shadow-sm flex-row items-center">
+                                    <Ionicons name={form.vehicleType === '5seater' ? "car" : "bus"} size={20} color="#64748B" />
+                                    <TextInput
+                                        value={form.vehicleType === '5seater' ? 'Standard (5 Seater)' : 'Premium (7 Seater)'}
+                                        editable={false}
+                                        className="flex-1 text-slate-500 font-bold ml-3"
+                                    />
+                                    <Ionicons name="lock-closed-outline" size={16} color="#94A3B8" />
+                                </View>
+                            </View>
                         </View>
                     </View>
 
@@ -151,44 +164,6 @@ export default function EditVehicleScreen() {
                                 </View>
                             </View>
 
-                            <View className="mt-6">
-                                <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4 ml-4">Vehicle Category</Text>
-                                <View className="bg-white p-2 rounded-[28px] border border-slate-100 flex-row justify-between shadow-sm">
-                                    {['5seater', '7seater'].map((type) => (
-                                        <TouchableOpacity
-                                            key={type}
-                                            onPress={() => {
-                                                try {
-                                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                                } catch {}
-                                                setForm({ ...form, vehicleType: type });
-                                            }}
-                                            style={{ 
-                                                width: '48.5%', 
-                                                backgroundColor: form.vehicleType === type ? '#0F172A' : 'transparent',
-                                                borderRadius: 22,
-                                                paddingVertical: 16,
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexDirection: 'row'
-                                            }}
-                                        >
-                                            <Ionicons 
-                                                name={type === '5seater' ? "car" : "bus"} 
-                                                size={16} 
-                                                color={form.vehicleType === type ? '#FFD700' : '#94A3B8'} 
-                                                style={{ marginRight: 8 }}
-                                            />
-                                            <Text className={`font-black uppercase text-[10px] tracking-wide ${form.vehicleType === type ? 'text-white' : 'text-slate-400'}`} numberOfLines={1}>
-                                                {type === '5seater' ? 'Standard' : 'Premium'}
-                                            </Text>
-                                            <Text className={`text-[8px] font-bold uppercase ml-1.5 flex-shrink ${form.vehicleType === type ? 'text-[#FFD700]' : 'text-slate-500'}`} numberOfLines={1}>
-                                                {type === '5seater' ? '(5 Seater)' : '(7 Seater)'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </View>
                         </View>
                     </View>
 

@@ -194,6 +194,7 @@ export const createBooking = async (req, res) => {
           available: true,
           online: true,
           isVerified: true,
+          currentBooking: null,
           location: locationNear
         };
 
@@ -248,6 +249,7 @@ export const createBooking = async (req, res) => {
           available: true,
           online: true,
           isVerified: true,
+          currentBooking: null,
           location: {
             $near: {
               $geometry: {

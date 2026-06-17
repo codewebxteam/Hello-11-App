@@ -1336,41 +1336,7 @@ export const updateBookingStatus = async (req, res) => {
           message: "No return trip offer active for this booking"
         });
       }
-
-      booking.returnStartRequested = true;
-      booking.returnStartRequestedAt = new Date();
-      await booking.save();
-
-      try {
-        const io = getIO();
-        const userRoom = booking.user.toString();
-        io.to(userRoom).emit("returnRideStartRequested", {
-          bookingId: booking._id.toString(),
-          message: "Driver wants to start the return trip. Please confirm."
-        });
-
-        const foundUser = await User.findById(booking.user);
-        if (foundUser?.pushToken) {
-          sendPushNotification(
-            foundUser.pushToken,
-            "Return Trip Confirmation",
-            "Driver is ready to start return trip. Please confirm from app.",
-            { bookingId: booking._id.toString(), type: "return_start_request" }
-          );
-        }
-      } catch (socketError) {
-        serverLog(`Return start request notification error: ${socketError.message}`);
-      }
-
-      return res.status(202).json({
-        message: "Return ride start request sent to user for confirmation",
-        requiresUserConfirmation: true,
-        booking: {
-          id: booking._id,
-          status: booking.status,
-          returnStartRequested: true
-        }
-      });
+      // Skip user confirmation and allow direct start
     }
 
     booking.status = status;
