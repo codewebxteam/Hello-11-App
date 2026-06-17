@@ -33,20 +33,38 @@ const RenderRideItem = ({
   return (
     <View className="bg-white mb-3 shadow-sm border border-slate-100 rounded-2xl overflow-hidden">
       <View style={{ padding: compact ? 14 : 18 }}>
-        <View className="flex-row justify-between items-center mb-4 pb-3 border-b border-slate-50 gap-2">
-          <View className="flex-row items-center bg-slate-50 px-3 py-1.5 rounded-lg flex-1">
-            <Ionicons name="calendar-outline" size={compact ? 13 : 15} color="#64748B" />
-            <Text className="text-slate-600 font-bold ml-1.5 flex-1" style={{ fontSize: compact ? 11 : 12 }} numberOfLines={1}>
-              {new Date(item.bookingType === "schedule" ? item.scheduledDate : item.createdAt).toLocaleDateString([], {
-                day: "2-digit",
-                month: "short",
-              })}
-            </Text>
+        <View className="flex-row justify-between items-start mb-4 pb-3 border-b border-slate-50 gap-3">
+          <View className="flex-1">
+            <View className="flex-row items-center mb-1">
+              <Ionicons name="calendar-outline" size={compact ? 13 : 14} color="#64748B" />
+              <Text className="text-slate-600 font-bold ml-1.5" style={{ fontSize: compact ? 11 : 12 }}>
+                {new Date(item.bookingType === "schedule" ? item.scheduledDate : item.createdAt).toLocaleDateString([], {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric"
+                })}
+              </Text>
+            </View>
+            <View className={`self-start px-2 py-0.5 rounded-md ${badge.bg}`}>
+              <Text className={`font-black uppercase tracking-wider ${badge.tone}`} style={{ fontSize: compact ? 8 : 9 }}>
+                {badge.text}
+              </Text>
+            </View>
           </View>
-          <View className={`px-3 py-1.5 rounded-lg ${badge.bg}`}>
-            <Text className={`font-black uppercase tracking-wider ${badge.tone}`} style={{ fontSize: compact ? 10 : 11 }}>
-              {badge.text}
+          
+          <View className="items-end">
+            <Text className="text-slate-900 font-black tracking-tight" style={{ fontSize: compact ? 17 : 19 }}>
+              ₹{item.totalFare || item.fare || 0}
             </Text>
+            {Number(item.tollFee || 0) > 0 ? (
+              <Text className="text-emerald-600 font-bold tracking-tight" style={{ fontSize: compact ? 9 : 10 }}>
+                Incl. ₹{item.tollFee} Toll
+              </Text>
+            ) : (
+              <Text className="text-slate-400 font-medium tracking-tight" style={{ fontSize: compact ? 9 : 10 }}>
+                Tolls & Taxes Incl.
+              </Text>
+            )}
           </View>
         </View>
 

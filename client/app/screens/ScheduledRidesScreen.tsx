@@ -93,10 +93,20 @@ const RideCard = ({
                 )}
             </View>
 
-            {/* Date */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fffbeb', padding: 10, borderRadius: 12, marginBottom: 14 }}>
-                <Ionicons name="calendar" size={15} color="#b45309" />
-                <Text style={{ color: '#92400e', fontWeight: '900', marginLeft: 8, fontSize: 13 }}>{formatDate(item.scheduledDate)}</Text>
+            {/* Date & Fare */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fffbeb', padding: 10, borderRadius: 12, marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="calendar" size={15} color="#b45309" />
+                    <Text style={{ color: '#92400e', fontWeight: '900', marginLeft: 8, fontSize: 13 }}>{formatDate(item.scheduledDate)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ color: '#92400e', fontWeight: '900', fontSize: 15 }}>₹{item.totalFare || item.fare || 0}</Text>
+                    {Number(item.tollFee || 0) > 0 ? (
+                        <Text style={{ color: '#b45309', fontWeight: '700', fontSize: 9 }}>(Incl. ₹{item.tollFee} Toll)</Text>
+                    ) : (
+                        <Text style={{ color: '#d97706', fontWeight: '700', fontSize: 9 }}>Toll Incl.</Text>
+                    )}
+                </View>
             </View>
 
             {/* Route */}
@@ -122,15 +132,11 @@ const RideCard = ({
                 </View>
             </View>
 
-            {/* Fare + Distance */}
+            {/* Distance */}
             <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 10, gap: 20, alignItems: 'center' }}>
                 <View>
                     <Text style={{ color: '#94a3b8', fontSize: 9, fontWeight: '900', textTransform: 'uppercase' }}>Distance</Text>
                     <Text style={{ color: '#1e293b', fontWeight: '900', fontSize: 14 }}>{item.distance?.toFixed(1) || '--'} km</Text>
-                </View>
-                <View>
-                    <Text style={{ color: '#94a3b8', fontSize: 9, fontWeight: '900', textTransform: 'uppercase' }}>Fare</Text>
-                    <Text style={{ color: '#1e293b', fontWeight: '900', fontSize: 14 }}>₹{item.fare || '--'}</Text>
                 </View>
             </View>
 

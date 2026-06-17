@@ -256,7 +256,7 @@ export default function RideHistoryScreen() {
     const renderRideItem = ({ item }: { item: RideItem }) => (
         <View className="bg-white rounded-[26px] p-5 mb-4 shadow-sm border border-slate-100">
             <View className="flex-row justify-between items-start mb-4">
-                <View>
+                <View className="flex-1">
                     <Text className="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-1">{item.date}</Text>
                     <View className={`self-start px-2 py-1 rounded-md ${item.status === 'Completed' ? 'bg-green-50' : item.status === 'Cancelled' ? 'bg-red-50' : 'bg-slate-50'}`}>
                         <Text className={`text-[10px] font-bold uppercase ${item.status === 'Completed' ? 'text-green-600' : item.status === 'Cancelled' ? 'text-red-500' : 'text-slate-500'}`}>
@@ -264,7 +264,20 @@ export default function RideHistoryScreen() {
                         </Text>
                     </View>
                 </View>
-                <View />
+                <View className="items-end">
+                    <Text className="text-slate-900 font-black tracking-tight" style={{ fontSize: compact ? 17 : 19 }}>
+                        ₹{item.totalFare || item.fare || 0}
+                    </Text>
+                    {item.tollFee > 0 ? (
+                        <Text className="text-emerald-600 font-bold tracking-tight" style={{ fontSize: compact ? 9 : 10 }}>
+                            Incl. ₹{item.tollFee} Toll
+                        </Text>
+                    ) : (
+                        <Text className="text-slate-400 font-medium tracking-tight" style={{ fontSize: compact ? 9 : 10 }}>
+                            Tolls & Taxes Incl.
+                        </Text>
+                    )}
+                </View>
             </View>
 
             <View className="pl-1 relative mb-4">
