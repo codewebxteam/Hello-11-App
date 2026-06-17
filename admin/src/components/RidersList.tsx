@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Search, Car, RefreshCw, Star, User, Info, Navigation } from "lucide-react";
+import { Search, Car, RefreshCw, Star, Navigation } from "lucide-react";
 import { useData, type DriverItem } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
