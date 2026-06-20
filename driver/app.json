@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hello 11 Driver",
     "slug": "driverSection",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "com.pmup53.driversection",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png"
