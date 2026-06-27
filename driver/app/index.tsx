@@ -493,18 +493,32 @@ export default function DriverDashboard() {
         const { order, key_id } = res.data;
         
         const options = {
-          description: 'Hello-11 Pending Commission Payment',
-          image: 'https://i.imgur.com/39go7K2.png',
+          description: 'Commission Pay To Hello11 Admin',
+          image: 'https://ik.imagekit.io/hello11/hello11.logo-2-DImgjJtz.png',
           currency: order.currency,
           key: key_id,
           amount: order.amount,
-          name: 'Hello-11 Driver',
+          name: 'Hello11 Cab/Taxi Services',
           order_id: order.id,
           prefill: {
             contact: authDriver?.mobile || '',
             name: authDriver?.name || '',
           },
-          theme: { color: '#FFD700' }
+          theme: { color: '#FFCE38' },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay using UPI",
+                  instruments: [{ method: "upi" }]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: {
+                show_default_blocks: false
+              }
+            }
+          }
         };
 
         RazorpayCheckout.open(options).then(async (data: any) => {
@@ -525,12 +539,12 @@ export default function DriverDashboard() {
         }).catch((error: any) => {
           // Error
           console.log("Razorpay Error:", error);
-          Alert.alert(`Payment failed`, error.description || "Payment cancelled");
+          Alert.alert("Payment Cancelled", "Aapka payment cancel ho gaya hai ya successful nahi hua.");
         });
       }
     } catch (err: any) {
       console.log("Create Order Error:", err);
-      Alert.alert("Error", err.message || "Failed to start payment process");
+      Alert.alert("Error", "Payment shuru karne mein dikkat aayi. Kripya thodi der baad try karein.");
     } finally {
       setIsPayNowLoading(false);
     }

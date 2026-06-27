@@ -193,19 +193,33 @@ export default function WalletScreen() {
       }
 
       const options = {
-        description: "Commission Payment to Admin",
-        image: "https://i.imgur.com/3986X31.png",
+        description: "Commission Pay To Hello11 Admin",
+        image: "https://ik.imagekit.io/hello11/hello11.logo-2-DImgjJtz.png",
         currency: "INR",
         key: keyId,
         amount: order.amount,
-        name: "Hello-11 Admin",
+        name: "Hello11 Cab/Taxi Services",
         order_id: order.id,
         prefill: {
           email: "driver@hello11.com",
           contact: "",
           name: "Driver",
         },
-        theme: { color: "#FFD700" },
+        theme: { color: "#FFCE38" },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay using UPI",
+                instruments: [{ method: "upi" }]
+              }
+            },
+            sequence: ["block.upi"],
+            preferences: {
+              show_default_blocks: false
+            }
+          }
+        }
       };
 
       const data: any = await RazorpayCheckout.open(options);
@@ -221,13 +235,8 @@ export default function WalletScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       console.error("Order creation failed:", error);
       Alert.alert(
-        "Payment Failed",
-        error?.reason ||
-        error?.description ||
-        error?.message ||
-        error?.response?.data?.reason ||
-        error?.response?.data?.message ||
-        "Checkout cancelled"
+        "Payment Cancelled",
+        "Aapka payment cancel ho gaya hai ya successful nahi hua."
       );
     } finally {
       setIsPaying(false);
