@@ -141,7 +141,7 @@ const LoginScreen = () => {
                                 }}
                             >
                                 <Image
-                                    source={require('../../assets/images/icon.png')}
+                                    source={require('../../assets/images/Hello11DriverLogo.png')}
                                     style={{ width: isTablet ? 80 : 65, height: isTablet ? 80 : 65 }}
                                     resizeMode="contain"
                                 />
