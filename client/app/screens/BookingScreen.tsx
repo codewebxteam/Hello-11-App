@@ -415,8 +415,8 @@ const BookingScreen = () => {
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
         distance: distanceKm,
         nightSurcharge: fares[carType].nightSurcharge || 0,
-        tollFee: tollCost || 0,  // Backend will double this
-        totalFare: (fares[carType]?.total || 0) + ((tollCost || 0) * 2),  // Show doubled toll in total
+        tollFee: tollCost || 0,
+        totalFare: (fares[carType]?.total || 0) + (tollCost || 0),
       };
 
       const res = await bookingAPI.createBooking(payload);
@@ -592,7 +592,7 @@ const BookingScreen = () => {
                 ) : (
                   <>
                     <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1 text-right">Total Fare</Text>
-                    <Text className="text-slate-900 font-black text-3xl">₹{(fares['5seater']?.total || 0) + ((tollCost || 0) * 2)}</Text>
+                    <Text className="text-slate-900 font-black text-3xl">₹{(fares['5seater']?.total || 0) + (tollCost || 0)}</Text>
                     
                     <View className="flex-col mt-2 w-full items-end gap-1">
                       <View className="flex-row items-center justify-end">
@@ -609,8 +609,8 @@ const BookingScreen = () => {
                       
                       {(tollCost || 0) > 0 && (
                         <View className="flex-row items-center justify-end">
-                          <Text className="text-emerald-600 text-[10px] font-bold mr-2">Toll (Round-trip)</Text>
-                          <Text className="text-emerald-600 text-[10px] font-bold">+₹{(tollCost || 0) * 2}</Text>
+                          <Text className="text-emerald-600 text-[10px] font-bold mr-2">Toll/State Tax</Text>
+                          <Text className="text-emerald-600 text-[10px] font-bold">+₹{tollCost || 0}</Text>
                         </View>
                       )}
                     </View>

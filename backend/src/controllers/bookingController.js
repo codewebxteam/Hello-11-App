@@ -113,10 +113,9 @@ export const createBooking = async (req, res) => {
     const incomingBaseFare = Number(req.body.baseFare || 0);
     const normalizedBaseFare = incomingBaseFare > 0 ? incomingBaseFare : Math.max(0, incomingFare - incomingNightSurcharge);
     const normalizedOneWayFare = incomingFare > 0 ? incomingFare : normalizedBaseFare + incomingNightSurcharge;
-    // Always double toll - car goes & comes back through tolls regardless of return trip
-    const doubledTollFee = (Number(req.body.tollFee || 0)) * 2;
     const normalizedTotalFare =
-      (normalizedOneWayFare + Number(req.body.returnTripFare || 0) + doubledTollFee);
+      Number(req.body.totalFare || 0) ||
+      (normalizedOneWayFare + Number(req.body.returnTripFare || 0) + Number(req.body.tollFee || 0));
 
     const booking = await Booking.create({
       user: req.userId,
@@ -140,7 +139,7 @@ export const createBooking = async (req, res) => {
       hasReturnTrip: req.body.hasReturnTrip || false,
       returnTripFare: req.body.returnTripFare || 0,
       totalFare: normalizedTotalFare,
-      tollFee: doubledTollFee,  // Always doubled - car goes & comes back through tolls
+      tollFee: req.body.tollFee || 0,
       waitingLimit: resolveWaitingLimitSeconds(req.body.distance || 0), // Store in seconds
     });
 

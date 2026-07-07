@@ -212,15 +212,6 @@ export const getTolls = async (req, res) => {
         // Find INR or just take the first
         const priceObj = tollInfo.estimatedPrice.find(p => p.currencyCode === "INR") || tollInfo.estimatedPrice[0];
         tollPrice = parseInt(priceObj.units || "0");
-        
-        // Capping Logic: Maximum allowed toll is ₹1.7 per km for outstation rides
-        if (distance >= 40) {
-          const maxAllowedToll = Math.round((distance * 1.7) / 10) * 10;
-          if (tollPrice > maxAllowedToll) {
-            serverLog(`[Toll Override] Google API returned ₹${tollPrice}. Capping to max allowed ₹${maxAllowedToll} for ${distance.toFixed(1)}km`);
-            tollPrice = maxAllowedToll;
-          }
-        }
       }
     }
 

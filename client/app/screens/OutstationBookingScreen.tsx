@@ -387,9 +387,8 @@ const OutstationBookingScreen = () => {
         fare: fares[carType].fare,
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
         nightSurcharge: fares[carType].nightSurcharge || 0,
-        tollFee: tollCost || 0,  // Backend will double this
-        returnTripFare: 0,
-        totalFare: (fares[carType]?.total || 0) + ((tollCost || 0) * 2),  // Show doubled toll in total
+        tollFee: tollCost || 0,
+        totalFare: (fares[carType]?.total || 0) + (tollCost || 0),
         hasReturnTrip: false,
         distance: distanceKm,
         vehicleType: carType,
@@ -481,10 +480,10 @@ const OutstationBookingScreen = () => {
             )}
             <View className="h-[1px] bg-slate-700 w-full mb-2" />
             <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Estimated Total</Text>
-            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare + ((tollCost || 0) * 2)}</Text>
+            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare + (tollCost || 0)}</Text>
             {tollCost > 0 ? (
               <Text className="text-emerald-400 text-[11px] font-black mt-1 uppercase tracking-wider">
-                ₹{(tollCost || 0) * 2} Toll (Round-trip) Included
+                ₹{tollCost || 0} Toll Included
               </Text>
             ) : (
               <Text className="text-slate-500 text-[10px] font-bold mt-1 uppercase tracking-wider">
@@ -693,7 +692,7 @@ const OutstationBookingScreen = () => {
                   ) : (
                     <>
                       <Text className={`${isSelected ? 'text-slate-900' : 'text-slate-600'} font-black text-xl`}>
-                        ₹{vehicleFare + ((tollCost || 0) * 2) || '--'}
+                        ₹{vehicleFare + (tollCost || 0) || '--'}
                       </Text>
                       {vehicleTime > 0 && (
                         <View className="flex-row items-center mt-1">
@@ -705,7 +704,7 @@ const OutstationBookingScreen = () => {
                       )}
                       {(tollCost || 0) > 0 && (
                         <View className="flex-row items-center mt-1 bg-emerald-50 px-1.5 py-0.5 rounded">
-                          <Text className="text-emerald-600 text-[9px] font-black">+₹{(tollCost || 0) * 2} Toll</Text>
+                          <Text className="text-emerald-600 text-[9px] font-black">+₹{tollCost || 0} Toll</Text>
                         </View>
                       )}
                     </>
