@@ -204,18 +204,28 @@ export const getTolls = async (req, res) => {
     });
 
     let tollPrice = 0;
+    const distance = calculateDistance(parseFloat(lat1), parseFloat(lon1), parseFloat(lat2), parseFloat(lon2));
+
     if (response.data && response.data.routes && response.data.routes.length > 0) {
       const tollInfo = response.data.routes[0].travelAdvisory?.tollInfo;
       if (tollInfo && tollInfo.estimatedPrice && tollInfo.estimatedPrice.length > 0) {
         // Find INR or just take the first
         const priceObj = tollInfo.estimatedPrice.find(p => p.currencyCode === "INR") || tollInfo.estimatedPrice[0];
         tollPrice = parseInt(priceObj.units || "0");
+        
+        // Capping Logic: Maximum allowed toll is ₹1.7 per km for outstation rides
+        if (distance >= 40) {
+          const maxAllowedToll = Math.round((distance * 1.7) / 10) * 10;
+          if (tollPrice > maxAllowedToll) {
+            serverLog(`[Toll Override] Google API returned ₹${tollPrice}. Capping to max allowed ₹${maxAllowedToll} for ${distance.toFixed(1)}km`);
+            tollPrice = maxAllowedToll;
+          }
+        }
       }
     }
 
     // Fallback: If Google did not return any toll information, but it is an outstation trip, estimate the toll.
     if (tollPrice === 0) {
-      const distance = calculateDistance(parseFloat(lat1), parseFloat(lon1), parseFloat(lat2), parseFloat(lon2));
       // Estimate toll at ₹1.7 per km for outstation rides (distance >= 40km)
       if (distance >= 40) {
         tollPrice = Math.round((distance * 1.7) / 10) * 10;
