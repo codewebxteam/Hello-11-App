@@ -224,13 +224,8 @@ export const getTolls = async (req, res) => {
       }
     }
 
-    // Fallback: If Google did not return any toll information, but it is an outstation trip, estimate the toll.
-    if (tollPrice === 0) {
-      // Estimate toll at ₹1.7 per km for outstation rides (distance >= 40km)
-      if (distance >= 40) {
-        tollPrice = Math.round((distance * 1.7) / 10) * 10;
-      }
-    }
+    // Fallback logic for API failures is handled in the catch block below.
+    // If Google returns 0 toll, we respect it and keep it 0.
 
     res.json({
       success: true,
