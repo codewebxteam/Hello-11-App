@@ -83,16 +83,16 @@ const DashboardHome: React.FC = () => {
           >
             {/* Ambient Background Glow */}
             <div className={`absolute -right-8 -top-8 w-40 h-40 ${card.iconBg} opacity-5 rounded-full blur-2xl group-hover:opacity-10 transition-opacity duration-500`}></div>
-            
+
             <div className="flex items-center justify-between relative z-10">
-                <div className={`p-4 rounded-2xl ${card.iconBg} text-white shadow-lg ${card.shadow} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
+              <div className={`p-4 rounded-2xl ${card.iconBg} text-white shadow-lg ${card.shadow} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
                 <card.icon size={32} strokeWidth={2.5} />
-                </div>
-                <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
-                    <ArrowRight size={20} className={card.text} />
-                </div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+                <ArrowRight size={20} className={card.text} />
+              </div>
             </div>
-            
+
             <div className="mt-8 relative z-10">
               <h3 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">{card.value}</h3>
               <p className="text-sm font-black text-slate-500 mt-2 uppercase tracking-[0.2em]">{card.title}</p>
@@ -109,79 +109,78 @@ const DashboardHome: React.FC = () => {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">Real-time feed</p>
           </div>
           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{recentBookings.length} Total</span>
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{recentBookings.length} Total</span>
           </div>
         </div>
-        
+
         <div className="p-2 md:p-4">
           {recentBookings.length === 0 && !loading && (
             <div className="py-16 flex flex-col items-center justify-center text-center">
-                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                     <Activity size={24} className="text-slate-300" />
-                 </div>
-                 <p className="text-slate-500 font-bold text-lg">No activity yet</p>
-                 <p className="text-sm text-slate-400 mt-1">Bookings will appear here in real-time.</p>
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                <Activity size={24} className="text-slate-300" />
+              </div>
+              <p className="text-slate-500 font-bold text-lg">No activities yet</p>
+              <p className="text-sm text-slate-400 mt-1">Bookings will appear here in real-time.</p>
             </div>
           )}
-          
+
           <div className="space-y-1">
-              {paginatedRecentBookings.map((booking) => (
-                <div 
-                    key={booking._id} 
-                    onClick={() => setSelectedBooking(booking)}
-                    className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl hover:bg-slate-50 cursor-pointer transition-all active:scale-[0.99] border border-transparent hover:border-slate-200"
-                >
-                  <div className="flex items-center gap-5 mb-4 sm:mb-0">
-                      <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-black text-xl group-hover:bg-yellow-400 group-hover:text-black group-hover:shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all duration-300 flex-shrink-0">
-                          {booking.user?.name?.[0]?.toUpperCase() || 'U'}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-black text-lg md:text-2xl text-slate-900 group-hover:text-yellow-600 transition-colors truncate">{booking.user?.name || "Private User"}</p>
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mt-1.5">
-                          <MapPin size={14} className="text-emerald-500" />
-                          <span className="truncate max-w-[120px]">{booking.pickupLocation || "--"}</span>
-                          <ArrowRight size={10} className="text-slate-300 flex-shrink-0 mx-1" />
-                          <MapPin size={14} className="text-rose-500" />
-                          <span className="truncate max-w-[120px]">{booking.dropLocation || "--"}</span>
-                        </div>
-                      </div>
+            {paginatedRecentBookings.map((booking) => (
+              <div
+                key={booking._id}
+                onClick={() => setSelectedBooking(booking)}
+                className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl hover:bg-slate-50 cursor-pointer transition-all active:scale-[0.99] border border-transparent hover:border-slate-200"
+              >
+                <div className="flex items-center gap-5 mb-4 sm:mb-0">
+                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-black text-xl group-hover:bg-yellow-400 group-hover:text-black group-hover:shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all duration-300 flex-shrink-0">
+                    {booking.user?.name?.[0]?.toUpperCase() || 'U'}
                   </div>
-                  
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 border-slate-100 pt-4 sm:pt-0">
-                    <div className="flex items-center gap-2">
-                        <p className="font-black text-slate-900 text-2xl md:text-3xl tracking-tighter">{formatAmount(getBookingAmount(booking))}</p>
-                        {(booking.tollFee || 0) > 0 && (
-                           <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider">+ Toll</span>
-                        )}
+                  <div className="min-w-0">
+                    <p className="font-black text-lg md:text-2xl text-slate-900 group-hover:text-yellow-600 transition-colors truncate">{booking.user?.name || "Private User"}</p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mt-1.5">
+                      <MapPin size={14} className="text-emerald-500" />
+                      <span className="truncate max-w-[120px]">{booking.pickupLocation || "--"}</span>
+                      <ArrowRight size={10} className="text-slate-300 flex-shrink-0 mx-1" />
+                      <MapPin size={14} className="text-rose-500" />
+                      <span className="truncate max-w-[120px]">{booking.dropLocation || "--"}</span>
                     </div>
-                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg mt-2 ${
-                        booking.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 
-                        booking.status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 
-                        'bg-yellow-100 text-yellow-700'
-                    }`}>
-                        {booking.status}
-                    </span>
                   </div>
                 </div>
-              ))}
+
+                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 border-slate-100 pt-4 sm:pt-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-black text-slate-900 text-2xl md:text-3xl tracking-tighter">{formatAmount(getBookingAmount(booking))}</p>
+                    {(booking.tollFee || 0) > 0 && (
+                      <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider">+ Toll</span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg mt-2 ${booking.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                      booking.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :
+                        'bg-yellow-100 text-yellow-700'
+                    }`}>
+                    {booking.status}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
-          
+
           <div className="pt-4 mt-2 border-t border-slate-100">
             <Pagination
-                page={safePage}
-                totalPages={totalPages}
-                totalItems={recentBookings.length}
-                pageSize={PAGE_SIZE}
-                onPageChange={setPage}
+              page={safePage}
+              totalPages={totalPages}
+              totalItems={recentBookings.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
             />
           </div>
         </div>
       </div>
 
-      <BookingDetailModal 
-        booking={selectedBooking} 
-        onClose={() => setSelectedBooking(null)} 
+      <BookingDetailModal
+        booking={selectedBooking}
+        onClose={() => setSelectedBooking(null)}
       />
     </div>
   );
@@ -189,7 +188,7 @@ const DashboardHome: React.FC = () => {
 
 // Simple Wallet icon polyfill since Wallet isn't imported from lucide-react in original
 const Wallet = ({ size, className }: any) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
 );
 
 export default DashboardHome;
