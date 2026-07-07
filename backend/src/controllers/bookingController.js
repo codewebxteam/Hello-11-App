@@ -113,9 +113,10 @@ export const createBooking = async (req, res) => {
     const incomingBaseFare = Number(req.body.baseFare || 0);
     const normalizedBaseFare = incomingBaseFare > 0 ? incomingBaseFare : Math.max(0, incomingFare - incomingNightSurcharge);
     const normalizedOneWayFare = incomingFare > 0 ? incomingFare : normalizedBaseFare + incomingNightSurcharge;
+    // Always double toll - car goes & comes back through tolls regardless of return trip
+    const doubledTollFee = (Number(req.body.tollFee || 0)) * 2;
     const normalizedTotalFare =
-      Number(req.body.totalFare || 0) ||
-      (normalizedOneWayFare + Number(req.body.returnTripFare || 0) + Number(req.body.tollFee || 0));
+      (normalizedOneWayFare + Number(req.body.returnTripFare || 0) + doubledTollFee);
 
     const booking = await Booking.create({
       user: req.userId,
@@ -139,7 +140,7 @@ export const createBooking = async (req, res) => {
       hasReturnTrip: req.body.hasReturnTrip || false,
       returnTripFare: req.body.returnTripFare || 0,
       totalFare: normalizedTotalFare,
-      tollFee: req.body.tollFee || 0,
+      tollFee: doubledTollFee,  // Always doubled - car goes & comes back through tolls
       waitingLimit: resolveWaitingLimitSeconds(req.body.distance || 0), // Store in seconds
     });
 
@@ -969,11 +970,12 @@ export const requestPayment = async (req, res) => {
     const firstLegPaid = !!breakdown?.firstLegPaid;
 
     // Guard against undefined/invalid amount reaching passenger UI.
+    // Toll is collected in Leg 1 (partial payment), so final payment excludes toll when firstLegPaid
     const safeAmount = Number.isFinite(parsedAmount)
       ? parsedAmount
       : (isPartial
-        ? baseFare
-        : (firstLegPaid ? (returnFare + penalty + toll) : (baseFare + returnFare + penalty + toll)));
+        ? (baseFare + toll)  // Include toll in half payment (Leg 1)
+        : (firstLegPaid ? (returnFare + penalty) : (baseFare + returnFare + penalty + toll)));
 
     // Emit to passenger (User room and Booking room)
     const io = getIO();
@@ -1036,13 +1038,11 @@ export const acceptReturnOffer = async (req, res) => {
     booking.returnTripFare = returnFare;
     booking.discount = 50; // 50% off
 
-    // Double the tollFee since return trip crosses tolls twice
-    const originalTollFee = booking.tollFee || 0;
-    const newTollFee = originalTollFee * 2;
-    booking.tollFee = newTollFee;
+    // Toll is already doubled at booking creation (car always goes & comes back through tolls)
+    const currentTollFee = booking.tollFee || 0;
 
     // Update totalFare
-    booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0) + newTollFee;
+    booking.totalFare = (booking.fare || 0) + returnFare + (booking.penaltyApplied || 0) + currentTollFee;
 
     await booking.save();
 
@@ -1050,14 +1050,14 @@ export const acceptReturnOffer = async (req, res) => {
     io.to(booking.user.toString()).emit("returnTripAccepted", {
       bookingId: booking._id,
       returnTripFare: returnFare,
-      tollFee: newTollFee,
+      tollFee: currentTollFee,
       totalFare: booking.totalFare
     });
     if (booking.driver) {
       io.to(booking.driver.toString()).emit("returnTripAccepted", {
         bookingId: booking._id,
         returnTripFare: returnFare,
-        tollFee: newTollFee,
+        tollFee: currentTollFee,
         totalFare: booking.totalFare
       });
 

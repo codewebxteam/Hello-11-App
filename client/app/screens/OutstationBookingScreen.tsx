@@ -387,9 +387,9 @@ const OutstationBookingScreen = () => {
         fare: fares[carType].fare,
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
         nightSurcharge: fares[carType].nightSurcharge || 0,
-        tollFee: tollCost || 0,
+        tollFee: tollCost || 0,  // Backend will double this
         returnTripFare: 0,
-        totalFare: (fares[carType]?.total || 0) + (tollCost || 0),
+        totalFare: (fares[carType]?.total || 0) + ((tollCost || 0) * 2),  // Show doubled toll in total
         hasReturnTrip: false,
         distance: distanceKm,
         vehicleType: carType,
@@ -481,10 +481,10 @@ const OutstationBookingScreen = () => {
             )}
             <View className="h-[1px] bg-slate-700 w-full mb-2" />
             <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Estimated Total</Text>
-            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare + (tollCost || 0)}</Text>
+            <Text className="text-[#FFD700] text-3xl font-black">₹{fares[carType].fare + ((tollCost || 0) * 2)}</Text>
             {tollCost > 0 ? (
               <Text className="text-emerald-400 text-[11px] font-black mt-1 uppercase tracking-wider">
-                ₹{tollCost} Toll Included
+                ₹{(tollCost || 0) * 2} Toll (Round-trip) Included
               </Text>
             ) : (
               <Text className="text-slate-500 text-[10px] font-bold mt-1 uppercase tracking-wider">
@@ -693,7 +693,7 @@ const OutstationBookingScreen = () => {
                   ) : (
                     <>
                       <Text className={`${isSelected ? 'text-slate-900' : 'text-slate-600'} font-black text-xl`}>
-                        ₹{vehicleFare + (tollCost || 0) || '--'}
+                        ₹{vehicleFare + ((tollCost || 0) * 2) || '--'}
                       </Text>
                       {vehicleTime > 0 && (
                         <View className="flex-row items-center mt-1">
@@ -705,7 +705,7 @@ const OutstationBookingScreen = () => {
                       )}
                       {(tollCost || 0) > 0 && (
                         <View className="flex-row items-center mt-1 bg-emerald-50 px-1.5 py-0.5 rounded">
-                          <Text className="text-emerald-600 text-[9px] font-black">+₹{tollCost} Toll</Text>
+                          <Text className="text-emerald-600 text-[9px] font-black">+₹{(tollCost || 0) * 2} Toll</Text>
                         </View>
                       )}
                     </>
@@ -829,15 +829,15 @@ const OutstationBookingScreen = () => {
                 <View className="flex-row justify-between items-center mb-3 pt-3 border-t border-slate-700">
                   <View className="flex-row items-center">
                     <Ionicons name="location" size={12} color="#10b981" style={{ marginRight: 6 }} />
-                    <Text className="text-emerald-400 text-[10px] font-black uppercase">Toll Charges (Included)</Text>
+                    <Text className="text-emerald-400 text-[10px] font-black uppercase">Toll Charges (Round-trip)</Text>
                   </View>
-                  <Text className="text-emerald-400 font-black text-sm">+₹{tollCost}</Text>
+                  <Text className="text-emerald-400 font-black text-sm">+₹{(tollCost || 0) * 2}</Text>
                 </View>
               )}
 
               <View className="flex-row justify-between items-center pt-3 border-t border-slate-700">
                 <Text className="text-[#FFD700] text-[10px] font-black uppercase tracking-widest">Total Estimate</Text>
-                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + (tollCost || 0)}</Text>
+                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + ((tollCost || 0) * 2)}</Text>
               </View>
             </View>
           )}
@@ -846,7 +846,7 @@ const OutstationBookingScreen = () => {
           <View style={{ backgroundColor: '#1E293B', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#334155', flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="information-circle" size={22} color="#F87171" />
             <Text style={{ flex: 1, marginLeft: 10, color: '#F87171', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-              Note: {tollCost > 0 ? `₹${tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
+              Note: {tollCost > 0 ? `₹${(tollCost) * 2} Estimated toll (round-trip) is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
             </Text>
           </View>
 

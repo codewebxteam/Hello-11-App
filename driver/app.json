@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Hello 11 Driver",
+    "name": "Hello11 Driver",
     "slug": "driverSection",
     "version": "1.0.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "orientation": "portrait",
-    "icon": "./assets/images/Hello11DriverLogo.png",
+    "icon": "./assets/DriverIcon.png",
     "scheme": "driversection",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -19,7 +19,7 @@
       "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#F5A623",
-        "foregroundImage": "./assets/images/Hello11DriverLogo.png"
+        "foregroundImage": "./assets/DriverIcon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

@@ -27,10 +27,11 @@ export default function PaymentScreen() {
     const nightSurcharge = params.nightSurcharge ? Number(params.nightSurcharge) : 0;
     const oneWayFare = Math.max(0, baseFare) + Math.max(0, nightSurcharge);
 
-    // Total Amount: If final payment and first leg already paid, only collect return + penalty + toll
+    // Total Amount: Toll is always collected in Leg 1 (half payment).
+    // If final payment and first leg already paid, only collect return + penalty (toll already collected)
     const totalAmount = isPartialPayment
-        ? oneWayFare
-        : (firstLegPaid ? (returnFare + penalty + toll) : (oneWayFare + returnFare + penalty + toll));
+        ? (oneWayFare + toll)  // Include toll in half payment (Leg 1)
+        : (firstLegPaid ? (returnFare + penalty) : (oneWayFare + returnFare + penalty + toll));
 
     useEffect(() => {
         if (params.bookingId) {

@@ -415,8 +415,8 @@ const BookingScreen = () => {
         baseFare: Math.max(0, fares[carType].fare - (fares[carType].nightSurcharge || 0)),
         distance: distanceKm,
         nightSurcharge: fares[carType].nightSurcharge || 0,
-        tollFee: tollCost || 0,
-        totalFare: (fares[carType]?.total || 0) + (tollCost || 0),
+        tollFee: tollCost || 0,  // Backend will double this
+        totalFare: (fares[carType]?.total || 0) + ((tollCost || 0) * 2),  // Show doubled toll in total
       };
 
       const res = await bookingAPI.createBooking(payload);
@@ -592,7 +592,7 @@ const BookingScreen = () => {
                 ) : (
                   <>
                     <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1 text-right">Total Fare</Text>
-                    <Text className="text-slate-900 font-black text-3xl">₹{(fares['5seater']?.total || 0) + (tollCost || 0)}</Text>
+                    <Text className="text-slate-900 font-black text-3xl">₹{(fares['5seater']?.total || 0) + ((tollCost || 0) * 2)}</Text>
                     
                     <View className="flex-col mt-2 w-full items-end gap-1">
                       <View className="flex-row items-center justify-end">
@@ -609,8 +609,8 @@ const BookingScreen = () => {
                       
                       {(tollCost || 0) > 0 && (
                         <View className="flex-row items-center justify-end">
-                          <Text className="text-emerald-600 text-[10px] font-bold mr-2">Toll Charge</Text>
-                          <Text className="text-emerald-600 text-[10px] font-bold">+₹{tollCost}</Text>
+                          <Text className="text-emerald-600 text-[10px] font-bold mr-2">Toll (Round-trip)</Text>
+                          <Text className="text-emerald-600 text-[10px] font-bold">+₹{(tollCost || 0) * 2}</Text>
                         </View>
                       )}
                     </View>
@@ -627,7 +627,7 @@ const BookingScreen = () => {
         <View style={{ backgroundColor: '#FEF2F2', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center' }}>
           <Ionicons name="information-circle" size={22} color="#EF4444" />
           <Text style={{ flex: 1, marginLeft: 10, color: '#DC2626', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-            Note: {tollCost > 0 ? `₹${tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
+            Note: {tollCost > 0 ? `₹${(tollCost) * 2} Estimated toll (round-trip) is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
           </Text>
         </View>
 
@@ -659,8 +659,8 @@ const BookingScreen = () => {
         pickupLocation={pickup || "Current Location"}
         dropLocation={drop || "Select Destination"}
         rideMode="Normal Ride"
-        totalFare={(fares[selectedVehicle]?.total || 0) + (tollCost || 0)}
-        tollFee={tollCost || 0}
+        totalFare={(fares[selectedVehicle]?.total || 0) + ((tollCost || 0) * 2)}
+        tollFee={(tollCost || 0) * 2}
       />
 
       {/* Bottom Tab Bar (visible on this screen to match Home) */}

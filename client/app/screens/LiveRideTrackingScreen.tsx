@@ -863,7 +863,7 @@ const LiveRideTrackingScreen = () => {
                                 </Text>
                                 {booking?.firstLegPaid && (
                                     <Text className="text-green-600 text-xs font-bold mt-1">
-                                        Balance: ₹{(Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0) + Number(booking?.tollFee || 0))}
+                                        Balance: ₹{(Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}
                                     </Text>
                                 )}
                             </View>
