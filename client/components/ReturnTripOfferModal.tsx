@@ -62,7 +62,15 @@ const ReturnTripOfferModal = ({
               <View className="flex-row items-center mb-2">
                 <Ionicons name="time-outline" size={16} color="#64748B" />
                 <Text className="text-slate-500 text-xs font-bold ml-2 flex-1">
-                  Free waiting up to {waitingLimitSeconds < 60 ? `${waitingLimitSeconds} sec` : `${Math.round(waitingLimitSeconds / 60)} mins`}
+                  Free waiting up to {
+                    waitingLimitSeconds < 60 ? `${waitingLimitSeconds} sec` : 
+                    (() => {
+                      const mins = Math.round(waitingLimitSeconds / 60);
+                      const h = Math.floor(mins / 60);
+                      const m = mins % 60;
+                      return h > 0 ? `${h} Hrs ${m > 0 ? m + ' mins' : ''}`.trim() : `${m} mins`;
+                    })()
+                  }
                 </Text>
               </View>
               <View className="flex-row items-center">

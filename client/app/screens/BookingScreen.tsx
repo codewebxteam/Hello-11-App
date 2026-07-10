@@ -189,7 +189,7 @@ const BookingScreen = () => {
         ).catch(() => ({ data: { data: { tollPrice: 0 } } })) 
       ]);
       
-      const tollPrice = tollRes.data?.data?.tollPrice || 0;
+      const tollPrice = (tollRes.data?.data?.tollPrice || 0) * 2;
 
       if (dirRes.data?.data?.distanceKm) {
         const dist = parseFloat(dirRes.data.data.distanceKm);
@@ -623,11 +623,10 @@ const BookingScreen = () => {
 
         {/* Scheduler removed */}
 
-        {/* --- TOLLS & PARKING DISCLAIMER ADDED HERE --- */}
         <View style={{ backgroundColor: '#FEF2F2', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center' }}>
           <Ionicons name="information-circle" size={22} color="#EF4444" />
           <Text style={{ flex: 1, marginLeft: 10, color: '#DC2626', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-            Note: {tollCost > 0 ? `₹${(tollCost) * 2} Estimated toll (round-trip) is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
+            Note: {tollCost > 0 ? `₹${tollCost} Estimated toll (round-trip) is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
           </Text>
         </View>
 
@@ -659,8 +658,8 @@ const BookingScreen = () => {
         pickupLocation={pickup || "Current Location"}
         dropLocation={drop || "Select Destination"}
         rideMode="Normal Ride"
-        totalFare={(fares[selectedVehicle]?.total || 0) + ((tollCost || 0) * 2)}
-        tollFee={(tollCost || 0) * 2}
+        totalFare={(fares[selectedVehicle]?.total || 0) + (tollCost || 0)}
+        tollFee={tollCost || 0}
       />
 
       {/* Bottom Tab Bar (visible on this screen to match Home) */}

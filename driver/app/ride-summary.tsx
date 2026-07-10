@@ -114,7 +114,7 @@ export default function RideSummaryScreen() {
                                         <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid</Text>
                                     )}
                                 </View>
-                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-green-500' : 'text-indigo-400'}`}>+ ₹{nightSurcharge}</Text>
+                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-green-500' : 'text-indigo-400'}`}>+ ₹{nightSurcharge} Night Charge</Text>
                             </View>
                         )}
 
@@ -122,7 +122,7 @@ export default function RideSummaryScreen() {
                             <View className="flex-row justify-between mb-3">
                                 <View className="flex-row items-center">
                                     <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
-                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (50% OFF)</Text>
+                                    <Text className="text-blue-400 text-sm font-medium">Return Trip (50% of Leg 1)</Text>
                                 </View>
                                 <Text className="text-blue-400 text-sm font-bold">+ ₹{returnFare || 0}</Text>
                             </View>
@@ -137,8 +137,13 @@ export default function RideSummaryScreen() {
 
                         {Number(toll) > 0 && (
                             <View className="flex-row justify-between mb-3">
-                                <Text className="text-amber-400 text-sm font-medium">Toll Charges</Text>
-                                <Text className="text-amber-400 text-sm font-bold">+ ₹{toll}</Text>
+                                <View>
+                                    <Text className="text-amber-400 text-sm font-medium">Toll Charges</Text>
+                                    {params.firstLegPaid === 'true' && (
+                                        <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid in Leg 1</Text>
+                                    )}
+                                </View>
+                                <Text className={`text-sm font-bold ${params.firstLegPaid === 'true' ? 'text-green-500' : 'text-amber-400'}`}>+ ₹{toll}</Text>
                             </View>
                         )}
 

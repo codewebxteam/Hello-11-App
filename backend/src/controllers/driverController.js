@@ -979,6 +979,8 @@ export const getCurrentBooking = async (req, res) => {
         status: booking.status,
         otp: booking.otp,
         fare: booking.fare,
+        baseFare: booking.baseFare,
+        totalFare: booking.totalFare,
         distance: booking.distance,
         paymentMethod: booking.paymentMethod,
         user: booking.user,

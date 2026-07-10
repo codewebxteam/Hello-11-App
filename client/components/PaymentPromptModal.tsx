@@ -40,10 +40,10 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
   const payableNow = Number.isFinite(requestedAmount)
     ? requestedAmount
     : details.isPartial
-      ? rawBaseFare
+      ? rawBaseFare + nightSurcharge + toll  // Leg 1: base + night + toll
       : details?.breakdown?.firstLegPaid
-        ? returnFare + penalty + toll
-        : rawBaseFare + returnFare + penalty + toll;
+        ? returnFare + penalty  // Leg 2: only return + penalty (toll already paid)
+        : rawBaseFare + nightSurcharge + returnFare + penalty + toll;
 
   return (
     <Modal transparent visible={isVisible} animationType="none" onRequestClose={onClose}>
@@ -110,7 +110,7 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
 
                 {!details.isPartial && returnFare > 0 && (
                   <View className="flex-row justify-between items-center">
-                    <Text className="text-slate-400 text-sm">Return Trip (50% OFF)</Text>
+                    <Text className="text-slate-400 text-sm">Return Trip (50% of Leg 1)</Text>
                     <Text className="text-white text-sm font-bold">+Rs {returnFare}</Text>
                   </View>
                 )}
@@ -122,10 +122,17 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
                   </View>
                 )}
 
-                {!details.isPartial && toll > 0 && (
+                {toll > 0 && (
                   <View className="flex-row justify-between items-center">
-                    <Text className="text-amber-400 text-sm">Toll Charges</Text>
-                    <Text className="text-amber-400 text-sm font-bold">+Rs {toll}</Text>
+                    <View>
+                      <Text className="text-amber-400 text-sm">Toll Charges</Text>
+                      {details.breakdown.firstLegPaid && (
+                        <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">Paid</Text>
+                      )}
+                    </View>
+                    <Text className={`text-sm font-bold ${details.breakdown.firstLegPaid ? "text-green-600" : "text-amber-400"}`}>
+                      +Rs {toll}
+                    </Text>
                   </View>
                 )}
 
@@ -135,11 +142,11 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
                   <>
                     <View className="flex-row justify-between items-center opacity-70">
                       <Text className="text-slate-400 text-xs uppercase font-bold">Total Trip Cost</Text>
-                      <Text className="text-white text-sm font-bold">Rs {rawBaseFare + returnFare + penalty + toll}</Text>
+                      <Text className="text-white text-sm font-bold">Rs {rawBaseFare + nightSurcharge + returnFare + penalty + toll}</Text>
                     </View>
                     <View className="flex-row justify-between items-center opacity-70">
-                      <Text className="text-green-500 text-xs uppercase font-bold">Already Paid (Leg 1)</Text>
-                      <Text className="text-green-500 text-sm font-bold">-Rs {rawBaseFare}</Text>
+                      <Text className="text-green-500 text-xs uppercase font-bold">Already Paid (Leg 1 + Toll + Night)</Text>
+                      <Text className="text-green-500 text-sm font-bold">-Rs {rawBaseFare + nightSurcharge + toll}</Text>
                     </View>
                     <View className="h-[1px] bg-slate-700 w-1/2 self-end my-1" />
                   </>

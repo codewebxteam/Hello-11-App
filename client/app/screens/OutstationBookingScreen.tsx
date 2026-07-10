@@ -146,7 +146,8 @@ const OutstationBookingScreen = () => {
         ).catch(() => ({ data: { data: { tollPrice: 0 } } })) // Safe fallback
       ]);
 
-      const tollPrice = tollRes.data?.data?.tollPrice || 0;
+      // API returns one-way toll (or estimated); we multiply by 2 for round-trip cost as requested
+      const tollPrice = (tollRes.data?.data?.tollPrice || 0) * 2;
 
       if (dirRes.data?.data?.distanceKm) {
         const dist = parseFloat(dirRes.data.data.distanceKm);
@@ -333,7 +334,7 @@ const OutstationBookingScreen = () => {
   const formatTime = (mins: number) => {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return h > 0 ? `${h}h ${m > 0 ? m + 'm' : ''}`.trim() : `${m}m`;
+    return h > 0 ? `${h} Hrs ${m > 0 ? m + ' mins' : ''}`.trim() : `${m} mins`;
   };
 
   const formatScheduledDate = (date: Date) => {
@@ -828,15 +829,15 @@ const OutstationBookingScreen = () => {
                 <View className="flex-row justify-between items-center mb-3 pt-3 border-t border-slate-700">
                   <View className="flex-row items-center">
                     <Ionicons name="location" size={12} color="#10b981" style={{ marginRight: 6 }} />
-                    <Text className="text-emerald-400 text-[10px] font-black uppercase">Toll Charges (Round-trip)</Text>
+                    <Text className="text-emerald-400 text-[10px] font-black uppercase">Toll Charges</Text>
                   </View>
-                  <Text className="text-emerald-400 font-black text-sm">+₹{(tollCost || 0) * 2}</Text>
+                  <Text className="text-emerald-400 font-black text-sm">+₹{tollCost || 0}</Text>
                 </View>
               )}
 
               <View className="flex-row justify-between items-center pt-3 border-t border-slate-700">
                 <Text className="text-[#FFD700] text-[10px] font-black uppercase tracking-widest">Total Estimate</Text>
-                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + ((tollCost || 0) * 2)}</Text>
+                <Text className="text-[#FFD700] font-black text-2xl">₹{fares[carType].fare + (tollCost || 0)}</Text>
               </View>
             </View>
           )}
@@ -845,7 +846,7 @@ const OutstationBookingScreen = () => {
           <View style={{ backgroundColor: '#1E293B', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#334155', flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="information-circle" size={22} color="#F87171" />
             <Text style={{ flex: 1, marginLeft: 10, color: '#F87171', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-              Note: {tollCost > 0 ? `₹${(tollCost) * 2} Estimated toll (round-trip) is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
+              Note: {tollCost > 0 ? `₹${tollCost} Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
             </Text>
           </View>
 

@@ -237,6 +237,11 @@ export default function StartRideScreen() {
                   <Text className="text-emerald-400 font-black uppercase text-[8px] tracking-wider">+₹{booking.tollFee} Toll Included</Text>
                 </View>
               )}
+              {booking?.nightSurcharge > 0 && (
+                <View className="bg-indigo-500/20 border border-indigo-500/30 px-1.5 py-0.5 rounded mt-1 align-self-start">
+                  <Text className="text-indigo-400 font-black uppercase text-[8px] tracking-wider">+₹{booking.nightSurcharge} Night Charge</Text>
+                </View>
+              )}
             </View>
             <View className="items-end">
               <Text className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">

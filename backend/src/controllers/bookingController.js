@@ -220,6 +220,7 @@ export const createBooking = async (req, res) => {
             vehicleType: booking.vehicleType,
             bookingType: booking.bookingType,
             tollFee: booking.tollFee || 0,
+            nightSurcharge: booking.nightSurcharge || 0,
             totalFare: booking.totalFare
           });
 
@@ -281,6 +282,7 @@ export const createBooking = async (req, res) => {
             bookingType: "schedule",
             scheduledDate: booking.scheduledDate,
             tollFee: booking.tollFee || 0,
+            nightSurcharge: booking.nightSurcharge || 0,
             totalFare: booking.totalFare
           });
 
@@ -969,12 +971,12 @@ export const requestPayment = async (req, res) => {
     const firstLegPaid = !!breakdown?.firstLegPaid;
 
     // Guard against undefined/invalid amount reaching passenger UI.
-    // Toll is collected in Leg 1 (partial payment), so final payment excludes toll when firstLegPaid
+    // Leg 1 (partial): base + night + toll. Leg 2 (final with firstLegPaid): return + penalty only (toll already collected)
     const safeAmount = Number.isFinite(parsedAmount)
       ? parsedAmount
       : (isPartial
-        ? (baseFare + toll)  // Include toll in half payment (Leg 1)
-        : (firstLegPaid ? (returnFare + penalty) : (baseFare + returnFare + penalty + toll)));
+        ? (baseFare + nightSurcharge + toll)  // Leg 1: base + night + toll all collected upfront
+        : (firstLegPaid ? (returnFare + penalty) : (baseFare + nightSurcharge + returnFare + penalty + toll)));
 
     // Emit to passenger (User room and Booking room)
     const io = getIO();
@@ -1030,8 +1032,9 @@ export const acceptReturnOffer = async (req, res) => {
       });
     }
 
-    // Logic: 50% OFF on return trip
-    const returnFare = Math.round(booking.fare * 0.5);
+    // Logic: 50% OFF on return trip (only on base fare, excluding night surcharge)
+    const baseFare = booking.baseFare && booking.baseFare > 0 ? booking.baseFare : booking.fare;
+    const returnFare = Math.round(baseFare * 0.5);
 
     booking.hasReturnTrip = true;
     booking.returnTripFare = returnFare;

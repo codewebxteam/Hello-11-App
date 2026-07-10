@@ -178,7 +178,9 @@ export default function ActiveRideScreen() {
                         if (dirRes.data && dirRes.data.data) {
                             setDistance(`${dirRes.data.data.distanceKm} km`);
                             const etaMin = Math.ceil(dirRes.data.data.duration / 60);
-                            setEta(`${etaMin} min`);
+                            const h = Math.floor(etaMin / 60);
+                            const m = etaMin % 60;
+                            setEta(h > 0 ? `${h} Hrs ${m} mins` : `${m} mins`);
 
                             if (dirRes.data.data.geometry && Array.isArray(dirRes.data.data.geometry.coordinates)) {
                                 const coords = dirRes.data.data.geometry.coordinates
@@ -247,7 +249,10 @@ export default function ActiveRideScreen() {
                                     .then(res => {
                                         if (res.data?.data) {
                                             setDistance(`${res.data.data.distanceKm} km`);
-                                            setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                                            const eMin = Math.ceil(res.data.data.duration / 60);
+                                            const h = Math.floor(eMin / 60);
+                                            const m = eMin % 60;
+                                            setEta(h > 0 ? `${h} Hrs ${m} mins` : `${m} mins`);
                                             if (res.data.data.geometry?.coordinates) {
                                                 const coords = res.data.data.geometry.coordinates.map((c: any) => ({
                                                     latitude: Number(c[1]),
@@ -598,7 +603,7 @@ export default function ActiveRideScreen() {
                             <View className="flex-row justify-between items-end mb-6">
                                 <View>
                                     <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Time Remaining</Text>
-                                    <Text className="text-white text-4xl font-black italic">{eta.split(' ')[0]} <Text className="text-lg text-slate-500 not-italic">{eta.split(' ')[1] || 'min'}</Text></Text>
+                                    <Text className="text-white text-2xl font-black italic">{eta}</Text>
                                 </View>
                                 <View className="items-end">
                                     <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Distance</Text>
@@ -645,7 +650,7 @@ export default function ActiveRideScreen() {
                                                 )}
                                             </View>
                                         </View>
-                                        <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-500' : 'text-indigo-400'}`}>+₹{booking?.nightSurcharge || 0}</Text>
+                                        <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-500' : 'text-indigo-400'}`}>+₹{booking?.nightSurcharge || 0} Night Charge</Text>
                                     </View>
                                 )}
 
@@ -683,12 +688,17 @@ export default function ActiveRideScreen() {
                                 {(Number(tollAmount) > 0) && (
                                     <View className="flex-row justify-between items-center mb-3">
                                         <View className="flex-row items-center flex-1">
-                                            <View className="w-6 h-6 rounded-full bg-amber-500/20 items-center justify-center mr-2">
-                                                <Ionicons name="cash-outline" size={12} color="#f59e0b" />
+                                            <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${booking?.firstLegPaid ? 'bg-green-500' : 'bg-amber-500/20'}`}>
+                                                <Ionicons name={booking?.firstLegPaid ? 'checkmark' : 'cash-outline'} size={12} color={booking?.firstLegPaid ? 'white' : '#f59e0b'} />
                                             </View>
-                                            <Text className="text-amber-400 text-sm font-bold">Toll Charges</Text>
+                                            <View>
+                                                <Text className="text-amber-400 text-sm font-bold">Toll Charges</Text>
+                                                {booking?.firstLegPaid && (
+                                                    <Text className="text-green-500 text-[9px] font-black uppercase tracking-wider">✓ Paid in Leg 1</Text>
+                                                )}
+                                            </View>
                                         </View>
-                                        <Text className="text-amber-400 text-sm font-bold">+₹{tollAmount || 0}</Text>
+                                        <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-500' : 'text-amber-400'}`}>+₹{tollAmount || 0}</Text>
                                     </View>
                                 )}
                                 

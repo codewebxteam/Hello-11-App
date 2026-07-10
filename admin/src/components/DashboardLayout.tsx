@@ -78,7 +78,7 @@ const DashboardLayout: React.FC = () => {
         <div className="flex h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-yellow-400 selection:text-black">
             {/* Sidebar */}
             <div className={`fixed inset-y-0 left-0 z-[60] ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:translate-x-0`}>
-                <Sidebar isOpen={true} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+                <Sidebar isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
             </div>
 
             {/* Mobile Overlay */}
@@ -89,7 +89,7 @@ const DashboardLayout: React.FC = () => {
                 />
             )}
 
-            <div className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'md:ml-64' : 'ml-0'}`}>
+            <div className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'md:ml-64' : 'md:ml-20 ml-0'}`}>
                 {/* Top Header - Glassmorphism */}
                 <header className="bg-white/80 backdrop-blur-xl h-20 flex items-center justify-between px-6 md:px-10 border-b border-slate-200/60 sticky top-0 z-40">
                     <div className="flex items-center gap-5">

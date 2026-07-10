@@ -207,13 +207,20 @@ export default function WaitingForReturnScreen() {
                     {Number(booking?.nightSurcharge) > 0 && (
                         <View className="flex-row justify-between mb-2">
                             <Text className="text-indigo-400 font-bold">Night Surcharge</Text>
-                            <Text className="text-indigo-400 font-black">+ ₹{booking?.nightSurcharge || 0}</Text>
+                            <Text className="text-indigo-400 font-black">+ ₹{booking?.nightSurcharge || 0} Night Charge</Text>
+                        </View>
+                    )}
+
+                    {Number(booking?.tollFee) > 0 && (
+                        <View className="flex-row justify-between mb-2">
+                            <Text className="text-amber-400 font-bold">Toll Charges</Text>
+                            <Text className="text-amber-400 font-black">+ ₹{booking?.tollFee || 0}</Text>
                         </View>
                     )}
 
                     <View className="border-t border-slate-700/50 pt-4 flex-row justify-between items-center">
                         <Text className="text-white text-sm font-black uppercase tracking-wider">Leg 1 Total (Paid)</Text>
-                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{(Number(booking?.fare || 0))}</Text>
+                        <Text className="text-[#FFD700] text-3xl font-black italic">₹{Number(booking?.fare || 0) + Number(booking?.tollFee || 0)}</Text>
                     </View>
                 </View>
 
@@ -221,7 +228,14 @@ export default function WaitingForReturnScreen() {
                     <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-white/10 items-center">
                         <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Allocated Wait</Text>
                         <Text className="text-white text-xl font-bold">
-                            {waitingLimit < 60 ? `${waitingLimit} Sec` : `${Math.round(waitingLimit / 60)} Min`}
+                            {waitingLimit < 60 ? `${waitingLimit} Sec` : 
+                             (() => {
+                               const mins = Math.round(waitingLimit / 60);
+                               const h = Math.floor(mins / 60);
+                               const m = mins % 60;
+                               return h > 0 ? `${h} Hrs ${m > 0 ? m + ' mins' : ''}`.trim() : `${m} mins`;
+                             })()
+                            }
                         </Text>
                     </View>
                 </View>

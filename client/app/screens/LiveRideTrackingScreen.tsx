@@ -153,7 +153,12 @@ const LiveRideTrackingScreen = () => {
                                     }));
                                 if (coords.length > 0) setRouteCoords(coords);
                                 if (dirRes.data.data.distanceKm) setDistance(`${dirRes.data.data.distanceKm} km`);
-                                if (dirRes.data.data.duration) setEta(`${Math.ceil(dirRes.data.data.duration / 60)} min`);
+                                if (dirRes.data.data.duration) {
+                                    const eMin = Math.ceil(dirRes.data.data.duration / 60);
+                                    const h = Math.floor(eMin / 60);
+                                    const m = eMin % 60;
+                                    setEta(h > 0 ? `${h} Hrs ${m} mins` : `${m} mins`);
+                                }
                             }
                         }).catch(() => { });
                     }
@@ -324,7 +329,12 @@ const LiveRideTrackingScreen = () => {
                         locationAPI.getDirections(newLat, newLon, targetLat, targetLon).then(res => {
                             if (res.data?.data) {
                                 if (res.data.data.distanceKm) setDistance(`${res.data.data.distanceKm} km`);
-                                if (res.data.data.duration) setEta(`${Math.ceil(res.data.data.duration / 60)} min`);
+                                if (res.data.data.duration) {
+                                    const eMin = Math.ceil(res.data.data.duration / 60);
+                                    const h = Math.floor(eMin / 60);
+                                    const m = eMin % 60;
+                                    setEta(h > 0 ? `${h} Hrs ${m} mins` : `${m} mins`);
+                                }
 
                                 if (res.data.data.geometry && Array.isArray(res.data.data.geometry.coordinates)) {
                                     const coords = res.data.data.geometry.coordinates
@@ -413,8 +423,8 @@ const LiveRideTrackingScreen = () => {
                 const safeAmount = Number.isFinite(parsedAmount)
                     ? parsedAmount
                     : (data?.isPartial
-                        ? baseFare + nightSurcharge
-                        : (data?.breakdown?.firstLegPaid ? (returnFare + penalty + toll) : (baseFare + nightSurcharge + returnFare + penalty + toll)));
+                        ? (baseFare + nightSurcharge + toll)  // Leg 1: base + night + toll
+                        : (data?.breakdown?.firstLegPaid ? (returnFare + penalty) : (baseFare + nightSurcharge + returnFare + penalty + toll)));
 
                 setPaymentDetails({
                     ...data,
@@ -809,7 +819,7 @@ const LiveRideTrackingScreen = () => {
                                         </Text>
                                         <View className="flex-row items-center">
                                             <View className="bg-yellow-400/20 px-1 py-0.5 rounded mr-1">
-                                                <Text className="text-yellow-700 text-[7px] font-black uppercase">50% OFF</Text>
+                                                <Text className="text-yellow-700 text-[7px] font-black uppercase">50% of Leg 1</Text>
                                             </View>
                                             {currentStatus === 'return_ride_started' && (
                                                 <Text className="text-yellow-700 text-[9px] font-bold uppercase tracking-wider">Active</Text>
@@ -838,12 +848,17 @@ const LiveRideTrackingScreen = () => {
                         {(Number(booking?.tollFee) > 0) && (
                             <View className="flex-row justify-between items-center mb-3">
                                 <View className="flex-row items-center flex-1">
-                                    <View className="w-6 h-6 rounded-full bg-amber-500/20 items-center justify-center mr-2">
-                                        <Ionicons name="cash-outline" size={12} color="#f59e0b" />
+                                    <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 ${booking?.firstLegPaid ? 'bg-green-500' : 'bg-amber-500/20'}`}>
+                                        <Ionicons name={booking?.firstLegPaid ? 'checkmark' : 'cash-outline'} size={12} color={booking?.firstLegPaid ? 'white' : '#f59e0b'} />
                                     </View>
-                                    <Text className="text-amber-500 text-sm font-bold">Toll Charges</Text>
+                                    <View>
+                                        <Text className="text-amber-500 text-sm font-bold">Toll Charges</Text>
+                                        {booking?.firstLegPaid && (
+                                            <Text className="text-green-600 text-[9px] font-bold uppercase tracking-wider">✓ Paid in Leg 1</Text>
+                                        )}
+                                    </View>
                                 </View>
-                                <Text className="text-amber-500 text-sm font-bold">+₹{booking?.tollFee || 0}</Text>
+                                <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-600' : 'text-amber-500'}`}>+₹{booking?.tollFee || 0}</Text>
                             </View>
                         )}
 
@@ -863,7 +878,7 @@ const LiveRideTrackingScreen = () => {
                                 </Text>
                                 {booking?.firstLegPaid && (
                                     <Text className="text-green-600 text-xs font-bold mt-1">
-                                        Balance: ₹{(Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0))}
+                                        Balance: ₹{Number(booking?.returnTripFare || 0) + Number(booking?.penaltyApplied || 0)}
                                     </Text>
                                 )}
                             </View>

@@ -604,6 +604,11 @@ function DriverRealtimeOverlay() {
                       <Text className="text-emerald-400 font-black uppercase text-[8px] tracking-wider">+₹{incomingRide.tollFee} Toll Included</Text>
                     </View>
                   )}
+                  {incomingRide?.nightSurcharge > 0 && (
+                    <View className="bg-indigo-500/20 border border-indigo-500/30 px-1.5 py-0.5 rounded">
+                      <Text className="text-indigo-400 font-black uppercase text-[8px] tracking-wider">+₹{incomingRide.nightSurcharge} Night Charge</Text>
+                    </View>
+                  )}
                 </View>
                 {scheduledDateLabel && (
                   <Text className="text-sky-300 font-black uppercase tracking-wider mt-2" style={{ fontSize: metaTextSize }}>

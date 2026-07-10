@@ -132,7 +132,7 @@ const RideCompletionScreen = () => {
                                 <View className="flex-row justify-between mb-3 items-center">
                                     <View className="flex-row items-center">
                                         <View className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
-                                        <Text className="text-blue-600 font-bold">Return Trip (50% OFF)</Text>
+                                        <Text className="text-blue-600 font-bold">Return Trip (50% of Leg 1)</Text>
                                     </View>
                                     <Text className="text-blue-600 font-black">+₹{bookingDetails.returnTripFare}</Text>
                                 </View>

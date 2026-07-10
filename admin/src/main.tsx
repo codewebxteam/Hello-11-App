@@ -8,9 +8,7 @@ import App from './App.tsx'
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <DataProvider>
-        <App />
-      </DataProvider>
+      <App />
     </BrowserRouter>
   </React.StrictMode>,
 )

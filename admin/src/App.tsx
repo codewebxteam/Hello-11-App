@@ -12,6 +12,7 @@ import CouponsPage from './components/CouponsPage';
 import AnalyticsPage from './components/AnalyticsPage';
 import SettingsPage from './components/SettingsPage';
 import FinanceReport from './components/FinanceReport';
+import { DataProvider } from './context/DataContext';
 import { adminAPI } from './services/api';
 import './App.css';
 
@@ -104,7 +105,8 @@ function App() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full px-5 py-4 bg-slate-900/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all focus:bg-slate-900 font-medium"
-                            placeholder="admin@hello11.in"
+                            placeholder="admin@gmail.com"
+                            autoComplete="username"
                             required
                         />
                     </div>
@@ -120,6 +122,7 @@ function App() {
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full px-5 py-4 bg-slate-900/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400 transition-all focus:bg-slate-900 font-medium tracking-widest"
                             placeholder="••••••••"
+                            autoComplete="current-password"
                             required
                         />
                     </div>
@@ -140,22 +143,24 @@ function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<DashboardLayout />}>
-        <Route index element={<DashboardHome />} />
-        <Route path="users" element={<UsersList />} />
-        <Route path="riders" element={<RidersList />} />
-        <Route path="bookings" element={<BookingsList />} />
-        <Route path="live-map" element={<LiveMapPage />} />
-        <Route path="allotment" element={<DispatchPage />} />
-        <Route path="ratings" element={<RatingsPage />} />
-        <Route path="coupons" element={<CouponsPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="finance" element={<FinanceReport />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <DataProvider>
+      <Routes>
+        <Route path="/" element={<DashboardLayout />}>
+          <Route index element={<DashboardHome />} />
+          <Route path="users" element={<UsersList />} />
+          <Route path="riders" element={<RidersList />} />
+          <Route path="bookings" element={<BookingsList />} />
+          <Route path="live-map" element={<LiveMapPage />} />
+          <Route path="allotment" element={<DispatchPage />} />
+          <Route path="ratings" element={<RatingsPage />} />
+          <Route path="coupons" element={<CouponsPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="finance" element={<FinanceReport />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </DataProvider>
   );
 }
 

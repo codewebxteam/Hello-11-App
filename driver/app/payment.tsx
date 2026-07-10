@@ -145,9 +145,8 @@ export default function PaymentScreen() {
                         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-[3px] mb-6">Total Collection</Text>
                         <Text className="text-[#FFD700] text-7xl font-black mb-6">₹{totalAmount}</Text>
 
-                        {/* Breakdown for Final Payment */}
-                        {!isPartialPayment && (
-                            <View className="w-full bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
+                        {/* Breakdown for Payment */}
+                        <View className="w-full bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
                                 <View className="flex-row justify-between mb-3 items-center">
                                     <View>
                                         <Text className="text-slate-400 text-xs">
@@ -168,31 +167,36 @@ export default function PaymentScreen() {
                                                 <Text className="text-green-500 text-[8px] font-black uppercase tracking-wider">✓ Paid</Text>
                                             )}
                                         </View>
-                                        <Text className={`text-xs font-bold ${firstLegPaid ? 'text-green-500' : 'text-indigo-400'}`}>+₹{nightSurcharge}</Text>
+                                        <Text className={`text-xs font-bold ${firstLegPaid ? 'text-green-500' : 'text-indigo-400'}`}>+₹{nightSurcharge} Night Charge</Text>
                                     </View>
                                 )}
 
-                                {returnFare > 0 && (
+                                {!isPartialPayment && returnFare > 0 && (
                                     <View className="flex-row justify-between mb-3 items-center">
                                         <View className="flex-row items-center">
                                             <Text className="text-blue-400 text-xs">Return Trip </Text>
                                             <View className="bg-blue-500/20 px-1 py-0.5 rounded ml-1">
-                                                <Text className="text-blue-400 text-[8px] font-black italic">50% OFF</Text>
+                                                <Text className="text-blue-400 text-[8px] font-black italic">50% of Leg 1</Text>
                                             </View>
                                         </View>
                                         <Text className="text-blue-400 text-xs font-bold">+₹{returnFare}</Text>
                                     </View>
                                 )}
-                                {penalty > 0 && (
+                                {!isPartialPayment && penalty > 0 && (
                                     <View className="flex-row justify-between mb-3 items-center">
                                         <Text className="text-red-400 text-xs">Waiting Penalty</Text>
                                         <Text className="text-red-400 text-xs font-bold">+₹{penalty}</Text>
                                     </View>
                                 )}
                                 {toll > 0 && (
-                                    <View className="flex-row justify-between">
-                                        <Text className="text-amber-400 text-xs">Toll Charges</Text>
-                                        <Text className="text-amber-400 text-xs font-bold">+₹{toll}</Text>
+                                    <View className="flex-row justify-between mb-3">
+                                        <View>
+                                            <Text className="text-amber-400 text-xs">Toll Charges</Text>
+                                            {firstLegPaid && (
+                                                <Text className="text-green-500 text-[8px] font-black uppercase tracking-wider">✓ Paid</Text>
+                                            )}
+                                        </View>
+                                        <Text className={`text-xs font-bold ${firstLegPaid ? 'text-green-500' : 'text-amber-400'}`}>+₹{toll}</Text>
                                     </View>
                                 )}
 
@@ -205,8 +209,8 @@ export default function PaymentScreen() {
                                             <Text className="text-white text-[10px] font-bold">₹{oneWayFare + returnFare + penalty + toll}</Text>
                                         </View>
                                         <View className="flex-row justify-between mb-1 opacity-70">
-                                            <Text className="text-green-500 text-[9px] uppercase font-bold">Already Paid (Leg 1)</Text>
-                                            <Text className="text-green-500 text-[10px] font-bold">-₹{baseFare}</Text>
+                                            <Text className="text-green-500 text-[9px] uppercase font-bold">Already Paid (Leg 1 + Toll + Night)</Text>
+                                            <Text className="text-green-500 text-[10px] font-bold">-₹{oneWayFare + toll}</Text>
                                         </View>
                                         <View className="h-[1px] bg-slate-700 w-1/3 self-end my-1" />
                                     </>
@@ -219,7 +223,6 @@ export default function PaymentScreen() {
                                     <Text className="text-[#FFD700] text-2xl font-black italic">₹{totalAmount}</Text>
                                 </View>
                             </View>
-                        )}
 
                         {isPartialPayment && penalty > 0 && (
                             <View className="bg-red-500/20 px-4 py-2 rounded-xl border border-red-500/30 mt-2 flex-row items-center">

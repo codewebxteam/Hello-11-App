@@ -29,11 +29,11 @@ const RidersList: React.FC = () => {
       .filter(Boolean)
       .flatMap((s) => s.split(/\s+/).filter(Boolean));
     
-    return drivers.filter((d) => {
+    let result = drivers.filter((d) => {
       const status = d.online ? (d.available ? "Active" : "Busy") : "Offline";
       
       // Status Filter
-      if (statusFilter !== "All" && status !== statusFilter && !(statusFilter === "Online" && (status === "Active" || status === "Busy"))) {
+      if (statusFilter !== "All" && statusFilter !== "High Dues") {
           if (statusFilter === "Online" && !d.online) return false;
           if (statusFilter === "Offline" && d.online) return false;
           if (statusFilter === "Busy" && (status !== "Busy")) return false;
@@ -45,6 +45,12 @@ const RidersList: React.FC = () => {
         .toLowerCase();
       return terms.every((t) => haystack.includes(t));
     });
+
+    if (statusFilter === "High Dues") {
+        result.sort((a, b) => (Number(b.pendingCommission) || 0) - (Number(a.pendingCommission) || 0));
+    }
+
+    return result;
   }, [search, searchParams, drivers, statusFilter]);
 
   useEffect(() => {
@@ -109,7 +115,7 @@ const RidersList: React.FC = () => {
           </div>
           
           <div className="flex gap-2 overflow-x-auto p-2 no-scrollbar border-t md:border-t-0 md:border-l border-slate-100 md:pl-4 items-center">
-              {["All", "Online", "Offline", "Busy"].map((f) => (
+              {["All", "Online", "Offline", "Busy", "High Dues"].map((f) => (
                  <button
                     key={f}
                     onClick={() => setStatusFilter(f)}

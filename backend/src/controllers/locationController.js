@@ -216,7 +216,10 @@ export const getTolls = async (req, res) => {
     }
 
     // Fallback logic for API failures is handled in the catch block below.
-    // If Google returns 0 toll, we respect it and keep it 0.
+    // If Google returns 0 toll, we trigger the fallback logic to estimate it.
+    if (tollPrice === 0) {
+      throw new Error("API returned 0 toll, using fallback estimation");
+    }
 
     res.json({
       success: true,
