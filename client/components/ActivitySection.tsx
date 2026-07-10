@@ -58,7 +58,7 @@ const RenderRideItem = ({
             </Text>
             {Number(item.tollFee || 0) > 0 ? (
               <Text className="text-emerald-600 font-bold tracking-tight" style={{ fontSize: compact ? 9 : 10 }}>
-                Incl. ₹{item.tollFee} Toll
+                Toll Included
               </Text>
             ) : (
               <Text className="text-slate-400 font-medium tracking-tight" style={{ fontSize: compact ? 9 : 10 }}>
@@ -93,7 +93,7 @@ const RenderRideItem = ({
         {Number(item.tollFee || 0) > 0 && (
           <View className="flex-row justify-between items-center mb-3 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
             <Text className="text-amber-700 font-bold uppercase tracking-wide text-[10px]">Toll</Text>
-            <Text className="text-amber-700 font-bold text-[11px]">+Rs {Number(item.tollFee || 0)}</Text>
+            <Text className="text-amber-700 font-bold text-[11px]">Included</Text>
           </View>
         )}
 

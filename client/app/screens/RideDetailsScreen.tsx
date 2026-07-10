@@ -678,7 +678,7 @@ export default function RideDetailsScreen() {
                                 className="text-amber-700 font-bold"
                                 style={{ fontSize: RESPONSIVE_CONFIG.textSize }}
                             >
-                                ₹{booking.tollFee}
+                                Included
                             </Text>
                         </View>
                     )}

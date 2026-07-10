@@ -858,7 +858,7 @@ const LiveRideTrackingScreen = () => {
                                         )}
                                     </View>
                                 </View>
-                                <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-600' : 'text-amber-500'}`}>+₹{booking?.tollFee || 0}</Text>
+                                <Text className={`text-sm font-bold ${booking?.firstLegPaid ? 'text-green-600' : 'text-amber-500'}`}>Included</Text>
                             </View>
                         )}
 

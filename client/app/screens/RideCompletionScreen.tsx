@@ -148,7 +148,7 @@ const RideCompletionScreen = () => {
                             {Number(bookingDetails.tollFee) > 0 && (
                                 <View className="flex-row justify-between items-center mb-3">
                                     <Text className="text-amber-600 font-bold">Toll Charges</Text>
-                                    <Text className="text-amber-600 font-black">+₹{bookingDetails.tollFee}</Text>
+                                    <Text className="text-amber-600 font-black">Included</Text>
                                 </View>
                             )}
 

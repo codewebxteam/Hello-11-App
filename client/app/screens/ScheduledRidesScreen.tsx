@@ -102,7 +102,7 @@ const RideCard = ({
                 <View style={{ alignItems: 'flex-end' }}>
                     <Text style={{ color: '#92400e', fontWeight: '900', fontSize: 15 }}>₹{item.totalFare || item.fare || 0}</Text>
                     {Number(item.tollFee || 0) > 0 ? (
-                        <Text style={{ color: '#b45309', fontWeight: '700', fontSize: 9 }}>(Incl. ₹{item.tollFee} Toll)</Text>
+                        <Text style={{ color: '#b45309', fontWeight: '700', fontSize: 9 }}>(Toll Included)</Text>
                     ) : (
                         <Text style={{ color: '#d97706', fontWeight: '700', fontSize: 9 }}>Toll Incl.</Text>
                     )}

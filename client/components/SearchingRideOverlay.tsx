@@ -163,7 +163,7 @@ const SearchingRideOverlay = ({
                                     </Text>
                                     {tollFee !== undefined && tollFee > 0 ? (
                                         <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#10B981', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                            ₹{tollFee} Toll Included
+                                            Toll Included
                                         </Text>
                                     ) : (
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>

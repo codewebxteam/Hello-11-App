@@ -131,7 +131,7 @@ const PaymentPromptModal: React.FC<PaymentPromptModalProps> = ({ isVisible, onCl
                       )}
                     </View>
                     <Text className={`text-sm font-bold ${details.breakdown.firstLegPaid ? "text-green-600" : "text-amber-400"}`}>
-                      +Rs {toll}
+                      Included
                     </Text>
                   </View>
                 )}

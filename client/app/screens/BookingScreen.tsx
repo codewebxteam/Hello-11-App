@@ -610,7 +610,7 @@ const BookingScreen = () => {
                       {(tollCost || 0) > 0 && (
                         <View className="flex-row items-center justify-end">
                           <Text className="text-emerald-600 text-[10px] font-bold mr-2">Toll/State Tax</Text>
-                          <Text className="text-emerald-600 text-[10px] font-bold">+₹{tollCost || 0}</Text>
+                          <Text className="text-emerald-600 text-[10px] font-bold">Included</Text>
                         </View>
                       )}
                     </View>
@@ -626,7 +626,7 @@ const BookingScreen = () => {
         <View style={{ backgroundColor: '#FEF2F2', padding: 14, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center' }}>
           <Ionicons name="information-circle" size={22} color="#EF4444" />
           <Text style={{ flex: 1, marginLeft: 10, color: '#DC2626', fontSize: 11, fontWeight: '800', lineHeight: 16 }}>
-            Note: {tollCost > 0 ? `₹${tollCost} Estimated toll (round-trip) is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
+            Note: {tollCost > 0 ? `Estimated toll is included in your fare. Extra Parking charges (if any) are to be paid by you directly.` : `Tolls & Parking charges (if any) are extra and to be paid by you directly to the driver.`}
           </Text>
         </View>
 
