@@ -227,7 +227,7 @@ export default function StartRideScreen() {
           <View className="flex-row justify-between mb-6">
             <View>
               <Text className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">
-                Estimated Total
+                Final Total Amount
               </Text>
               <Text className="text-white text-2xl font-black italic">
                 ₹{booking?.totalFare || booking?.fare || 0}
