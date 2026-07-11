@@ -189,7 +189,7 @@ const BookingScreen = () => {
         ).catch(() => ({ data: { data: { tollPrice: 0 } } })) 
       ]);
       
-      const tollPrice = (tollRes.data?.data?.tollPrice || 0) * 2;
+      const tollPrice = tollRes.data?.data?.tollPrice || 0;
 
       if (dirRes.data?.data?.distanceKm) {
         const dist = parseFloat(dirRes.data.data.distanceKm);

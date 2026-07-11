@@ -236,7 +236,7 @@ export const getTolls = async (req, res) => {
       if (lat1 && lon1 && lat2 && lon2) {
         const distance = calculateDistance(parseFloat(lat1), parseFloat(lon1), parseFloat(lat2), parseFloat(lon2));
         if (distance >= 40) {
-          tollPrice = Math.round((distance * 1.7) / 10) * 10;
+          tollPrice = Math.round((distance * 1.5) / 10) * 10;
         }
       }
     } catch (e) {

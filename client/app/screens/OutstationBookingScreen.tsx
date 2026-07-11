@@ -146,8 +146,8 @@ const OutstationBookingScreen = () => {
         ).catch(() => ({ data: { data: { tollPrice: 0 } } })) // Safe fallback
       ]);
 
-      // API returns one-way toll (or estimated); we multiply by 2 for round-trip cost as requested
-      const tollPrice = (tollRes.data?.data?.tollPrice || 0) * 2;
+      // API returns one-way toll
+      const tollPrice = tollRes.data?.data?.tollPrice || 0;
 
       if (dirRes.data?.data?.distanceKm) {
         const dist = parseFloat(dirRes.data.data.distanceKm);
