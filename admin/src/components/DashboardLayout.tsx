@@ -20,7 +20,7 @@ const DashboardLayout: React.FC = () => {
     const handleLogout = () => {
         localStorage.removeItem("token");
         localStorage.removeItem("adminEmail");
-        window.location.reload();
+        window.dispatchEvent(new Event('auth-expired'));
     };
 
     const handleChangePassword = async (e: React.FormEvent) => {

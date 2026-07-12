@@ -26,8 +26,8 @@ api.interceptors.response.use(
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       localStorage.removeItem('token');
       localStorage.removeItem('adminEmail');
-      // Using window.location to force a hard reload and clear react state
-      window.location.href = '/';
+      // Instead of forcing a hard reload which can cause infinite loops, dispatch an event
+      window.dispatchEvent(new Event('auth-expired'));
     }
     return Promise.reject(error);
   }

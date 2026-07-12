@@ -28,6 +28,13 @@ function App() {
     if (token) {
       setIsAuthenticated(true);
     }
+
+    const handleAuthExpired = () => {
+      setIsAuthenticated(false);
+    };
+
+    window.addEventListener('auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('auth-expired', handleAuthExpired);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
