@@ -38,6 +38,10 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/api/version", (req, res) => {
+  res.status(200).json({ version: "1.0.1" });
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
