@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5001'; // Hardcoded temporarily because Vite caches .env
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hello-11-app-production.up.railway.app';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -23,6 +23,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // BYPASS LOGOUT FOR DUMMY TOKEN (Client Meeting)
+    const currentToken = localStorage.getItem('token');
+    if (currentToken === "dummy_hardcoded_admin_token_123") {
+      return Promise.reject(error);
+    }
+
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       localStorage.removeItem('token');
       localStorage.removeItem('adminEmail');
