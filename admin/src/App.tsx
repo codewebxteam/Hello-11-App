@@ -35,14 +35,7 @@ function App() {
     setLoading(true);
     setError("");
 
-    // HARDCODED LOGIN TO BYPASS API (Requested for Client Meeting)
-    if (email === "admin@gmail.com" && password === "@Admin00") {
-      localStorage.setItem("token", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODM4NDUyOTIsImV4cCI6MTc4MzkzMTY5Mn0.J2wwzYYHUaHxl07kEqbBwmpDggyl_aOXdRpUsbfmIOo");
-      localStorage.setItem("adminEmail", email);
-      setIsAuthenticated(true);
-      setLoading(false);
-      return;
-    }
+
 
     try {
       const res = await adminAPI.login({ email, password });

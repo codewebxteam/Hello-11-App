@@ -23,11 +23,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // BYPASS LOGOUT FOR DUMMY TOKEN (Client Meeting)
-    const currentToken = localStorage.getItem('token');
-    if (currentToken === "dummy_hardcoded_admin_token_123") {
-      return Promise.reject(error);
-    }
+
 
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       localStorage.removeItem('token');
