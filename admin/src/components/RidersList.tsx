@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Search, Car, RefreshCw, Star, Navigation } from "lucide-react";
+import { Search, Car, RefreshCw, Star, Navigation, Trash2 } from "lucide-react";
 import { useData, type DriverItem } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
 import DriverDetailModal from "./DriverDetailModal";
+import { adminAPI } from "../services/api";
 
 const RidersList: React.FC = () => {
   const { drivers, loading, refreshing, error: contextError, refreshAll } = useData();
@@ -22,6 +23,18 @@ const RidersList: React.FC = () => {
   const handleDriverClick = (driver: DriverItem) => {
     setSelectedDriver(driver);
     setIsModalOpen(true);
+  };
+
+  const handleDeleteDriver = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // prevent modal opening
+    if (window.confirm("Are you sure you want to delete this driver? This action cannot be undone.")) {
+      try {
+        await adminAPI.deleteDriver(id);
+        fetchDrivers();
+      } catch (err: any) {
+        alert(err.response?.data?.message || "Failed to delete driver");
+      }
+    }
   };
 
   const filteredDrivers = useMemo(() => {
@@ -147,24 +160,33 @@ const RidersList: React.FC = () => {
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <h3 className="text-xl font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors uppercase truncate">{driver.name || "Unknown Partner"}</h3>
-                      <div className="flex gap-2">
-                         <span className="bg-slate-100 text-slate-500 text-[9px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest whitespace-nowrap">
-                           ID: {driver._id.slice(-6)}
-                         </span>
-                         <span className={`text-[9px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest whitespace-nowrap border ${
-                            status === "Active" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : 
-                            status === "Busy" ? "bg-orange-100 text-orange-700 border-orange-200" : "bg-slate-100 text-slate-500 border-slate-200"
-                         }`}>
-                            {status}
-                         </span>
-                         <span className={`text-[9px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest whitespace-nowrap border ${
-                            driver.isVerified ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                         }`}>
-                            {driver.isVerified ? "Verified" : "Pending"}
-                         </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors uppercase truncate">{driver.name || "Unknown Partner"}</h3>
+                        <div className="flex gap-2">
+                           <span className="bg-slate-100 text-slate-500 text-[9px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest whitespace-nowrap">
+                             ID: {driver._id.slice(-6)}
+                           </span>
+                           <span className={`text-[9px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest whitespace-nowrap border ${
+                              status === "Active" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : 
+                              status === "Busy" ? "bg-orange-100 text-orange-700 border-orange-200" : "bg-slate-100 text-slate-500 border-slate-200"
+                           }`}>
+                              {status}
+                           </span>
+                           <span className={`text-[9px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest whitespace-nowrap border ${
+                              driver.isVerified ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                           }`}>
+                              {driver.isVerified ? "Verified" : "Pending"}
+                           </span>
+                        </div>
                       </div>
+                      <button 
+                        onClick={(e) => handleDeleteDriver(e, driver._id)}
+                        className="text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
+                        title="Delete Driver"
+                      >
+                        <Trash2 size={16} strokeWidth={2.5} />
+                      </button>
                     </div>
                     
                     <div className="flex flex-wrap items-center text-xs text-slate-500 font-bold gap-x-5 gap-y-2 uppercase tracking-wide bg-slate-50 p-2.5 rounded-xl border border-slate-100 w-fit">

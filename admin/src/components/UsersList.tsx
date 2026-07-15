@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Search, User, Car, RefreshCw, Mail, Phone } from "lucide-react";
+import { Search, User, Car, RefreshCw, Mail, Phone, Trash2 } from "lucide-react";
 import { useData, type UserItem } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
 import UserDetailModal from "./UserDetailModal";
+import { adminAPI } from "../services/api";
 
 const UsersList: React.FC = () => {
   const { users, loading, refreshing, error: contextError, refreshAll } = useData();
@@ -21,6 +22,18 @@ const UsersList: React.FC = () => {
   const handleUserClick = (user: UserItem) => {
     setSelectedUser(user);
     setIsModalOpen(true);
+  };
+
+  const handleDeleteUser = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // prevent modal opening
+    if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+      try {
+        await adminAPI.deleteUser(id);
+        fetchUsers();
+      } catch (err: any) {
+        alert(err.response?.data?.message || "Failed to delete user");
+      }
+    }
   };
 
   const filteredUsers = useMemo(() => {
@@ -113,8 +126,15 @@ const UsersList: React.FC = () => {
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <h3 className="text-xl font-black text-slate-900 group-hover:text-purple-600 transition-colors uppercase truncate">{user.name || "Unknown User"}</h3>
+                  <button 
+                    onClick={(e) => handleDeleteUser(e, user._id)}
+                    className="text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"
+                    title="Delete User"
+                  >
+                    <Trash2 size={16} strokeWidth={2.5} />
+                  </button>
                 </div>
                 <span className="bg-slate-100 text-slate-500 text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase inline-block mb-2">
                     ID: {user._id.slice(-6)}
