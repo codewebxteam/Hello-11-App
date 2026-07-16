@@ -6,7 +6,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat.native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../utils/mapCompat';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolate, runOnUI } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { driverAPI, locationAPI } from '../utils/api';
@@ -215,6 +215,17 @@ export default function ActiveRideScreen() {
             try {
                 let { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') return;
+
+                await Location.startLocationUpdatesAsync('BACKGROUND_LOCATION_TASK', {
+                    accuracy: Location.Accuracy.High,
+                    distanceInterval: 10,
+                    timeInterval: 10000,
+                    foregroundService: {
+                        notificationTitle: "Ride in Progress",
+                        notificationBody: "Tracking active trip...",
+                        notificationColor: "#FF0000",
+                    },
+                });
 
                 locationSubscription = await Location.watchPositionAsync(
                     {

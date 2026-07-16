@@ -2,11 +2,13 @@ import { clearUserCache } from "../middleware/cacheMiddleware.js";
 import Booking from "../models/Booking.js";
 import Driver from "../models/Driver.js";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 import { getIO } from "../utils/socketLogic.js";
 import { serverLog } from "../utils/logger.js";
 import { createNotification } from "./notificationController.js";
-import { sendPushNotification } from "../utils/notifications.js";
+import { sendPushNotification, sendSilentDataNotification } from "../utils/notifications.js";
 import { calcAllowedTime } from "./fareController.js";
+import Wallet from "../models/Wallet.js";
 
 // Keep this null in normal flow; only set a value for temporary testing overrides.
 const TEST_WAITING_LIMIT_SECONDS = null;
@@ -149,7 +151,7 @@ export const createBooking = async (req, res) => {
       const io = getIO();
       try {
         serverLog(`BROADCAST: Searching for drivers | RideType: ${booking.rideType} | Vehicle: ${booking.vehicleType}`);
-        const maxDistanceMeters = booking.rideType === 'outstation' ? 20000 : 5000;
+        const maxDistanceMeters = 7000; // 7km for all ride types
         const locationNear = {
           $near: {
             $geometry: {
@@ -224,17 +226,17 @@ export const createBooking = async (req, res) => {
             totalFare: booking.totalFare
           });
 
-          // Send Push Notification if token exists
+          // Send Silent Push Notification to wake up killed app
           if (driver.pushToken) {
-            sendPushNotification(
-              driver.pushToken,
-              "New Ride Request",
-              `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Total Fare: ₹${booking.totalFare}`,
-              {
-                bookingId: booking._id.toString(),
-                type: 'new_ride'
-              }
-            );
+            sendSilentDataNotification(driver.pushToken, {
+              bookingId: booking._id.toString(),
+              type: 'new_ride',
+              pickup: pickupLocation,
+              drop: dropLocation,
+              fare: String(booking.totalFare),
+              title: "New Ride Request", // Handled by notifee locally
+              body: `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Total Fare: ₹${booking.totalFare}`
+            });
           }
         });
       } catch (err) {
@@ -244,7 +246,7 @@ export const createBooking = async (req, res) => {
       // For scheduled rides, notify nearby drivers immediately so interested drivers can pre-accept.
       try {
         const io = getIO();
-        const maxDistanceMeters = booking.rideType === "outstation" ? 50000 : 20000;
+        const maxDistanceMeters = 7000; // 7km for all scheduled ride types
 
         const query = {
           available: true,
@@ -287,17 +289,15 @@ export const createBooking = async (req, res) => {
           });
 
           if (driver.pushToken) {
-            sendPushNotification(
-              driver.pushToken,
-              "Scheduled Ride Request",
-              `${booking.rideType === "outstation" ? "Outstation" : "Local"} scheduled ride at ${new Date(booking.scheduledDate).toLocaleString("en-IN")}.`,
-              {
-                bookingId: booking._id.toString(),
-                type: "new_ride",
-                bookingType: "schedule",
-                scheduledDate: booking.scheduledDate
-              }
-            );
+            sendSilentDataNotification(driver.pushToken, {
+              bookingId: booking._id.toString(),
+              type: 'new_ride',
+              pickup: pickupLocation,
+              drop: dropLocation,
+              fare: String(booking.totalFare),
+              title: "New Scheduled Ride Request",
+              body: `Scheduled ride from ${pickupLocation} to ${dropLocation} for ${new Date(booking.scheduledDate).toLocaleString("en-IN")}. Total Fare: ₹${booking.totalFare}`
+            });
           }
         });
       } catch (err) {

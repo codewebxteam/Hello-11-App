@@ -45,6 +45,63 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   }
 });
 
+const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND_NOTIFICATION_TASK';
+
+TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }: any) => {
+  if (error) {
+    console.error('Background Notification Task Error:', error);
+    return;
+  }
+  if (data) {
+    try {
+      const notificationData = data.notification?.data || data.notification?.request?.content?.data || data.notification?.request?.trigger?.remoteMessage?.data || data;
+      const bodyData = typeof notificationData === 'string' ? JSON.parse(notificationData) : (notificationData || data);
+      
+      if (bodyData?.type === 'new_ride') {
+        if (notifee && typeof notifee.createChannel === 'function') {
+          await notifee.createChannel({
+            id: 'incoming_rides_fullscreen',
+            name: 'Incoming Rides (Full Screen)',
+            vibration: true,
+            vibrationPattern: [0, 1000, 500, 1000, 500],
+            importance: AndroidImportance.HIGH || 4,
+            visibility: AndroidVisibility.PUBLIC || 1,
+            bypassDnd: true,
+            sound: 'default',
+          });
+
+          await notifee.displayNotification({
+            title: bodyData.title || 'New Ride Request!',
+            body: bodyData.body || `New ride from ${bodyData.pickup || "Pickup"} to ${bodyData.drop || "Drop"}`,
+            data: bodyData,
+            android: {
+              channelId: 'incoming_rides_fullscreen',
+              importance: AndroidImportance.HIGH || 4,
+              category: AndroidCategory.CALL || 'call',
+              fullScreenAction: {
+                id: 'default',
+              },
+              pressAction: {
+                id: 'default',
+                launchActivity: 'default',
+              },
+            },
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Notifee Background Wakeup Error:", e);
+    }
+  }
+});
+
+// Register background task immediately at root level
+try {
+  Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+} catch (e) {
+  console.log("Failed to register background notification task", e);
+}
+
 // --- REMOVED REDUNDANT EXPO TASKS ---
 
 if (notifee && typeof notifee.onBackgroundEvent === 'function') {

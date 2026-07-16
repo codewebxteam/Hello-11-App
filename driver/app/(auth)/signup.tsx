@@ -200,7 +200,7 @@ const RegisterScreen = () => {
                                 ) : (
                                     <>
                                         <Input
-                                            placeholder="Vehicle Model"
+                                            placeholder="Vehicle Name / Model"
                                             value={vehicleModel}
                                             onChangeText={setVehicleModel}
                                             isFocused={focusedInput === 'vmodel'}
@@ -213,7 +213,7 @@ const RegisterScreen = () => {
                                         <Input
                                             placeholder="Vehicle Number"
                                             value={vehicleNumber}
-                                            onChangeText={setVehicleNumber}
+                                            onChangeText={(t) => setVehicleNumber(t.toUpperCase())}
                                             isFocused={focusedInput === 'vnum'}
                                             onFocus={() => setFocusedInput('vnum')}
                                             onBlur={() => setFocusedInput(null)}

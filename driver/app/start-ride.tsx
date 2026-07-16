@@ -39,6 +39,17 @@ export default function StartRideScreen() {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
 
+        await Location.startLocationUpdatesAsync('BACKGROUND_LOCATION_TASK', {
+            accuracy: Location.Accuracy.High,
+            distanceInterval: 10,
+            timeInterval: 10000,
+            foregroundService: {
+                notificationTitle: "Arrived at Pickup",
+                notificationBody: "Waiting for passenger and OTP...",
+                notificationColor: "#FFD700",
+            },
+        });
+
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,

@@ -27,7 +27,7 @@ import { getImageUrl } from '../utils/imagekit';
 import { initSocket, disconnectSocket } from '../utils/socket';
 import { driverAPI } from '../utils/api';
 import { getDriverToken } from '../utils/storage';
-import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat.native';
+import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';
@@ -78,6 +78,7 @@ export default function DriverDashboard() {
   const radarPulse = useRef(new Animated.Value(0)).current;
   const hasNavigatedRef = useRef(false);
   const isAutoEnablingSearchRef = useRef(false);
+  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
 
   const { rideEnded } = useLocalSearchParams();
 
@@ -399,6 +400,35 @@ export default function DriverDashboard() {
     } catch (e) {
       console.error("Foreground location error:", e);
     }
+
+    // Start foreground watcher for real-time updates while app is open
+    try {
+      locationSubRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 10000, // Update every 10 seconds
+          distanceInterval: 10, // Or every 10 meters
+        },
+        (loc) => {
+          setLocation(loc);
+          if (loc?.coords && !isNaN(loc.coords.latitude) && !isNaN(loc.coords.longitude)) {
+            setRegion({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            });
+            // Update backend continuously while app is open
+            driverAPI.updateLocation({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude
+            }).catch(e => console.log("Foreground watch location update error", e));
+          }
+        }
+      );
+    } catch(e) {
+      console.log("Foreground watch error:", e);
+    }
   };
 
   const stopLocationTracking = async () => {
@@ -410,6 +440,11 @@ export default function DriverDashboard() {
       }
     } catch (e) {
       console.error("Error stopping location updates:", e);
+    }
+
+    if (locationSubRef.current) {
+      locationSubRef.current.remove();
+      locationSubRef.current = null;
     }
   };
 
@@ -435,6 +470,18 @@ export default function DriverDashboard() {
           Animated.timing(radarPulse, { toValue: 0, duration: 0, useNativeDriver: true })
         ])
       ).start();
+
+      Location.startLocationUpdatesAsync('BACKGROUND_LOCATION_TASK', {
+        accuracy: Location.Accuracy.High,
+        distanceInterval: 10,
+        timeInterval: 10000,
+        foregroundService: {
+          notificationTitle: "Driver is Online",
+          notificationBody: "Waiting for new ride requests...",
+          notificationColor: "#FFD700",
+        },
+      }).catch(err => console.log("Foreground notification restore error", err));
+
     } else {
       radarPulse.setValue(0);
       radarPulse.stopAnimation();
@@ -448,7 +495,7 @@ export default function DriverDashboard() {
       isAutoEnablingSearchRef.current = true;
       isTogglingAvailabilityRef.current = true;
       setIsTogglingAvailability(true);
-      const res = await driverAPI.toggleAvailability();
+      const res = await driverAPI.toggleAvailability(true);
       const enabled = Boolean(res?.data?.available);
       applySearchState(enabled);
       if (!enabled) {
@@ -557,6 +604,7 @@ export default function DriverDashboard() {
         setIsTogglingOnline(true);
         const res = await driverAPI.toggleOnline();
         setIsOnline(res.data.online);
+        await refreshProfile();
         applySearchState(false);
       } catch (err) {
         console.log("Modal cancel toggle online error:", err);
@@ -838,6 +886,7 @@ export default function DriverDashboard() {
 
                     const res = await driverAPI.toggleOnline();
                     setIsOnline(res.data.online);
+                    await refreshProfile();
                     if (!res.data.online) {
                       applySearchState(false);
                     } else {
@@ -937,6 +986,8 @@ export default function DriverDashboard() {
 
                   const res = await driverAPI.toggleOnline();
                   setIsOnline(res.data.online);
+                  await refreshProfile();
+                  
                   if (res.data.online) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     
@@ -1055,6 +1106,7 @@ export default function DriverDashboard() {
                     setIsTogglingOnline(true);
                     const res = await driverAPI.toggleOnline();
                     setIsOnline(res.data.online);
+                    await refreshProfile();
                     if (!res.data.online) {
                       setIsSearching(false);
                       radarPulse.setValue(0);

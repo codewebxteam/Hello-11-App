@@ -102,7 +102,7 @@ export default function EditVehicleScreen() {
 
                         <View className="space-y-4">
                             <View>
-                                <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-4">Vehicle Model</Text>
+                                <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-4">Vehicle Name / Model</Text>
                                 <View className="bg-slate-100 border border-slate-200 rounded-[24px] px-5 py-5 shadow-sm flex-row items-center">
                                     <Ionicons name="car" size={20} color="#64748B" />
                                     <TextInput

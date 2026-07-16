@@ -801,7 +801,12 @@ export const toggleAvailability = async (req, res) => {
       });
     }
 
-    driver.available = !driver.available;
+    if (req.body && typeof req.body.available === 'boolean') {
+      driver.available = req.body.available;
+    } else {
+      driver.available = !driver.available;
+    }
+    
     await driver.save();
 
     res.json({

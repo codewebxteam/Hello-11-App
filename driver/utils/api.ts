@@ -161,7 +161,7 @@ export const driverAPI = {
     api.post(API_ENDPOINTS.RESET_PASSWORD, data),
   updateLocation: (coords: { latitude: number; longitude: number }) =>
     api.put(API_ENDPOINTS.UPDATE_LOCATION, coords),
-  toggleAvailability: () => api.put(API_ENDPOINTS.TOGGLE_AVAILABILITY),
+  toggleAvailability: (state?: boolean) => api.put(API_ENDPOINTS.TOGGLE_AVAILABILITY, { available: state }),
   toggleOnline: () => api.put(API_ENDPOINTS.TOGGLE_ONLINE),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.put(API_ENDPOINTS.CHANGE_PASSWORD, data),
