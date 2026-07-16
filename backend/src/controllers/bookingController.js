@@ -8,7 +8,7 @@ import { serverLog } from "../utils/logger.js";
 import { createNotification } from "./notificationController.js";
 import { sendPushNotification, sendSilentDataNotification } from "../utils/notifications.js";
 import { calcAllowedTime } from "./fareController.js";
-import Wallet from "../models/Wallet.js";
+
 
 // Keep this null in normal flow; only set a value for temporary testing overrides.
 const TEST_WAITING_LIMIT_SECONDS = null;
