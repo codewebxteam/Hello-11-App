@@ -31,6 +31,8 @@ import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat';
 import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';
+import * as ExpoNotifications from 'expo-notifications';
+import { notifee, AndroidImportance } from '../utils/notifee-helper';
 import RazorpayCheckout from 'react-native-razorpay';
 
 
@@ -275,9 +277,25 @@ export default function DriverDashboard() {
     configureAudio();
 
     // --- APPSTATE LISTENER FOR RE-SYNCING ---
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
       if (nextAppState === "active") {
         console.log("App foregrounded, reloading stats...");
+        // On app resume after kill: clean up stale "Driver is Online" notification
+        // before dashboard loads. If driver is truly online, startLocationTracking
+        // will re-create a fresh foreground service notification.
+        try {
+          const hasStaleTask = await Location.hasStartedLocationUpdatesAsync('BACKGROUND_LOCATION_TASK').catch(() => false);
+          if (!hasStaleTask) {
+            // Foreground service is dead (app was killed), but notification may linger
+            if (notifee && typeof notifee.cancelNotification === 'function') {
+              await notifee.cancelNotification('driver-online-persistent');
+            }
+            await ExpoNotifications.dismissAllNotificationsAsync();
+            console.log("Cleared stale notifications after app kill/restart");
+          }
+        } catch (e) {
+          console.log("Stale notification cleanup error:", e);
+        }
         loadStats();
         fetchWalletData();
       }
@@ -391,14 +409,40 @@ export default function DriverDashboard() {
         distanceInterval: 10,
         timeInterval: 10000,
         foregroundService: {
-          notificationTitle: "Driver is Online",
-          notificationBody: "Waiting for new ride requests...",
+          notificationTitle: "📍 Location Tracking",
+          notificationBody: "Active in background",
           notificationColor: "#FFD700",
         },
       });
       console.log("Foreground Service Started");
     } catch (e) {
       console.error("Foreground location error:", e);
+    }
+
+    // Show a persistent "Driver Online" notification using notifee.
+    // ongoing: true → User CANNOT swipe or clear it. Only removed by going offline.
+    try {
+      if (notifee && typeof notifee.createChannel === 'function') {
+        await notifee.createChannel({
+          id: 'driver_online_status',
+          name: 'Driver Online Status',
+          importance: AndroidImportance.DEFAULT || 3,
+        });
+        await notifee.displayNotification({
+          id: 'driver-online-persistent',
+          title: '🟢 Driver is Online',
+          body: 'You are live and receiving ride requests',
+          android: {
+            channelId: 'driver_online_status',
+            ongoing: true,
+            pressAction: { id: 'default', launchActivity: 'default' },
+            color: '#FFD700',
+          },
+        });
+        console.log("Notifee ongoing notification shown");
+      }
+    } catch (e) {
+      console.log("Notifee ongoing notification error:", e);
     }
 
     // Start foreground watcher for real-time updates while app is open
@@ -445,6 +489,16 @@ export default function DriverDashboard() {
     if (locationSubRef.current) {
       locationSubRef.current.remove();
       locationSubRef.current = null;
+    }
+
+    // Cancel the persistent "Driver Online" notification
+    try {
+      if (notifee && typeof notifee.cancelNotification === 'function') {
+        await notifee.cancelNotification('driver-online-persistent');
+      }
+      console.log("Cancelled driver online notification");
+    } catch (e) {
+      console.log("Error cancelling online notification:", e);
     }
   };
 

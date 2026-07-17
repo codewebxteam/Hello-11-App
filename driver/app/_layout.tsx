@@ -805,6 +805,34 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   React.useEffect(() => { setupCustomAlert(); }, []);
+
+  // Cold-start cleanup: when app is opened fresh after being killed,
+  // remove any stale "Driver Online" notifications left behind.
+  // This runs ONCE on mount — AppState listener doesn't fire on cold start.
+  React.useEffect(() => {
+    const cleanupStaleNotifications = async () => {
+      try {
+        const Location = require('expo-location');
+        const hasTask = await Location.hasStartedLocationUpdatesAsync('BACKGROUND_LOCATION_TASK').catch(() => false);
+        if (!hasTask) {
+          // Background location service is dead → app was killed
+          // Cancel the lingering "Driver Online" notification
+          if (notifee && typeof notifee.cancelNotification === 'function') {
+            await notifee.cancelNotification('driver-online-persistent');
+          }
+          if (notifee && typeof notifee.cancelAllNotifications === 'function') {
+            await notifee.cancelAllNotifications();
+          }
+          await Notifications.dismissAllNotificationsAsync();
+          console.log("[ColdStart] Cleaned stale notifications after app kill");
+        }
+      } catch (e) {
+        console.log("[ColdStart] Stale notification cleanup error:", e);
+      }
+    };
+    cleanupStaleNotifications();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
