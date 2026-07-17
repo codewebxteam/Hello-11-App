@@ -67,12 +67,9 @@
       "reactCompiler": false
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "f3e3b8e9-799c-44b9-8723-00662d62575b"
-      }
+      "router": {}
     },
-    "owner": "codewebx-technologies",
+    "owner": "hello11app",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",

@@ -59,17 +59,13 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "947724fb-760e-4abc-b757-f2832431ea53"
-      }
+      "router": {}
     },
-    "owner": "codewebx",
+    "owner": "hello11app",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/947724fb-760e-4abc-b757-f2832431ea53"
+      "fallbackToCacheTimeout": 0
     }
   }
 }
