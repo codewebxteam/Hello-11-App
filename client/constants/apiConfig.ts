@@ -7,7 +7,7 @@ const getApiBaseUrl = (): string => {
     if (EXPLICIT_API_URL) return EXPLICIT_API_URL;
 
     // 2. Fallback: Direct live URL (Crash proof and works perfectly on production/APK)
-    return "https://hello-11-app-production.up.railway.app";
+    return "https://api.hello11.in";
 };
 
 export const API_BASE_URL = getApiBaseUrl();

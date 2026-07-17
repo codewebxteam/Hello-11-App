@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hello11 Driver",
     "slug": "driverSection",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -69,15 +69,14 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8b8bd287-1c0a-4adb-a5e6-d339248a8d40"
+        "projectId": "f3e3b8e9-799c-44b9-8723-00662d62575b"
       }
     },
-    "owner": "codewebx",
+    "owner": "codewebx-technologies",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/8b8bd287-1c0a-4adb-a5e6-d339248a8d40"
+      "fallbackToCacheTimeout": 0
     }
   }
 }
