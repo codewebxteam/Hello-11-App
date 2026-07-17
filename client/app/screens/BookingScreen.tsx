@@ -83,7 +83,10 @@ const BookingScreen = () => {
         return;
       }
 
-      let loc = await Location.getCurrentPositionAsync({});
+      let loc = await Location.getLastKnownPositionAsync({});
+      if (!loc) {
+        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      }
       const { latitude, longitude } = loc.coords;
       setPickupCoords({ lat: latitude, lon: longitude });
 
