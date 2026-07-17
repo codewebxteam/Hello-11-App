@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hello11",
     "slug": "hello-11",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -15,6 +15,7 @@
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/ClientIcon.png"
@@ -59,7 +60,10 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "a15c9d7f-f998-438c-bb0a-b41e2924fcc7"
+      }
     },
     "owner": "hello11app",
     "updates": {
