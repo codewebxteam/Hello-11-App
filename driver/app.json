@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hello11 Driver",
     "slug": "driverSection",
-    "version": "1.0.5",
+    "version": "1.0.4",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -15,7 +15,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 6,
+      "versionCode": 13,
       "package": "com.pmup53.driversection",
       "adaptiveIcon": {
         "backgroundColor": "#F5A623",
