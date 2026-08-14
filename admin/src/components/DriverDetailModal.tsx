@@ -10,12 +10,23 @@ interface DriverDetailModalProps {
   driver: DriverItem | null;
 }
 
-const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ isOpen, onClose, driver }) => {
-  const { bookings, refreshDrivers } = useData();
+const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ isOpen, onClose, driver: initialDriver }) => {
+  const { bookings, drivers, refreshDrivers } = useData();
   const [verifying, setVerifying] = React.useState(false);
   const [showRejectInput, setShowRejectInput] = React.useState(false);
   const [note, setNote] = React.useState("");
   const [selectedDoc, setSelectedDoc] = React.useState<{ url: string, name: string } | null>(null);
+
+  // States for inline dues confirmation
+  const [showClearDuesConfirm, setShowClearDuesConfirm] = React.useState(false);
+  const [clearingDues, setClearingDues] = React.useState(false);
+  const [duesStatusMsg, setDuesStatusMsg] = React.useState<string | null>(null);
+
+  // Keep the driver object updated with the global context to avoid stale UI updates
+  const driver = React.useMemo(() => {
+    if (!initialDriver) return null;
+    return drivers.find(d => d._id === initialDriver._id) || initialDriver;
+  }, [initialDriver, drivers]);
 
   const handleVerify = async (isVerified: boolean, verificationNote?: string) => {
     if (!driver) return;
@@ -179,25 +190,64 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ isOpen, onClose, 
                       </p>
                       <p className="text-5xl md:text-6xl font-black text-rose-400 tracking-tighter">₹{Number(driver.pendingCommission || 0).toLocaleString()}</p>
                       <p className="text-sm font-bold text-slate-400 uppercase mt-3 tracking-widest">{driver.unpaidRideCount || 0} Unpaid Rides</p>
+                      {duesStatusMsg && (
+                          <p className="text-xs font-black text-emerald-400 uppercase mt-3 tracking-wider animate-pulse">{duesStatusMsg}</p>
+                       )}
                    </div>
-                   {(driver.pendingCommission || 0) > 0 && (
-                      <button 
-                         onClick={async () => {
-                            if(window.confirm(`Are you sure you want to manually clear dues (₹${driver.pendingCommission}) for ${driver.name}?`)) {
-                               try {
-                                  await adminAPI.resetCommission(driver._id);
-                                  await refreshDrivers();
-                                  alert("Dues cleared successfully!");
-                               } catch (err) {
-                                  alert("Failed to clear dues");
-                                }
-                            }
-                         }}
-                         className="px-6 py-4 bg-rose-600 text-white text-[10px] font-black uppercase tracking-[2px] rounded-xl shadow-[0_0_20px_rgba(225,29,72,0.3)] hover:shadow-[0_0_30px_rgba(225,29,72,0.5)] hover:-translate-y-0.5 transition-all active:scale-95 whitespace-nowrap relative z-10"
-                      >
-                         Clear Dues Manually
-                      </button>
-                   )}
+                    {(driver.pendingCommission || 0) > 0 && (
+                       <div className="relative z-10 shrink-0">
+                          {showClearDuesConfirm ? (
+                             <div className="flex flex-col gap-3 p-4 bg-slate-950 border border-slate-800 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
+                                <p className="text-[10px] font-black text-white uppercase tracking-widest text-center">Confirm clearing ₹{Number(driver.pendingCommission || 0).toLocaleString()}?</p>
+                                <div className="flex gap-2 justify-center">
+                                   <button
+                                      disabled={clearingDues}
+                                      onClick={async (e) => {
+                                         e.stopPropagation();
+                                         setClearingDues(true);
+                                         try {
+                                            await adminAPI.resetCommission(driver._id);
+                                            await refreshDrivers();
+                                            setDuesStatusMsg("Dues cleared successfully!");
+                                            setShowClearDuesConfirm(false);
+                                            setTimeout(() => setDuesStatusMsg(null), 3000);
+                                         } catch (err) {
+                                            console.error(err);
+                                            setDuesStatusMsg("Failed to clear dues");
+                                            setTimeout(() => setDuesStatusMsg(null), 3000);
+                                         } finally {
+                                            setClearingDues(false);
+                                         }
+                                      }}
+                                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-md active:scale-95"
+                                   >
+                                      {clearingDues ? "Clearing..." : "Yes, Clear"}
+                                   </button>
+                                   <button
+                                      disabled={clearingDues}
+                                      onClick={(e) => {
+                                         e.stopPropagation();
+                                         setShowClearDuesConfirm(false);
+                                      }}
+                                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer active:scale-95"
+                                   >
+                                      Cancel
+                                   </button>
+                                </div>
+                             </div>
+                          ) : (
+                             <button 
+                                onClick={(e) => {
+                                   e.stopPropagation();
+                                   setShowClearDuesConfirm(true);
+                                }}
+                                className="px-6 py-4 bg-rose-600 text-white text-[10px] font-black uppercase tracking-[2px] rounded-xl shadow-[0_0_20px_rgba(225,29,72,0.3)] hover:shadow-[0_0_30px_rgba(225,29,72,0.5)] hover:-translate-y-0.5 transition-all active:scale-95 whitespace-nowrap cursor-pointer"
+                             >
+                                Clear Dues Manually
+                             </button>
+                          )}
+                       </div>
+                    )}
                 </div>
 
                {/* Document Previews */}
