@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import mongoose from "mongoose";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -106,10 +107,50 @@ export const getDashboardStats = async (req, res) => {
 // ================= GET ALL USERS =================
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 }).lean();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+    const skip = (page - 1) * limit;
 
-    const userStats = await Booking.aggregate([
-      { $match: { user: { $ne: null }, status: { $ne: "cancelled" } } },
+    let query = {};
+    if (search.trim()) {
+      const searchStr = search.trim();
+      const isObjectId = mongoose.Types.ObjectId.isValid(searchStr);
+
+      if (isObjectId) {
+        query = { _id: searchStr };
+      } else {
+        const searchRegex = new RegExp(searchStr, "i");
+        query = {
+          $or: [
+            { name: searchRegex },
+            { mobile: searchRegex },
+            { email: searchRegex }
+          ]
+        };
+      }
+    }
+
+    // Get paginated users
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalUsers = await User.countDocuments(query);
+
+    // Get stats only for the users on the current page to optimize DB load
+    const userIds = users.map((u) => u._id);
+
+    const userStats = userIds.length > 0 ? await Booking.aggregate([
+      { 
+        $match: { 
+          user: { $in: userIds }, 
+          status: { $ne: "cancelled" } 
+        } 
+      },
       {
         $project: {
           user: 1,
@@ -141,7 +182,7 @@ export const getAllUsers = async (req, res) => {
           }
         }
       }
-    ]);
+    ]) : [];
 
     const statsMap = new Map(userStats.map((s) => [String(s._id), s]));
     const enrichedUsers = users.map((u) => {
@@ -153,7 +194,15 @@ export const getAllUsers = async (req, res) => {
       };
     });
 
-    res.json({ users: enrichedUsers });
+    res.json({ 
+      users: enrichedUsers,
+      pagination: {
+        page,
+        limit,
+        totalUsers,
+        totalPages: Math.ceil(totalUsers / limit)
+      }
+    });
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch users",

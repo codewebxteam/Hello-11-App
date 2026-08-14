@@ -132,7 +132,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const [users] = useState<UserItem[]>([]);
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,12 +158,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshUsers = useCallback(async () => {
-      try {
-          const res = await adminAPI.getUsers();
-          setUsers(res.data?.users || []);
-      } catch (err) {
-          console.error("Failed to fetch users", err);
-      }
+      // Users list is now loaded locally with server-side pagination in the UsersList component
+      return Promise.resolve();
   }, []);
 
   const refreshDrivers = useCallback(async () => {

@@ -1,23 +1,77 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Search, User, Car, RefreshCw, Mail, Phone, Trash2 } from "lucide-react";
-import { useData, type UserItem } from "../context/DataContext";
+import { type UserItem } from "../context/DataContext";
 import { useSearchParams } from "react-router-dom";
 import Pagination from "./Pagination";
 import UserDetailModal from "./UserDetailModal";
 import { adminAPI } from "../services/api";
 
 const UsersList: React.FC = () => {
-  const { users, loading, refreshing, error: contextError, refreshAll } = useData();
-  const PAGE_SIZE = 10;
   const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState("");
+  const initialSearch = (searchParams.get("q") || "").trim();
+
+  // Local State
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(1);
-  const error = contextError;
-  const fetchUsers = refreshAll;
+  const [pageSize, setPageSize] = useState(10);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modal State
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Sync search input if URL params change
+  useEffect(() => {
+    const q = (searchParams.get("q") || "").trim();
+    setSearch(q);
+  }, [searchParams]);
+
+  // Debounce search input changes (500ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset to first page on new search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Fetch users function
+  const fetchUsers = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      const res = await adminAPI.getUsers({
+        page,
+        limit: pageSize,
+        search: debouncedSearch
+      });
+      setUsers(res.data?.users || []);
+      setTotalUsers(res.data?.pagination?.totalUsers || 0);
+      setTotalPages(res.data?.pagination?.totalPages || 1);
+    } catch (err: any) {
+      console.error("Failed to fetch users", err);
+      setError(err.response?.data?.message || "Failed to load users from server.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [page, pageSize, debouncedSearch]);
+
+  // Fetch users on initialization and criteria changes
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleUserClick = (user: UserItem) => {
     setSelectedUser(user);
@@ -29,37 +83,12 @@ const UsersList: React.FC = () => {
     if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
       try {
         await adminAPI.deleteUser(id);
-        fetchUsers();
+        fetchUsers(true);
       } catch (err: any) {
         alert(err.response?.data?.message || "Failed to delete user");
       }
     }
   };
-
-  const filteredUsers = useMemo(() => {
-    const terms = [(searchParams.get("q") || "").trim().toLowerCase(), search.trim().toLowerCase()]
-      .filter(Boolean)
-      .flatMap((s) => s.split(/\s+/).filter(Boolean));
-    if (terms.length === 0) return users;
-    return users.filter((u) => {
-      const haystack = [u.name, u.mobile, u.email, u._id]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return terms.every((t) => haystack.includes(t));
-    });
-  }, [search, searchParams, users]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, searchParams]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paginatedUsers = useMemo(
-    () => filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filteredUsers, safePage]
-  );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -67,13 +96,13 @@ const UsersList: React.FC = () => {
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">User Base</h1>
           <p className="text-slate-500 mt-1 font-medium">
-            {loading ? "Loading records..." : `Managing ${filteredUsers.length} total users`}
+            {loading && !refreshing ? "Loading records..." : `Managing ${totalUsers} total users`}
           </p>
         </div>
         <button
-          onClick={() => fetchUsers()}
-          disabled={refreshing}
-          className={`flex items-center gap-2 px-6 py-3 rounded-full bg-slate-900 text-white font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all active:scale-95 text-sm uppercase tracking-wider ${refreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
+          onClick={() => fetchUsers(true)}
+          disabled={refreshing || loading}
+          className={`flex items-center gap-2 px-6 py-3 rounded-full bg-slate-900 text-white font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all active:scale-95 text-sm uppercase tracking-wider ${refreshing || loading ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
           {refreshing ? (
             <>
@@ -96,9 +125,9 @@ const UsersList: React.FC = () => {
         </div>
       )}
 
-      {/* Premium Search Bar */}
-      <div className="bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row gap-2">
-          <div className="relative flex-1 group">
+      {/* Premium Search & Page Size Filter Bar */}
+      <div className="bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-2">
+          <div className="relative flex-1 group w-full">
             <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-purple-500 transition-colors" size={20} />
             <input
               type="text"
@@ -108,92 +137,116 @@ const UsersList: React.FC = () => {
               className="w-full pl-14 pr-6 py-4 bg-transparent focus:outline-none text-slate-900 font-medium placeholder-slate-400 transition-all rounded-full"
             />
           </div>
+          
+          <div className="flex items-center gap-3 px-6 py-2 border-t md:border-t-0 md:border-l border-slate-100 w-full md:w-auto shrink-0 justify-between md:justify-start">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all cursor-pointer uppercase tracking-wider"
+            >
+              <option value={10}>10 Users</option>
+              <option value={25}>25 Users</option>
+              <option value={50}>50 Users</option>
+              <option value={100}>100 Users</option>
+            </select>
+          </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-        {paginatedUsers.map((user) => (
-          <div
-            key={user._id}
-            onClick={() => handleUserClick(user)}
-            className="group bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 cursor-pointer hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between"
-          >
-            {/* Subtle accent line on top */}
-            <div className="absolute left-0 top-0 right-0 h-1.5 bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300 shadow-inner group-hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] flex-shrink-0">
-                <User size={28} strokeWidth={2.5} />
+      {loading && !refreshing ? (
+        <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[2rem] border border-slate-100/50 shadow-sm space-y-4">
+          <RefreshCw size={40} className="animate-spin text-purple-600" />
+          <p className="text-slate-400 font-bold text-sm tracking-wider uppercase">Fetching page data...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+          {users.map((user) => (
+            <div
+              key={user._id}
+              onClick={() => handleUserClick(user)}
+              className="group bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 cursor-pointer hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between"
+            >
+              {/* Subtle accent line on top */}
+              <div className="absolute left-0 top-0 right-0 h-1.5 bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300 shadow-inner group-hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] flex-shrink-0">
+                  <User size={28} strokeWidth={2.5} />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <h3 className="text-xl font-black text-slate-900 group-hover:text-purple-600 transition-colors uppercase truncate">{user.name || "Unknown User"}</h3>
+                    <button 
+                      onClick={(e) => handleDeleteUser(e, user._id)}
+                      className="text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"
+                      title="Delete User"
+                    >
+                      <Trash2 size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                  <span className="bg-slate-100 text-slate-500 text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase inline-block mb-2">
+                      ID: {user._id.slice(-6)}
+                  </span>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
+                  </p>
+                </div>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                  <h3 className="text-xl font-black text-slate-900 group-hover:text-purple-600 transition-colors uppercase truncate">{user.name || "Unknown User"}</h3>
-                  <button 
-                    onClick={(e) => handleDeleteUser(e, user._id)}
-                    className="text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"
-                    title="Delete User"
-                  >
-                    <Trash2 size={16} strokeWidth={2.5} />
-                  </button>
-                </div>
-                <span className="bg-slate-100 text-slate-500 text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase inline-block mb-2">
-                    ID: {user._id.slice(-6)}
-                </span>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100/80">
-                <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-slate-400"><Phone size={14} /></div>
-                    <span className="truncate">{user.mobile || "No Mobile Number"}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-slate-400"><Mail size={14} /></div>
-                    <span className="truncate">{user.email || "No Email Provided"}</span>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-5">
-              <div className="text-center bg-white border border-slate-100 rounded-2xl p-3 shadow-sm group-hover:border-purple-100 transition-colors">
-                <div className="flex items-center justify-center gap-1.5 text-purple-600 font-black text-xl mb-1">
-                  <Car size={18} strokeWidth={2.5} />
-                  <span>{user.totalRides || 0}</span>
-                </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Rides</p>
+              <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100/80">
+                  <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-slate-400"><Phone size={14} /></div>
+                      <span className="truncate">{user.mobile || "No Mobile Number"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-slate-400"><Mail size={14} /></div>
+                      <span className="truncate">{user.email || "No Email Provided"}</span>
+                  </div>
               </div>
 
-              <div className="text-center bg-white border border-slate-100 rounded-2xl p-3 shadow-sm group-hover:border-emerald-100 transition-colors">
-                <div className="flex items-center justify-center gap-1 text-emerald-600 font-black text-xl mb-1">
-                  <span>₹{Number(user.totalSpent || 0).toLocaleString()}</span>
+              <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-5">
+                <div className="text-center bg-white border border-slate-100 rounded-2xl p-3 shadow-sm group-hover:border-purple-100 transition-colors">
+                  <div className="flex items-center justify-center gap-1.5 text-purple-600 font-black text-xl mb-1">
+                    <Car size={18} strokeWidth={2.5} />
+                    <span>{user.totalRides || 0}</span>
+                  </div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Rides</p>
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Spent</p>
+
+                <div className="text-center bg-white border border-slate-100 rounded-2xl p-3 shadow-sm group-hover:border-emerald-100 transition-colors">
+                  <div className="flex items-center justify-center gap-1 text-emerald-600 font-black text-xl mb-1">
+                    <span>₹{Number(user.totalSpent || 0).toLocaleString()}</span>
+                  </div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Spent</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {!loading && filteredUsers.length === 0 && (
-          <div className="col-span-full bg-white p-16 rounded-[2rem] border border-slate-100 text-center space-y-4 shadow-sm">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                <User size={32} className="text-slate-300" />
+          {!loading && users.length === 0 && (
+            <div className="col-span-full bg-white p-16 rounded-[2rem] border border-slate-100 text-center space-y-4 shadow-sm">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <User size={32} className="text-slate-300" />
+              </div>
+              <div>
+                  <p className="font-black text-slate-900 text-xl tracking-tight">No users found</p>
+                  <p className="text-slate-400 font-medium mt-1">Try adjusting your search terms.</p>
+              </div>
             </div>
-            <div>
-                <p className="font-black text-slate-900 text-xl tracking-tight">No users found</p>
-                <p className="text-slate-400 font-medium mt-1">Try adjusting your search terms.</p>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-4">
         <Pagination
-          page={safePage}
+          page={page}
           totalPages={totalPages}
-          totalItems={filteredUsers.length}
-          pageSize={PAGE_SIZE}
+          totalItems={totalUsers}
+          pageSize={pageSize}
           onPageChange={setPage}
         />
       </div>

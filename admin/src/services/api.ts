@@ -45,7 +45,7 @@ export const adminAPI = {
   getStats: () => api.get('/api/admin/stats'),
 
   // Users
-  getUsers: () => api.get('/api/admin/users'),
+  getUsers: (params?: { page?: number; limit?: number; search?: string }) => api.get('/api/admin/users', { params }),
   deleteUser: (id: string) => api.delete(`/api/admin/users/${id}`),
 
   // Drivers
