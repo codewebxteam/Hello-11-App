@@ -56,9 +56,25 @@ const UsersList: React.FC = () => {
         limit: pageSize,
         search: debouncedSearch
       });
-      setUsers(res.data?.users || []);
-      setTotalUsers(res.data?.pagination?.totalUsers || 0);
-      setTotalPages(res.data?.pagination?.totalPages || 1);
+      
+      const fetchedUsers = res.data?.users || [];
+      
+      // Backward-compatible verification:
+      // If the backend has pagination metadata, use it directly.
+      // Otherwise, fallback to client-side slicing/pagination.
+      if (res.data?.pagination) {
+        setUsers(fetchedUsers);
+        setTotalUsers(res.data.pagination.totalUsers || 0);
+        setTotalPages(res.data.pagination.totalPages || 1);
+      } else {
+        setTotalUsers(fetchedUsers.length);
+        setTotalPages(Math.max(1, Math.ceil(fetchedUsers.length / pageSize)));
+        
+        // Paginate locally
+        const start = (page - 1) * pageSize;
+        const end = page * pageSize;
+        setUsers(fetchedUsers.slice(start, end));
+      }
     } catch (err: any) {
       console.error("Failed to fetch users", err);
       setError(err.response?.data?.message || "Failed to load users from server.");
@@ -162,79 +178,103 @@ const UsersList: React.FC = () => {
           <p className="text-slate-400 font-bold text-sm tracking-wider uppercase">Fetching page data...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-          {users.map((user) => (
-            <div
-              key={user._id}
-              onClick={() => handleUserClick(user)}
-              className="group bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 cursor-pointer hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between"
-            >
-              {/* Subtle accent line on top */}
-              <div className="absolute left-0 top-0 right-0 h-1.5 bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300 shadow-inner group-hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] flex-shrink-0">
-                  <User size={28} strokeWidth={2.5} />
-                </div>
+        <div className="bg-white rounded-[2rem] border border-slate-100/80 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest">User Details</th>
+                  <th className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest">Contact Info</th>
+                  <th className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest text-center">Total Rides</th>
+                  <th className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest text-center">Total Spent</th>
+                  <th className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest">Joined Date</th>
+                  <th className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.map((user) => (
+                  <tr
+                    key={user._id}
+                    onClick={() => handleUserClick(user)}
+                    className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
+                  >
+                    {/* User Details */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-purple-500 group-hover:text-white transition-all shadow-inner group-hover:shadow-[0_0_10px_rgba(168,85,247,0.3)] shrink-0">
+                          <User size={18} strokeWidth={2.5} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-900 group-hover:text-purple-600 transition-colors uppercase truncate text-sm">
+                            {user.name || "Unknown User"}
+                          </p>
+                          <span className="text-[10px] font-bold text-slate-400 tracking-wider">
+                            ID: {user._id.slice(-8).toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                    <h3 className="text-xl font-black text-slate-900 group-hover:text-purple-600 transition-colors uppercase truncate">{user.name || "Unknown User"}</h3>
-                    <button 
-                      onClick={(e) => handleDeleteUser(e, user._id)}
-                      className="text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"
-                      title="Delete User"
-                    >
-                      <Trash2 size={16} strokeWidth={2.5} />
-                    </button>
-                  </div>
-                  <span className="bg-slate-100 text-slate-500 text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase inline-block mb-2">
-                      ID: {user._id.slice(-6)}
-                  </span>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
-                  </p>
-                </div>
-              </div>
+                    {/* Contact Info */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Phone size={12} className="text-slate-400" />
+                          {user.mobile || "N/A"}
+                        </p>
+                        <p className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
+                          <Mail size={12} className="text-slate-400" />
+                          {user.email || "N/A"}
+                        </p>
+                      </div>
+                    </td>
 
-              <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100/80">
-                  <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-slate-400"><Phone size={14} /></div>
-                      <span className="truncate">{user.mobile || "No Mobile Number"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-slate-400"><Mail size={14} /></div>
-                      <span className="truncate">{user.email || "No Email Provided"}</span>
-                  </div>
-              </div>
+                    {/* Total Rides */}
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center justify-center gap-1 px-3 py-1 bg-purple-50 text-purple-600 rounded-full font-black text-xs border border-purple-100">
+                        <Car size={12} strokeWidth={2.5} />
+                        {user.totalRides || 0}
+                      </span>
+                    </td>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-5">
-                <div className="text-center bg-white border border-slate-100 rounded-2xl p-3 shadow-sm group-hover:border-purple-100 transition-colors">
-                  <div className="flex items-center justify-center gap-1.5 text-purple-600 font-black text-xl mb-1">
-                    <Car size={18} strokeWidth={2.5} />
-                    <span>{user.totalRides || 0}</span>
-                  </div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Rides</p>
-                </div>
+                    {/* Total Spent */}
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center justify-center px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full font-black text-xs border border-emerald-100">
+                        ₹{Number(user.totalSpent || 0).toLocaleString()}
+                      </span>
+                    </td>
 
-                <div className="text-center bg-white border border-slate-100 rounded-2xl p-3 shadow-sm group-hover:border-emerald-100 transition-colors">
-                  <div className="flex items-center justify-center gap-1 text-emerald-600 font-black text-xl mb-1">
-                    <span>₹{Number(user.totalSpent || 0).toLocaleString()}</span>
-                  </div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Spent</p>
-                </div>
-              </div>
-            </div>
-          ))}
+                    {/* Joined Date */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-xs font-bold text-slate-500 tracking-wide uppercase">
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "N/A"}
+                      </p>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-6 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => handleDeleteUser(e, user._id)}
+                        className="text-rose-500 bg-rose-50 hover:bg-rose-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm cursor-pointer"
+                        title="Delete User"
+                      >
+                        <Trash2 size={14} strokeWidth={2.5} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {!loading && users.length === 0 && (
-            <div className="col-span-full bg-white p-16 rounded-[2rem] border border-slate-100 text-center space-y-4 shadow-sm">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                  <User size={32} className="text-slate-300" />
+            <div className="bg-white p-16 text-center space-y-4">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <User size={28} className="text-slate-300" />
               </div>
               <div>
-                  <p className="font-black text-slate-900 text-xl tracking-tight">No users found</p>
-                  <p className="text-slate-400 font-medium mt-1">Try adjusting your search terms.</p>
+                <p className="font-black text-slate-900 text-lg tracking-tight">No users found</p>
+                <p className="text-slate-400 font-medium mt-1">Try adjusting your search terms.</p>
               </div>
             </div>
           )}
