@@ -37,24 +37,38 @@ export default function PickupScreen() {
     const translateY = useSharedValue(0);
     const context = useSharedValue({ y: 0 });
     const sheetHeight = useSharedValue(SHEET_MAX_HEIGHT); // Initial guess to prevent jump
-    const PEEK_HEIGHT = 120; // Increased peek height
+    const PEEK_HEIGHT = 120; // Peek height
 
     const gesture = Gesture.Pan()
+        .activeOffsetY([-5, 5])
         .onStart(() => {
-            context.value = { y: translateY.value };
+            'worklet';
+            const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+            const clampedY = Math.max(0, Math.min(translateY.value, maxDrag));
+            translateY.value = clampedY;
+            context.value = { y: clampedY };
         })
         .onUpdate((event) => {
+            'worklet';
             const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
-            translateY.value = Math.max(0, Math.min(event.translationY + context.value.y, maxDrag));
+            if (maxDrag <= 0) return;
+            const nextY = context.value.y + event.translationY;
+            translateY.value = Math.max(0, Math.min(nextY, maxDrag));
         })
         .onEnd((event) => {
+            'worklet';
             const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
-            const shouldCollapse = translateY.value > maxDrag / 2 || event.velocityY > 500;
+            if (maxDrag <= 0) {
+                translateY.value = withSpring(0);
+                return;
+            }
+            const shouldCollapse = translateY.value > maxDrag / 2 || event.velocityY > 400;
+            const targetY = shouldCollapse ? maxDrag : 0;
 
-            translateY.value = withSpring(shouldCollapse ? maxDrag : 0, {
-                damping: 20,
-                stiffness: 90,
-                mass: 1,
+            translateY.value = withSpring(targetY, {
+                damping: 22,
+                stiffness: 120,
+                mass: 0.8,
                 overshootClamping: true
             });
         });
@@ -77,6 +91,7 @@ export default function PickupScreen() {
     });
 
     useEffect(() => {
+        const targetH = sheetMeasuredHeight > 0 ? sheetMeasuredHeight : SHEET_MAX_HEIGHT;
         runOnUI((nextHeight: number, peekHeight: number) => {
             'worklet';
             sheetHeight.value = nextHeight;
@@ -84,8 +99,8 @@ export default function PickupScreen() {
             if (translateY.value > maxDrag) {
                 translateY.value = maxDrag;
             }
-        })(sheetMeasuredHeight, PEEK_HEIGHT);
-    }, [sheetMeasuredHeight, sheetHeight, translateY]);
+        })(targetH, PEEK_HEIGHT);
+    }, [sheetMeasuredHeight, SHEET_MAX_HEIGHT, PEEK_HEIGHT, sheetHeight, translateY]);
 
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
@@ -300,6 +315,9 @@ export default function PickupScreen() {
                         region={region}
                         showsUserLocation={true}
                         provider={PROVIDER_GOOGLE}
+                        rotateEnabled={true}
+                        pitchEnabled={true}
+                        showsCompass={true}
                     >
                         {routeCoords.length > 0 && (
                             <Polyline
@@ -309,6 +327,7 @@ export default function PickupScreen() {
                             />
                         )}
 
+                        {/* 🔵 Pickup Location — Big Blue Target Dot (Ola/Uber style) */}
                         {Number(booking?.pickupLatitude || params.pLat) !== 0 && (
                             <Marker
                                 tracksViewChanges={false}
@@ -317,8 +336,36 @@ export default function PickupScreen() {
                                     longitude: Number(booking?.pickupLongitude || params.pLon) || 0
                                 }}
                             >
-                                <View className="bg-white p-2 rounded-full border-[3px] border-green-500 shadow-lg">
-                                    <Ionicons name="person" size={20} color="#0F172A" />
+                                <View className="items-center">
+                                    <View className="bg-blue-600 px-2.5 py-1 rounded-md mb-1.5 shadow-lg border border-blue-400">
+                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                                            PICKUP LOCATION
+                                        </Text>
+                                    </View>
+                                    <View style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+                                        <View style={{
+                                            position: 'absolute',
+                                            width: 34,
+                                            height: 34,
+                                            borderRadius: 17,
+                                            backgroundColor: 'rgba(37, 99, 235, 0.3)',
+                                            borderWidth: 1.5,
+                                            borderColor: 'rgba(37, 99, 235, 0.6)'
+                                        }} />
+                                        <View style={{
+                                            width: 22,
+                                            height: 22,
+                                            borderRadius: 11,
+                                            backgroundColor: '#2563EB',
+                                            borderWidth: 4,
+                                            borderColor: '#FFFFFF',
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 2 },
+                                            shadowOpacity: 0.4,
+                                            shadowRadius: 4,
+                                            elevation: 6
+                                        }} />
+                                    </View>
                                 </View>
                             </Marker>
                         )}

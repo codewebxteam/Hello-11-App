@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,11 +20,39 @@ export default function PaymentScreen() {
     // Calculate totals
     const isPartialPayment = !!params.nextRoute;
     const firstLegPaid = params.firstLegPaid === 'true';
-    const baseFare = params.baseFare ? Number(params.baseFare) : (params.fare ? Number(params.fare) : 450);
-    const returnFare = params.returnFare ? Number(params.returnFare) : 0;
-    const penalty = params.penalty ? Number(params.penalty) : 0;
-    const toll = params.toll ? Number(params.toll) : 0;
-    const nightSurcharge = params.nightSurcharge ? Number(params.nightSurcharge) : 0;
+
+    // State initialized from params (no arbitrary hardcoded 450 fallback)
+    const [baseFare, setBaseFare] = useState<number>(() => {
+        if (params.baseFare) return Number(params.baseFare);
+        if (params.fare) return Number(params.fare);
+        return 0;
+    });
+    const [returnFare, setReturnFare] = useState<number>(params.returnFare ? Number(params.returnFare) : 0);
+    const [penalty, setPenalty] = useState<number>(params.penalty ? Number(params.penalty) : 0);
+    const [toll, setToll] = useState<number>(params.toll ? Number(params.toll) : 0);
+    const [nightSurcharge, setNightSurcharge] = useState<number>(params.nightSurcharge ? Number(params.nightSurcharge) : 0);
+
+    // Fetch live booking details if baseFare is missing or 0
+    useEffect(() => {
+        const bookingId = params.bookingId as string;
+        if (bookingId && (baseFare === 0 || !params.baseFare)) {
+            driverAPI.getBookingById(bookingId).then((res) => {
+                const b = res.data?.booking || res.data;
+                if (b) {
+                    const fetchedFare = Number(b.baseFare || b.fare || b.totalFare || 0);
+                    const fetchedNight = Number(b.nightSurcharge || 0);
+                    if (fetchedFare > 0) setBaseFare(fetchedFare);
+                    if (b.returnTripFare !== undefined) setReturnFare(Number(b.returnTripFare) || 0);
+                    if (b.penaltyApplied !== undefined) setPenalty(Number(b.penaltyApplied) || 0);
+                    if (b.tollFee !== undefined) setToll(Number(b.tollFee) || 0);
+                    if (fetchedNight > 0) setNightSurcharge(fetchedNight);
+                }
+            }).catch((err) => {
+                console.log("Failed to fetch live booking for payment fallback:", err);
+            });
+        }
+    }, [params.bookingId]);
+
     const oneWayFare = Math.max(0, baseFare) + Math.max(0, nightSurcharge);
 
     // Total Amount: Toll is always collected in Leg 1 (half payment).

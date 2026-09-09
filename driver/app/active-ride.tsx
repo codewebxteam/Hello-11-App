@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, Alert, TextInput, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Alert, TextInput, useWindowDimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -13,6 +13,58 @@ import { driverAPI, locationAPI } from '../utils/api';
 import { getSocket } from '../utils/socket';
 
 const SHEET_MIN_HEIGHT = 140;
+
+// --- Haversine: compute distance (in km) between two lat/lon points ---
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// --- Compute bearing between two coordinates (for car rotation) ---
+function computeBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const toDeg = (r: number) => (r * 180) / Math.PI;
+    const dLon = toRad(lon2 - lon1);
+    const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+    const x =
+        Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+        Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+// --- Find the closest index on a polyline to a given point ---
+function findClosestRouteIndex(coords: { latitude: number; longitude: number }[], lat: number, lon: number): number {
+    let minDist = Infinity;
+    let idx = 0;
+    for (let i = 0; i < coords.length; i++) {
+        const d = haversineKm(lat, lon, coords[i].latitude, coords[i].longitude);
+        if (d < minDist) {
+            minDist = d;
+            idx = i;
+        }
+    }
+    return idx;
+}
+
+// --- Sum polyline distance from an index to the end ---
+function remainingRouteDistanceKm(coords: { latitude: number; longitude: number }[], fromIndex: number): number {
+    let total = 0;
+    for (let i = fromIndex; i < coords.length - 1; i++) {
+        total += haversineKm(coords[i].latitude, coords[i].longitude, coords[i + 1].latitude, coords[i + 1].longitude);
+    }
+    return total;
+}
+
+// Location HTTP update throttle (30 seconds)
+const LOCATION_API_THROTTLE_MS = 30000;
 
 export default function ActiveRideScreen() {
     const { width, height } = useWindowDimensions();
@@ -35,6 +87,8 @@ export default function ActiveRideScreen() {
 
     const [hasReturnTrip, setHasReturnTrip] = React.useState(false);
     const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
+    // Blueprint route fetched once — never re-fetched during ride
+    const blueprintRouteRef = useRef<{ latitude: number; longitude: number }[]>([]);
     const [initialRegion] = React.useState<any>(() => {
         if (params.pLat && params.pLon) {
             return {
@@ -51,10 +105,49 @@ export default function ActiveRideScreen() {
     const [eta, setEta] = React.useState<string>("---");
     const [sheetMeasuredHeight, setSheetMeasuredHeight] = React.useState<number>(SHEET_MAX_HEIGHT);
     const lastUpdateCoords = useRef<{ lat: number; lon: number } | null>(null);
+    const lastApiUpdateTime = useRef<number>(0);
     const mapRef = useRef<any>(null);
     const userInteractingRef = useRef(false);
     const recenterTimerRef = useRef<any>(null);
     const [isFollowing, setIsFollowing] = React.useState(true);
+
+    // Smooth car marker state
+    const [driverCoord, setDriverCoord] = React.useState<{ latitude: number; longitude: number } | null>(null);
+    const [driverBearing, setDriverBearing] = React.useState<number>(0);
+
+    // Instant initial location fetch on mount so driver arrow marker renders immediately
+    useEffect(() => {
+        const fetchInitialLocation = async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+                    if (loc && loc.coords) {
+                        const { latitude, longitude } = loc.coords;
+                        setDriverCoord({ latitude, longitude });
+                        lastUpdateCoords.current = { lat: latitude, lon: longitude };
+                    }
+                }
+            } catch (e) {
+                console.log("Initial driver location fetch error:", e);
+            }
+        };
+        fetchInitialLocation();
+    }, []);
+
+    // Safe coordinate calculations for map markers
+    const pLatVal = Number(booking?.pickupLatitude || params.pLat);
+    const pLonVal = Number(booking?.pickupLongitude || params.pLon);
+    const dLatVal = Number(booking?.dropLatitude || params.dLat);
+    const dLonVal = Number(booking?.dropLongitude || params.dLon);
+
+    const startLat = isReturnTrip ? dLatVal : pLatVal;
+    const startLon = isReturnTrip ? dLonVal : pLonVal;
+    const targetLat = isReturnTrip ? pLatVal : dLatVal;
+    const targetLon = isReturnTrip ? pLonVal : dLonVal;
+
+    const isStartValid = !isNaN(startLat) && !isNaN(startLon) && startLat !== 0 && startLon !== 0;
+    const isTargetValid = !isNaN(targetLat) && !isNaN(targetLon) && targetLat !== 0 && targetLon !== 0;
 
     const handleMapInteraction = () => {
         userInteractingRef.current = true;
@@ -71,12 +164,15 @@ export default function ActiveRideScreen() {
         setIsFollowing(true);
         if (recenterTimerRef.current) clearTimeout(recenterTimerRef.current);
         if (mapRef.current && lastUpdateCoords.current) {
-            mapRef.current.animateToRegion({
-                latitude: lastUpdateCoords.current.lat,
-                longitude: lastUpdateCoords.current.lon,
-                latitudeDelta: 0.015,
-                longitudeDelta: 0.015,
-            }, 500);
+            mapRef.current.animateCamera({
+                center: {
+                    latitude: lastUpdateCoords.current.lat,
+                    longitude: lastUpdateCoords.current.lon,
+                },
+                zoom: 16,
+                heading: 0,
+                pitch: 0,
+            }, { duration: 500 });
         }
     };
 
@@ -84,24 +180,38 @@ export default function ActiveRideScreen() {
     const translateY = useSharedValue(0);
     const context = useSharedValue({ y: 0 });
     const sheetHeight = useSharedValue(SHEET_MAX_HEIGHT); // Initial guess
-    const PEEK_HEIGHT = 120; // Increased peek height
+    const PEEK_HEIGHT = 120; // Peek height
 
     const gesture = Gesture.Pan()
+        .activeOffsetY([-5, 5])
         .onStart(() => {
-            context.value = { y: translateY.value };
+            'worklet';
+            const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
+            const clampedY = Math.max(0, Math.min(translateY.value, maxDrag));
+            translateY.value = clampedY;
+            context.value = { y: clampedY };
         })
         .onUpdate((event) => {
+            'worklet';
             const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
-            translateY.value = Math.max(0, Math.min(event.translationY + context.value.y, maxDrag));
+            if (maxDrag <= 0) return;
+            const nextY = context.value.y + event.translationY;
+            translateY.value = Math.max(0, Math.min(nextY, maxDrag));
         })
         .onEnd((event) => {
+            'worklet';
             const maxDrag = Math.max(0, sheetHeight.value - PEEK_HEIGHT);
-            const shouldCollapse = translateY.value > maxDrag / 2 || event.velocityY > 500;
+            if (maxDrag <= 0) {
+                translateY.value = withSpring(0);
+                return;
+            }
+            const shouldCollapse = translateY.value > maxDrag / 2 || event.velocityY > 400;
+            const targetY = shouldCollapse ? maxDrag : 0;
 
-            translateY.value = withSpring(shouldCollapse ? maxDrag : 0, {
-                damping: 20,
-                stiffness: 90,
-                mass: 1,
+            translateY.value = withSpring(targetY, {
+                damping: 22,
+                stiffness: 120,
+                mass: 0.8,
                 overshootClamping: true
             });
         });
@@ -124,6 +234,7 @@ export default function ActiveRideScreen() {
     });
 
     useEffect(() => {
+        const targetH = sheetMeasuredHeight > 0 ? sheetMeasuredHeight : SHEET_MAX_HEIGHT;
         runOnUI((nextHeight: number, peekHeight: number) => {
             'worklet';
             sheetHeight.value = nextHeight;
@@ -131,8 +242,8 @@ export default function ActiveRideScreen() {
             if (translateY.value > maxDrag) {
                 translateY.value = maxDrag;
             }
-        })(sheetMeasuredHeight, PEEK_HEIGHT);
-    }, [sheetMeasuredHeight, sheetHeight, translateY]);
+        })(targetH, PEEK_HEIGHT);
+    }, [sheetMeasuredHeight, SHEET_MAX_HEIGHT, PEEK_HEIGHT, sheetHeight, translateY]);
 
     useEffect(() => {
         const fetchBookingAndRoute = async () => {
@@ -174,6 +285,7 @@ export default function ActiveRideScreen() {
                     const endLon = isReturnTrip ? b.pickupLongitude : b.dropLongitude;
 
                     if (startLat && startLon && endLat && endLon) {
+                        // ONE-TIME blueprint route fetch — never refetched during ride
                         const dirRes = await locationAPI.getDirections(startLat, startLon, endLat, endLon);
                         if (dirRes.data && dirRes.data.data) {
                             setDistance(`${dirRes.data.data.distanceKm} km`);
@@ -189,7 +301,11 @@ export default function ActiveRideScreen() {
                                         latitude: Number(c[1]),
                                         longitude: Number(c[0])
                                     }));
-                                if (coords.length > 0) setRouteCoords(coords);
+                                if (coords.length > 0) {
+                                    setRouteCoords(coords);
+                                    // Store as blueprint for local distance/ETA calculation
+                                    blueprintRouteRef.current = coords;
+                                }
                             }
                         }
                     }
@@ -218,8 +334,8 @@ export default function ActiveRideScreen() {
 
                 await Location.startLocationUpdatesAsync('BACKGROUND_LOCATION_TASK', {
                     accuracy: Location.Accuracy.High,
-                    distanceInterval: 10,
-                    timeInterval: 10000,
+                    distanceInterval: 50, // Only trigger when moved 50m (battery efficient)
+                    timeInterval: 30000, // Every 30 seconds max for background
                     foregroundService: {
                         notificationTitle: "Ride in Progress",
                         notificationBody: "Tracking active trip...",
@@ -230,49 +346,59 @@ export default function ActiveRideScreen() {
                 locationSubscription = await Location.watchPositionAsync(
                     {
                         accuracy: Location.Accuracy.High,
-                        distanceInterval: 10,
+                        distanceInterval: 15, // Smooth car movement (every 15m)
                     },
                     (newLoc) => {
                         const { latitude, longitude } = newLoc.coords;
-                        // Only auto-move map if user is NOT manually interacting
-                        if (!userInteractingRef.current && mapRef.current) {
-                            mapRef.current.animateToRegion({
+
+                        // 1. Update car marker position with bearing for smooth movement
+                        if (lastUpdateCoords.current) {
+                            const bearing = computeBearing(
+                                lastUpdateCoords.current.lat,
+                                lastUpdateCoords.current.lon,
                                 latitude,
-                                longitude,
-                                latitudeDelta: 0.015,
-                                longitudeDelta: 0.015,
-                            }, 800);
+                                longitude
+                            );
+                            setDriverBearing(bearing);
                         }
-                        driverAPI.updateLocation({ latitude, longitude }).catch(() => { });
+                        setDriverCoord({ latitude, longitude });
+                        lastUpdateCoords.current = { lat: latitude, lon: longitude };
 
-                        const targetLat = isReturnTrip ? Number(booking?.pickupLatitude) : Number(booking?.dropLatitude);
-                        const targetLon = isReturnTrip ? Number(booking?.pickupLongitude) : Number(booking?.dropLongitude);
+                        // 2. Smoothly follow driver using animateCamera (prevents map flip/rotation)
+                        if (!userInteractingRef.current && mapRef.current) {
+                            mapRef.current.animateCamera({
+                                center: { latitude, longitude },
+                                zoom: 16,
+                                heading: 0, // Keep north-up (prevents map palat/flip)
+                                pitch: 0,
+                            }, { duration: 1000 });
+                        }
 
-                        if (targetLat && targetLon) {
-                            // Only fetch directions if we've moved significantly (>100m) or if it's the first time
-                            const shouldUpdateDirections = !lastUpdateCoords.current || 
-                                Math.abs(lastUpdateCoords.current.lat - latitude) > 0.001 || 
-                                Math.abs(lastUpdateCoords.current.lon - longitude) > 0.001;
+                        // 3. Throttled HTTP location update (every 30s instead of every 10s)
+                        const now = Date.now();
+                        if (now - lastApiUpdateTime.current >= LOCATION_API_THROTTLE_MS) {
+                            lastApiUpdateTime.current = now;
+                            driverAPI.updateLocation({ latitude, longitude }).catch(() => { });
+                        }
 
-                            if (shouldUpdateDirections) {
-                                lastUpdateCoords.current = { lat: latitude, lon: longitude };
-                                locationAPI.getDirections(latitude, longitude, targetLat, targetLon)
-                                    .then(res => {
-                                        if (res.data?.data) {
-                                            setDistance(`${res.data.data.distanceKm} km`);
-                                            const eMin = Math.ceil(res.data.data.duration / 60);
-                                            const h = Math.floor(eMin / 60);
-                                            const m = eMin % 60;
-                                            setEta(h > 0 ? `${h} Hrs ${m} mins` : `${m} mins`);
-                                            if (res.data.data.geometry?.coordinates) {
-                                                const coords = res.data.data.geometry.coordinates.map((c: any) => ({
-                                                    latitude: Number(c[1]),
-                                                    longitude: Number(c[0])
-                                                }));
-                                                setRouteCoords(coords);
-                                            }
-                                        }
-                                    }).catch(() => { });
+                        // 4. Locally compute remaining distance & ETA from blueprint route
+                        const route = blueprintRouteRef.current;
+                        if (route.length > 1) {
+                            const closestIdx = findClosestRouteIndex(route, latitude, longitude);
+                            const remainKm = remainingRouteDistanceKm(route, closestIdx);
+                            const displayKm = remainKm < 1 ? remainKm.toFixed(2) : remainKm.toFixed(1);
+                            setDistance(`${displayKm} km`);
+
+                            // Estimate ETA: assume avg 30 km/h city driving
+                            const etaMin = Math.ceil((remainKm / 30) * 60);
+                            const h = Math.floor(etaMin / 60);
+                            const m = etaMin % 60;
+                            setEta(h > 0 ? `${h} Hrs ${m} mins` : `${m} mins`);
+
+                            // Trim route: only show remaining polyline ahead of driver
+                            if (closestIdx > 0) {
+                                const trimmed = route.slice(closestIdx);
+                                setRouteCoords(trimmed);
                             }
                         }
                     }
@@ -457,69 +583,141 @@ export default function ActiveRideScreen() {
             {/* --- REAL MAP BACKGROUND --- */}
             <View className="absolute inset-0 bg-slate-200">
                 {initialRegion ? (
-                   <MapView
-    ref={mapRef}
-    style={{ width, height }}
-    initialRegion={initialRegion}
-    showsUserLocation={true}
-    provider={PROVIDER_GOOGLE}
-    rotateEnabled={true}
-    pitchEnabled={true}
-    showsCompass={true}
-    onPanDrag={handleMapInteraction}
-    onRegionChangeComplete={() => {}}
->
-    {routeCoords.length > 0 && (
-        <Polyline
-            coordinates={routeCoords}
-            strokeWidth={5}
-            strokeColor="#3b82f6"
-        />
-    )}
+                    <MapView
+                        ref={mapRef}
+                        style={{ width, height }}
+                        initialRegion={initialRegion}
+                        showsUserLocation={false}
+                        provider={PROVIDER_GOOGLE}
+                        rotateEnabled={true}
+                        pitchEnabled={true}
+                        showsCompass={true}
+                        scrollEnabled={true}
+                        zoomEnabled={true}
+                        onPanDrag={handleMapInteraction}
+                        onRegionChangeComplete={() => {}}
+                    >
+                        {/* Route polyline (trimmed from driver position to destination) */}
+                        {routeCoords.length > 0 && (
+                            <Polyline
+                                coordinates={routeCoords}
+                                strokeWidth={5}
+                                strokeColor="#3b82f6"
+                            />
+                        )}
 
-    {/* Markers show even before booking data loads if params are present */}
-    {Number(booking?.pickupLatitude || (isReturnTrip ? params.dLat : params.pLat)) !== 0 && (
-        <Marker
-            tracksViewChanges={false}
-            coordinate={{
-                latitude: Number(isReturnTrip ? (booking?.dropLatitude || params.dLat) : (booking?.pickupLatitude || params.pLat)) || 0,
-                longitude: Number(isReturnTrip ? (booking?.dropLongitude || params.dLon) : (booking?.pickupLongitude || params.pLon)) || 0
-            }}
-        >
-            <View className="items-center">
-                <View className="bg-blue-500 px-2 py-0.5 rounded mb-1 shadow-md">
-                    <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                        {isReturnTrip ? 'START' : 'PICKUP'}
-                    </Text>
-                </View>
-                <View className="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg">
-                    <Ionicons name="location" size={16} color="white" />
-                </View>
-            </View>
-        </Marker>
-    )}
+                        {/* 🧭 Navigation Arrow Marker — points in driving direction (Ola/Uber style) */}
+                        {driverCoord && (
+                            <Marker
+                                coordinate={driverCoord}
+                                anchor={{ x: 0.5, y: 0.5 }}
+                                flat={true}
+                                rotation={driverBearing}
+                                tracksViewChanges={false}
+                            >
+                                <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                                    {/* Outer translucent blue aura */}
+                                    <View style={{
+                                        width: 44,
+                                        height: 44,
+                                        borderRadius: 22,
+                                        backgroundColor: 'rgba(59, 130, 246, 0.25)',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        position: 'absolute'
+                                    }} />
+                                    {/* Main navigation circle */}
+                                    <View style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 18,
+                                        backgroundColor: '#0F172A',
+                                        borderWidth: 3,
+                                        borderColor: '#FFD700',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        shadowColor: '#000',
+                                        shadowOffset: { width: 0, height: 3 },
+                                        shadowOpacity: 0.5,
+                                        shadowRadius: 5,
+                                        elevation: 8,
+                                    }}>
+                                        <Ionicons name="navigate" size={20} color="#FFD700" />
+                                    </View>
+                                </View>
+                            </Marker>
+                        )}
 
-    {Number(booking?.dropLatitude || (isReturnTrip ? params.pLat : params.dLat)) !== 0 && (
-        <Marker
-            tracksViewChanges={false}
-            coordinate={{
-                latitude: Number(isReturnTrip ? (booking?.pickupLatitude || params.pLat) : (booking?.dropLatitude || params.dLat)) || 0,
-                longitude: Number(isReturnTrip ? (booking?.pickupLongitude || params.pLon) : (booking?.dropLongitude || params.dLon)) || 0
-            }}
-        >
-            <View className="items-center">
-                <View className="bg-red-500 px-2 py-0.5 rounded mb-1 shadow-md">
-                    <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                        {isReturnTrip ? 'HOME' : 'DROP'}
-                    </Text>
-                </View>
-                <View className="bg-red-600 p-2 rounded-full border-2 border-white shadow-lg">
-                    <Ionicons name="flag" size={18} color="white" />
-                </View>
-            </View>
-        </Marker>
-    )}
-</MapView>
+                        {/* Pickup / Start Marker */}
+                        {isStartValid && (
+                            <Marker
+                                tracksViewChanges={false}
+                                coordinate={{
+                                    latitude: startLat,
+                                    longitude: startLon
+                                }}
+                            >
+                                <View className="items-center">
+                                    <View className="bg-slate-800 px-2 py-0.5 rounded mb-1 shadow-md border border-slate-700">
+                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                                            {isReturnTrip ? 'START' : 'PICKUP'}
+                                        </Text>
+                                    </View>
+                                    <View className="bg-slate-900 p-2 rounded-full border-2 border-slate-600 shadow-lg">
+                                        <Ionicons name="location" size={14} color="#94A3B8" />
+                                    </View>
+                                </View>
+                            </Marker>
+                        )}
+
+                        {/* 🔵 Destination Marker — Big Blue Target Dot (Ola/Uber style) */}
+                        {isTargetValid && (
+                            <Marker
+                                tracksViewChanges={false}
+                                coordinate={{
+                                    latitude: targetLat,
+                                    longitude: targetLon
+                                }}
+                            >
+                                <View className="items-center">
+                                    {/* Destination Badge */}
+                                    <View className="bg-blue-600 px-2.5 py-1 rounded-md mb-1.5 shadow-lg border border-blue-400">
+                                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                                            {isReturnTrip ? 'HOME' : 'DESTINATION'}
+                                        </Text>
+                                    </View>
+                                    
+                                    {/* Big Blue Dot Destination Pin */}
+                                    <View style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+                                        {/* Outer translucent blue ring */}
+                                        <View style={{
+                                            position: 'absolute',
+                                            width: 34,
+                                            height: 34,
+                                            borderRadius: 17,
+                                            backgroundColor: 'rgba(37, 99, 235, 0.3)',
+                                            borderWidth: 1.5,
+                                            borderColor: 'rgba(37, 99, 235, 0.6)'
+                                        }} />
+                                        {/* Inner Solid Big Blue Dot */}
+                                        <View style={{
+                                            width: 22,
+                                            height: 22,
+                                            borderRadius: 11,
+                                            backgroundColor: '#2563EB',
+                                            borderWidth: 4,
+                                            borderColor: '#FFFFFF',
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 2 },
+                                            shadowOpacity: 0.4,
+                                            shadowRadius: 4,
+                                            elevation: 6
+                                        }} />
+                                    </View>
+                                </View>
+                            </Marker>
+                        )}
+                    </MapView>
                 ) : (
                     <View className="flex-1 items-center justify-center">
                         <Text className="text-slate-400 font-bold">Loading Map...</Text>

@@ -142,7 +142,13 @@ export default function StartRideScreen() {
         if (response.data) {
           router.replace({
             pathname: "/active-ride",
-            params: { bookingId: booking.id }
+            params: {
+              bookingId: booking.id || booking._id,
+              pLat: (booking.pickupLatitude || '').toString(),
+              pLon: (booking.pickupLongitude || '').toString(),
+              dLat: (booking.dropLatitude || '').toString(),
+              dLon: (booking.dropLongitude || '').toString(),
+            }
           });
         } else {
           Alert.alert("Invalid OTP", "The OTP entered is incorrect. Please check with the passenger.");

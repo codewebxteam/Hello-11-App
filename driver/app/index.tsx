@@ -13,7 +13,9 @@ import {
   AppState,
   ActivityIndicator,
   NativeModules,
-  Modal
+  Modal,
+  Platform,
+  Linking
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +26,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { getImageUrl } from '../utils/imagekit';
 
-import { initSocket, disconnectSocket } from '../utils/socket';
+import { initSocket, disconnectSocket, setSocketDriverId, ensureSocketConnected } from '../utils/socket';
 import { driverAPI } from '../utils/api';
 import { getDriverToken } from '../utils/storage';
 import MapView, { Marker, PROVIDER_GOOGLE } from '../utils/mapCompat';
@@ -34,6 +36,8 @@ import { useDriverAuth } from '../context/DriverAuthContext';
 import * as ExpoNotifications from 'expo-notifications';
 import { notifee, AndroidImportance } from '../utils/notifee-helper';
 import RazorpayCheckout from 'react-native-razorpay';
+import * as IntentLauncher from 'expo-intent-launcher';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 export default function DriverDashboard() {
@@ -228,22 +232,10 @@ export default function DriverDashboard() {
 
   useEffect(() => {
     if (isOnline && driverId) {
+      setSocketDriverId(driverId);
       startLocationTracking();
-      const setupSocket = async () => {
-        const socket = await initSocket();
-
-        socket.on("connect", () => {
-          console.log("Socket connected, emitting join for driver:", driverId);
-          socket.emit("join", driverId);
-        });
-
-        if (socket.connected) {
-          console.log("Socket already connected, emitting join immediately:", driverId);
-          socket.emit("join", driverId);
-        }
-
-      };
-      setupSocket();
+      initSocket();
+      ensureSocketConnected();
     } else {
       stopLocationTracking();
       disconnectSocket();
@@ -280,6 +272,9 @@ export default function DriverDashboard() {
     const subscription = AppState.addEventListener("change", async (nextAppState) => {
       if (nextAppState === "active") {
         console.log("App foregrounded, reloading stats...");
+        if (isOnline && driverId) {
+          ensureSocketConnected();
+        }
         // On app resume after kill: clean up stale "Driver is Online" notification
         // before dashboard loads. If driver is truly online, startLocationTracking
         // will re-create a fresh foreground service notification.
@@ -306,6 +301,54 @@ export default function DriverDashboard() {
     };
   }, [loadStats]);
 
+  // --- SOLUTION B: Battery Optimization Check ---
+  const checkAndPromptBatteryOptimization = async (force = false) => {
+    if (Platform.OS !== 'android') return; // iOS doesn't have this concept
+    try {
+      if (!force) {
+        const alreadyPrompted = await AsyncStorage.getItem('@battery_opt_prompted');
+        if (alreadyPrompted === 'true') return; // Only prompt once automatically
+      }
+
+      Alert.alert(
+        '🔋 Disable Battery Optimization',
+        'Background me ride requests na chhutein, iske liye App Settings me Battery Optimization ko "Unrestricted" ya "Don\'t optimize" par set karein.',
+        [
+          {
+            text: 'Later',
+            style: 'cancel',
+            onPress: async () => {
+              await AsyncStorage.setItem('@battery_opt_prompted', 'true');
+            }
+          },
+          {
+            text: 'Open Settings',
+            onPress: async () => {
+              await AsyncStorage.setItem('@battery_opt_prompted', 'true');
+              try {
+                // Primary: Try direct battery optimization intent
+                if (IntentLauncher && typeof IntentLauncher.startActivityAsync === 'function') {
+                  await IntentLauncher.startActivityAsync(
+                    'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+                    { data: 'package:com.pmup53.driversection' }
+                  );
+                } else {
+                  Linking.openSettings();
+                }
+              } catch (e) {
+                console.log('Battery optimization intent error, opening App Settings:', e);
+                // Fallback for Xiaomi/Vivo/Oppo/Samsung: Open App Info Settings page
+                Linking.openSettings();
+              }
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      console.log('Battery optimization check error:', e);
+    }
+  };
+
   const executeGoOnline = async () => {
     let fgStatus = await Location.requestForegroundPermissionsAsync();
     if (fgStatus.status !== 'granted') {
@@ -318,6 +361,9 @@ export default function DriverDashboard() {
       Alert.alert('Permission Error', 'Background location permission is required to go online.');
       return false;
     }
+
+    // Solution B: Prompt battery optimization on first go-online
+    checkAndPromptBatteryOptimization();
 
     let loc;
     try {
@@ -402,19 +448,21 @@ export default function DriverDashboard() {
       console.log("Initial location update error:", err);
     }
 
-    // Start a foreground service to keep JS running forever
+    // Solution A: Start always-on foreground service — low-power idle mode
+    // This keeps the app alive even when driver is just "online" waiting for rides
+    // Uses low accuracy + 60s interval to save battery while maintaining foreground service
     try {
       await Location.startLocationUpdatesAsync('BACKGROUND_LOCATION_TASK', {
-        accuracy: Location.Accuracy.High,
-        distanceInterval: 10,
-        timeInterval: 10000,
+        accuracy: Location.Accuracy.Balanced, // Lower accuracy for idle mode (battery-friendly)
+        distanceInterval: 50, // Update every 50 meters when idle
+        timeInterval: 60000, // Update every 60 seconds when idle
         foregroundService: {
-          notificationTitle: "📍 Location Tracking",
-          notificationBody: "Active in background",
+          notificationTitle: "🟢 Hello-11 Driver Online",
+          notificationBody: "Waiting for ride requests...",
           notificationColor: "#FFD700",
         },
       });
-      console.log("Foreground Service Started");
+      console.log("Foreground Service Started (idle mode)");
     } catch (e) {
       console.error("Foreground location error:", e);
     }

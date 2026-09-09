@@ -76,6 +76,7 @@ export default function DocumentsScreen() {
     
     const [loading, setLoading] = React.useState(true);
     const [isVerified, setIsVerified] = React.useState(false); // New state to track admin approval
+    const [verificationNote, setVerificationNote] = React.useState<string>(''); // Admin rejection reason
     
     const [individualLoading, setIndividualLoading] = React.useState<Record<string, boolean>>({
         license: false,
@@ -113,8 +114,9 @@ export default function DocumentsScreen() {
                     insurance: driverData.documents?.insurance || '',
                     registration: driverData.documents?.registration || ''
                 });
-                // Set the admin verification status
+                // Set the admin verification status & rejection reason note
                 setIsVerified(driverData.isVerified === true);
+                setVerificationNote(driverData.verificationNote || '');
             }
         } catch (err) {
             console.log("Docs load error:", err);
@@ -232,24 +234,31 @@ export default function DocumentsScreen() {
         const isViewing = viewingDocs[key];
 
         // Core requirement check:
-        const isLockedByAdmin = isVerified; 
+        const isLockedByAdmin = isVerified;
+        const isRejectedByAdmin = !isVerified && !!verificationNote;
 
         return (
             <View className="mb-6">
                 <View className="flex-row justify-between items-center mb-3 ml-1">
                     <View className="flex-row items-center flex-1 pr-2">
-                        <View className={`w-1.5 h-4 ${isLockedByAdmin ? 'bg-[#166534]' : 'bg-[#FFD700]'} rounded-full mr-2.5`} />
+                        <View className={`w-1.5 h-4 ${isLockedByAdmin ? 'bg-[#166534]' : isRejectedByAdmin ? 'bg-[#E11D48]' : 'bg-[#FFD700]'} rounded-full mr-2.5`} />
                         <Text className="text-slate-900 text-[12px] font-black uppercase tracking-[1.5px] flex-shrink" numberOfLines={1}>{title}</Text>
                     </View>
                     
                     {/* Status Tags */}
                     {isUploaded && isLockedByAdmin && (
-                        <View className="flex-row items-center bg-green-100/50 px-3 py-1 rounded-full border border-green-200">
+                        <View className="flex-row items-center bg-green-100/80 px-3 py-1 rounded-full border border-green-300">
                             <Ionicons name="shield-checkmark" size={10} color="#15803D" />
                             <Text className="text-green-800 text-[9px] font-black uppercase ml-1 tracking-wider">VERIFIED</Text>
                         </View>
                     )}
-                    {isUploaded && !isLockedByAdmin && (
+                    {isRejectedByAdmin && (
+                        <View className="flex-row items-center bg-rose-100 px-3 py-1 rounded-full border border-rose-300">
+                            <Ionicons name="close-circle" size={10} color="#E11D48" />
+                            <Text className="text-rose-800 text-[9px] font-black uppercase ml-1 tracking-wider">REJECTED - RE-UPLOAD</Text>
+                        </View>
+                    )}
+                    {isUploaded && !isLockedByAdmin && !isRejectedByAdmin && (
                         <View className="flex-row items-center bg-amber-100/50 px-3 py-1 rounded-full border border-amber-200">
                             <Ionicons name="time" size={10} color="#D97706" />
                             <Text className="text-amber-800 text-[9px] font-black uppercase ml-1 tracking-wider">PENDING REVIEW</Text>
@@ -257,27 +266,39 @@ export default function DocumentsScreen() {
                     )}
                 </View>
                 
-                <View className={`bg-white border ${isLockedByAdmin ? 'border-green-100' : 'border-slate-200'} rounded-[20px] px-4 py-4 shadow-sm`}>
+                <View className={`bg-white border ${isLockedByAdmin ? 'border-green-200' : isRejectedByAdmin ? 'border-rose-300 shadow-rose-500/10' : 'border-slate-200'} rounded-[20px] px-4 py-4 shadow-sm`}>
                     
                     <View className="flex-row items-center mb-3">
-                        <View className={`w-9 h-9 rounded-full ${isLockedByAdmin ? 'bg-green-50' : 'bg-slate-100'} items-center justify-center`}>
-                            <Ionicons name={icon} size={18} color={isLockedByAdmin ? "#166534" : "#64738B"} />
+                        <View className={`w-9 h-9 rounded-full ${isLockedByAdmin ? 'bg-green-50' : isRejectedByAdmin ? 'bg-rose-100' : 'bg-slate-100'} items-center justify-center`}>
+                            <Ionicons name={icon} size={18} color={isLockedByAdmin ? "#166534" : isRejectedByAdmin ? "#E11D48" : "#64738B"} />
                         </View>
                         <View className="ml-3 flex-1">
-                            <Text className={`font-bold text-[13px] ${isLockedByAdmin ? 'text-green-700' : 'text-slate-700'}`}>
-                                {isLockedByAdmin ? 'Document Approved' : isUploaded ? 'Under Review' : isLocal ? 'Photo Ready to Upload' : 'Upload Required'}
+                            <Text className={`font-bold text-[13px] ${isLockedByAdmin ? 'text-green-700' : isRejectedByAdmin ? 'text-rose-900 font-extrabold' : 'text-slate-700'}`}>
+                                {isLockedByAdmin ? 'Document Approved' : isRejectedByAdmin ? 'Re-upload Action Required' : isUploaded ? 'Under Review' : isLocal ? 'Photo Ready to Upload' : 'Upload Required'}
                             </Text>
                             {isLockedByAdmin && <Text className="text-green-600/60 text-[9px] font-bold">Successfully verified by Admin</Text>}
-                            {!isLockedByAdmin && isUploaded && <Text className="text-amber-600/60 text-[9px] font-bold">You can update this if needed</Text>}
+                            {isRejectedByAdmin && <Text className="text-rose-600 text-[9px] font-extrabold">Please provide a clear replacement photo</Text>}
+                            {!isLockedByAdmin && !isRejectedByAdmin && isUploaded && <Text className="text-amber-600/60 text-[9px] font-bold">You can update this if needed</Text>}
                         </View>
                     </View>
+
+                    {/* Prominent Inline Rejection Callout (Inside Document Card) */}
+                    {isRejectedByAdmin && (
+                        <View className="bg-rose-50 border border-rose-200 p-3 rounded-xl mb-4 flex-row items-start">
+                            <Ionicons name="alert-circle" size={16} color="#E11D48" style={{ marginTop: 1 }} />
+                            <View className="ml-2.5 flex-1">
+                                <Text className="text-rose-900 text-[10px] font-black uppercase tracking-wider">Admin Rejection Note:</Text>
+                                <Text className="text-rose-950 font-bold text-xs mt-0.5">{verificationNote}</Text>
+                            </View>
+                        </View>
+                    )}
 
                     {/* View Document Area */}
                     {value ? (
                         <TouchableOpacity 
                             onPress={() => viewDocument(value)}
                             disabled={isViewing || isSaving}
-                            className={`h-28 rounded-[20px] overflow-hidden items-center justify-center mb-4 ${isLockedByAdmin ? 'border border-green-200' : 'border border-blue-200'}`}
+                            className={`h-28 rounded-[20px] overflow-hidden items-center justify-center mb-4 ${isLockedByAdmin ? 'border border-green-200' : isRejectedByAdmin ? 'border-2 border-rose-300' : 'border border-blue-200'}`}
                             activeOpacity={0.7}
                         >
                             <Image 
@@ -336,10 +357,12 @@ export default function DocumentsScreen() {
                             <TouchableOpacity
                                 onPress={() => handleImagePick(key, title)}
                                 disabled={isSaving}
-                                className="flex-1 bg-slate-100 border border-slate-300 py-3 rounded-xl flex-row items-center justify-center"
+                                className={`flex-1 ${isRejectedByAdmin ? 'bg-amber-500 border border-amber-600' : 'bg-slate-100 border border-slate-300'} py-3.5 rounded-xl flex-row items-center justify-center shadow-sm`}
                             >
-                                <Ionicons name="camera-reverse-outline" size={16} color="#475569" />
-                                <Text className="text-slate-700 font-black text-[10px] uppercase tracking-wider ml-2">UPDATE PHOTO</Text>
+                                <Ionicons name="camera-reverse-outline" size={16} color={isRejectedByAdmin ? "#0F172A" : "#475569"} />
+                                <Text className={`${isRejectedByAdmin ? 'text-slate-950 font-black' : 'text-slate-700 font-black'} text-[10px] uppercase tracking-wider ml-2`}>
+                                    {isRejectedByAdmin ? 'RE-UPLOAD CLEAR PHOTO' : 'UPDATE PHOTO'}
+                                </Text>
                             </TouchableOpacity>
                         )}
 
@@ -381,24 +404,74 @@ export default function DocumentsScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: Math.max(40, insets.bottom + 20), width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}
             >
-                {/* Dynamic Notice Banner based on verification state */}
+                {/* Dynamic Notice Banner based on verification & rejection state */}
                 {!loading && (
-                    <View className={`p-6 rounded-[24px] mb-8 border flex-row items-center shadow-sm ${isVerified ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
-                        <View className={`w-10 h-10 rounded-full items-center justify-center ${isVerified ? 'bg-green-100' : 'bg-amber-100'}`}>
-                            <Ionicons name={isVerified ? "shield-checkmark" : "alert-circle"} size={24} color={isVerified ? "#15803D" : "#D97706"} />
+                    isVerified ? (
+                        <View className="p-6 rounded-[24px] mb-8 border border-green-200 bg-green-50 flex-row items-center shadow-sm">
+                            <View className="w-12 h-12 rounded-2xl bg-green-100 items-center justify-center border border-green-200">
+                                <Ionicons name="shield-checkmark" size={26} color="#15803D" />
+                            </View>
+                            <View className="ml-4 flex-1">
+                                <Text className="text-green-900 text-xs font-black uppercase tracking-wider">
+                                    Account Verified
+                                </Text>
+                                <Text className="text-green-700/80 text-[10px] font-bold leading-4 mt-0.5">
+                                    Your documents have been approved by the Admin and are securely locked.
+                                </Text>
+                            </View>
                         </View>
-                        <View className="ml-4 flex-1">
-                            <Text className={`text-[12px] font-black uppercase tracking-tighter ${isVerified ? 'text-green-800' : 'text-amber-800'}`}>
-                                {isVerified ? 'Account Verified' : 'Important Notice'}
-                            </Text>
-                            <Text className={`text-[10px] font-bold leading-4 mt-0.5 ${isVerified ? 'text-green-700/70' : 'text-amber-700/70'}`}>
-                                {isVerified 
-                                    ? "Your documents have been approved by the Admin and are securely locked." 
-                                    : "You can upload and edit photos of your documents until the admin approves them."
-                                }
-                            </Text>
+                    ) : verificationNote ? (
+                        <View className="p-6 rounded-[24px] mb-8 border-2 border-rose-300 bg-rose-50 shadow-lg shadow-rose-500/10">
+                            <View className="flex-row items-center mb-3">
+                                <View className="w-10 h-10 rounded-xl bg-rose-500/10 items-center justify-center border border-rose-200 mr-3">
+                                    <Ionicons name="close-circle" size={24} color="#E11D48" />
+                                </View>
+                                <View className="flex-1">
+                                    <View className="flex-row items-center flex-wrap">
+                                        <Text className="text-rose-900 text-sm font-black uppercase tracking-wider">
+                                            Document Rejected
+                                        </Text>
+                                        <View className="bg-rose-600 px-2 py-0.5 rounded ml-2">
+                                            <Text className="text-white text-[9px] font-black uppercase tracking-widest">Action Required</Text>
+                                        </View>
+                                    </View>
+                                    <Text className="text-rose-700 text-[10px] font-bold mt-0.5">
+                                        Admin requested document re-upload
+                                    </Text>
+                                </View>
+                            </View>
+                            
+                            <View className="bg-white/90 border-l-4 border-rose-600 p-4 rounded-r-xl border border-rose-200/80 shadow-sm">
+                                <Text className="text-rose-900 text-[10px] font-black uppercase tracking-widest mb-1">
+                                    Admin Rejection Reason:
+                                </Text>
+                                <Text className="text-slate-900 font-extrabold text-xs leading-5">
+                                    "{verificationNote}"
+                                </Text>
+                            </View>
+
+                            <View className="flex-row items-center mt-3 pt-3 border-t border-rose-200/60">
+                                <Ionicons name="information-circle-outline" size={14} color="#BE123C" />
+                                <Text className="text-rose-800 text-[10px] font-bold ml-1 flex-1">
+                                    Please review the reason above and re-upload clear photos of your document(s).
+                                </Text>
+                            </View>
                         </View>
-                    </View>
+                    ) : (
+                        <View className="p-6 rounded-[24px] mb-8 border border-amber-200 bg-amber-50 flex-row items-center shadow-sm">
+                            <View className="w-12 h-12 rounded-2xl bg-amber-100 items-center justify-center border border-amber-200">
+                                <Ionicons name="time" size={26} color="#D97706" />
+                            </View>
+                            <View className="ml-4 flex-1">
+                                <Text className="text-amber-900 text-xs font-black uppercase tracking-wider">
+                                    Pending Admin Review
+                                </Text>
+                                <Text className="text-amber-700/80 text-[10px] font-bold leading-4 mt-0.5">
+                                    You can upload and edit photos of your documents until the admin approves them.
+                                </Text>
+                            </View>
+                        </View>
+                    )
                 )}
 
                 {loading ? (

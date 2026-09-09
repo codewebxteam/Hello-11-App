@@ -10,7 +10,7 @@ import { useAudioPlayer } from "expo-audio";
 import { DriverAuthProvider, useDriverAuth } from "../context/DriverAuthContext";
 import { driverAPI } from "../utils/api";
 import { Audio as ExpoAudio } from 'expo-av';
-import { initSocket } from "../utils/socket";
+import { initSocket, setSocketDriverId, ensureSocketConnected } from "../utils/socket";
 import { registerForPushNotificationsAsync } from "../utils/notifications";
 import * as Haptics from "expo-haptics";
 import { useResponsive } from "../utils/responsive";
@@ -124,7 +124,7 @@ function DriverRealtimeOverlay() {
   const activeBookingRef = React.useRef<any>(null);
   const incomingRideRef = React.useRef<any>(null);
 
-  const player = useAudioPlayer("https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1MB_MP3.mp3");
+  const player = useAudioPlayer(require("../assets/sounds/ring.mp3"));
   const requestTimerRef = React.useRef<any>(null);
   const [isAccepting, setIsAccepting] = React.useState(false);
   const [paymentBlockPopup, setPaymentBlockPopup] = React.useState<{
@@ -136,7 +136,6 @@ function DriverRealtimeOverlay() {
     message: "",
     pendingCommission: 0,
   });
-  const requestSlide = React.useRef(new Animated.Value(windowHeight)).current;
   const timerLine = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
@@ -169,8 +168,6 @@ function DriverRealtimeOverlay() {
       requestTimerRef.current = null;
     }
     try {
-      // expo-audio player might be released if used during unmount or rapid state changes.
-      // We check for 'playing' property as a proxy for the object being valid.
       if (player && typeof player.pause === 'function') {
         const isPlaying = player?.playing;
         if (isPlaying) {
@@ -182,11 +179,9 @@ function DriverRealtimeOverlay() {
     }
     Vibration.cancel();
     timerLine.stopAnimation();
-    Animated.timing(requestSlide, { toValue: windowHeight, duration: 250, useNativeDriver: true }).start(() => {
-      setIncomingRide(null);
-      setIsAccepting(false);
-    });
-  }, [player, requestSlide, timerLine, windowHeight]);
+    setIncomingRide(null);
+    setIsAccepting(false);
+  }, [player, timerLine]);
 
   const refreshDashboardState = React.useCallback(async () => {
     if (!isAuthenticated) return;
@@ -211,15 +206,33 @@ function DriverRealtimeOverlay() {
     }
   }, [isAuthenticated]);
 
+  // Single initial sync on mount — no 20s polling timer!
+  // Dashboard state is kept fresh by:
+  //   1) AppState "active" listener below (app foreground resume)
+  //   2) index.tsx useFocusEffect (home screen focus)
+  //   3) Socket events (real-time ride updates)
   React.useEffect(() => {
     refreshDashboardState();
-    const interval = setInterval(refreshDashboardState, 20000);
-    return () => clearInterval(interval);
   }, [refreshDashboardState]);
 
+  // Sync driverId to socket layer for auto room re-join on reconnect
   React.useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextState) => {
+    if (driverId) {
+      setSocketDriverId(driverId);
+    }
+  }, [driverId]);
+
+  // AppState listener: on foreground resume → force socket reconnect + dashboard sync
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextState) => {
       if (nextState === "active") {
+        // Force socket reconnect + room re-join on app foreground
+        try {
+          await ensureSocketConnected();
+          console.log("[Layout] App foregrounded → socket reconnected + room rejoined");
+        } catch (e) {
+          console.log("[Layout] Socket reconnect on foreground failed:", e);
+        }
         refreshDashboardState();
       }
     });
@@ -251,14 +264,9 @@ function DriverRealtimeOverlay() {
       try {
         if (notifee && typeof notifee.getInitialNotification === 'function') {
           const initialNotification = await notifee.getInitialNotification();
-          if (initialNotification?.notification?.data?.type === 'new_ride') {
+          if (initialNotification?.notification?.data?.bookingId || initialNotification?.notification?.data?.type === 'new_ride') {
             const bd = initialNotification.notification.data;
-            setIncomingRide({
-              bookingId: bd.bookingId,
-              fare: "Fetching...",
-              pickup: "Fetching Location...",
-              drop: "Fetching Location...",
-            });
+            setIncomingRide(bd);
           }
         }
       } catch (e) {
@@ -269,7 +277,18 @@ function DriverRealtimeOverlay() {
   }, []);
 
   React.useEffect(() => {
-    if (!isAuthenticated || !isOnline || !driverId) {
+    if (!notifee || typeof notifee.onForegroundEvent !== 'function') return;
+    return notifee.onForegroundEvent(({ type, detail }: any) => {
+      if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
+        if (detail.notification?.data?.bookingId) {
+          setIncomingRide(detail.notification.data);
+        }
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!isAuthenticated) {
       return;
     }
 
@@ -279,9 +298,9 @@ function DriverRealtimeOverlay() {
       const socket = await initSocket();
       if (!mounted) return;
 
-      const onConnect = () => {
-        socket.emit("join", driverId);
-      };
+      if (driverId) {
+        setSocketDriverId(driverId);
+      }
 
       const onNewRideRequest = async (data: any) => {
         setIncomingRide(data);
@@ -296,7 +315,6 @@ function DriverRealtimeOverlay() {
 
         Vibration.vibrate([0, 1000, 500, 1000, 500], true);
         timerLine.setValue(1);
-        Animated.spring(requestSlide, { toValue: 0, tension: 45, friction: 8, useNativeDriver: true }).start();
         Animated.timing(timerLine, { toValue: 0, duration: 120000, easing: Easing.linear, useNativeDriver: false }).start(({ finished }) => { if (finished) clearRideRequest(); });
 
         try {
@@ -439,15 +457,12 @@ function DriverRealtimeOverlay() {
         }
       };
 
-      socket.on("connect", onConnect);
-      if (socket.connected) onConnect();
       socket.on("newRideRequest", onNewRideRequest);
       socket.on("rideRequestCancelled", onRideRequestCancelled);
       socket.on("bookingCancelledByUser", onBookingCancelledByUser);
       socket.on("scheduledRideReminder", onScheduledRideReminder);
 
       return () => {
-        socket.off("connect", onConnect);
         socket.off("newRideRequest", onNewRideRequest);
         socket.off("rideRequestCancelled", onRideRequestCancelled);
         socket.off("bookingCancelledByUser", onBookingCancelledByUser);
@@ -466,7 +481,7 @@ function DriverRealtimeOverlay() {
       if (cleanup) cleanup();
       clearRideRequest();
     };
-  }, [isAuthenticated, isOnline, driverId, player, clearRideRequest, pathname, requestSlide, timerLine]);
+  }, [isAuthenticated, driverId, player, clearRideRequest, pathname]);
 
   const onAcceptRide = async () => {
     if (isAccepting) return;
@@ -597,18 +612,14 @@ function DriverRealtimeOverlay() {
         </View>
       </Modal>
 
-      {incomingRide && (
-        <Animated.View
-          style={{ 
-            transform: [{ translateY: requestSlide }], 
-            paddingBottom: isSmallPhone ? 10 : 20,
-            position: 'absolute',
-            bottom: 0,
-            width: '100%',
-            zIndex: 100,
-            paddingHorizontal: requestCardOuterPadding
-          }}
-        >
+      <Modal
+        visible={Boolean(incomingRide)}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={onIgnoreRide}
+      >
+        <View className="flex-1 justify-end bg-black/40" style={{ paddingBottom: isSmallPhone ? 10 : 20, paddingHorizontal: requestCardOuterPadding }}>
           <View style={{
             backgroundColor: '#0F172A',
             borderRadius: requestCardRadius,
@@ -617,7 +628,7 @@ function DriverRealtimeOverlay() {
             shadowOffset: { width: 0, height: 10 },
             shadowOpacity: 0.5,
             shadowRadius: 20,
-            elevation: 10,
+            elevation: 25,
             borderWidth: 1,
             borderColor: 'rgba(51, 65, 85, 0.5)',
             overflow: 'hidden',
@@ -742,8 +753,8 @@ function DriverRealtimeOverlay() {
               </TouchableOpacity>
             </View>
           </View>
-        </Animated.View>
-      )}
+        </View>
+      </Modal>
     </>
   );
 }

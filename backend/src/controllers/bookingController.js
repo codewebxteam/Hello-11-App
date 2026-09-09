@@ -226,15 +226,32 @@ export const createBooking = async (req, res) => {
             totalFare: booking.totalFare
           });
 
-          // Send Silent Push Notification to wake up killed app
+          // Solution C: Send BOTH visible + silent push for double insurance
+          // Visible notification shows in system tray with sound
+          // Silent data notification wakes up the app process in background
           if (driver.pushToken) {
+            // 1. Visible high-priority notification (shows even in DND via incoming_rides_fullscreen channel)
+            sendPushNotification(
+              driver.pushToken,
+              '🚗 New Ride Request!',
+              `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Fare: ₹${booking.totalFare}`,
+              {
+                bookingId: booking._id.toString(),
+                type: 'new_ride',
+                pickup: pickupLocation,
+                drop: dropLocation,
+                fare: String(booking.totalFare)
+              }
+            );
+
+            // 2. Silent data-only push to wake killed app (headless JS task)
             sendSilentDataNotification(driver.pushToken, {
               bookingId: booking._id.toString(),
               type: 'new_ride',
               pickup: pickupLocation,
               drop: dropLocation,
               fare: String(booking.totalFare),
-              title: "New Ride Request", // Handled by notifee locally
+              title: "New Ride Request",
               body: `${booking.rideType === 'outstation' ? 'Outstation' : 'Local'} ride from ${pickupLocation} to ${dropLocation}. Total Fare: ₹${booking.totalFare}`
             });
           }
@@ -289,6 +306,21 @@ export const createBooking = async (req, res) => {
           });
 
           if (driver.pushToken) {
+            // 1. Visible high-priority notification
+            sendPushNotification(
+              driver.pushToken,
+              '📅 New Scheduled Ride!',
+              `Scheduled ride from ${pickupLocation} to ${dropLocation} for ${new Date(booking.scheduledDate).toLocaleString("en-IN")}. Fare: ₹${booking.totalFare}`,
+              {
+                bookingId: booking._id.toString(),
+                type: 'new_ride',
+                pickup: pickupLocation,
+                drop: dropLocation,
+                fare: String(booking.totalFare)
+              }
+            );
+
+            // 2. Silent data-only push to wake killed app
             sendSilentDataNotification(driver.pushToken, {
               bookingId: booking._id.toString(),
               type: 'new_ride',

@@ -23,7 +23,7 @@ export const sendPushNotification = async (pushToken, title, body, data = {}) =>
     body,
     data,
     priority: 'high',
-    channelId: 'default',
+    channelId: 'incoming_rides_fullscreen',
   }];
 
   try {
