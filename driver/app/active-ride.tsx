@@ -340,6 +340,7 @@ export default function ActiveRideScreen() {
                         notificationTitle: "Ride in Progress",
                         notificationBody: "Tracking active trip...",
                         notificationColor: "#FF0000",
+                        killServiceOnDestroy: false,
                     },
                 });
 

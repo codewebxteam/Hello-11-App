@@ -234,6 +234,7 @@ export default function PickupScreen() {
                         notificationTitle: "Heading to Pickup",
                         notificationBody: "Tracking your route to the customer...",
                         notificationColor: "#FF8C00",
+                        killServiceOnDestroy: false,
                     },
                 });
 

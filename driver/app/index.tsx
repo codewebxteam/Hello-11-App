@@ -460,6 +460,7 @@ export default function DriverDashboard() {
           notificationTitle: "🟢 Hello-11 Driver Online",
           notificationBody: "Aap online hain • Ride requests aane par ring bajegi",
           notificationColor: "#FFD700",
+          killServiceOnDestroy: false, // CRITICAL: Tells Android to keep service alive when app is swiped from recents!
         },
       });
       console.log("Foreground Service Started (idle mode)");
@@ -467,13 +468,33 @@ export default function DriverDashboard() {
       console.error("Foreground location error:", e);
     }
 
-    // Cancel any stale static notification so only the true OS foreground service notification shows
+    // Display Hard-Locked Ongoing Notification via Notifee (Cannot be swiped away by user on Android!)
     try {
-      if (notifee && typeof notifee.cancelNotification === 'function') {
-        await notifee.cancelNotification('driver-online-persistent');
+      if (notifee && typeof notifee.createChannel === 'function') {
+        await notifee.createChannel({
+          id: 'driver_online_status',
+          name: 'Driver Online Status',
+          importance: AndroidImportance.LOW || 2,
+          visibility: AndroidVisibility.PUBLIC || 1,
+        });
+
+        await notifee.displayNotification({
+          id: 'driver-online-persistent',
+          title: '🟢 Hello-11 Driver Online',
+          body: 'Aap online hain • Ride requests aane par ring bajegi',
+          android: {
+            channelId: 'driver_online_status',
+            asForegroundService: true,
+            ongoing: true, // HARD-LOCK: User CANNOT swipe this away!
+            autoCancel: false,
+            color: '#FFD700',
+            pressAction: { id: 'default', launchActivity: 'default' },
+          },
+        });
+        console.log("Notifee hard-locked ongoing notification displayed");
       }
     } catch (e) {
-      // ignore
+      console.log("Notifee ongoing notification error:", e);
     }
 
     // Start foreground watcher for real-time updates while app is open
@@ -527,6 +548,9 @@ export default function DriverDashboard() {
       if (notifee && typeof notifee.cancelNotification === 'function') {
         await notifee.cancelNotification('driver-online-persistent');
       }
+      if (notifee && typeof notifee.stopForegroundService === 'function') {
+        await notifee.stopForegroundService();
+      }
       console.log("Cancelled driver online notification");
     } catch (e) {
       console.log("Error cancelling online notification:", e);
@@ -575,9 +599,10 @@ export default function DriverDashboard() {
         distanceInterval: 10,
         timeInterval: 10000,
         foregroundService: {
-          notificationTitle: "Driver is Online",
-          notificationBody: "Waiting for new ride requests...",
+          notificationTitle: "🟢 Hello-11 Driver Online",
+          notificationBody: "Aap online hain • Ride requests aane par ring bajegi",
           notificationColor: "#FFD700",
+          killServiceOnDestroy: false,
         },
       }).catch(err => console.log("Foreground notification restore error", err));
 

@@ -47,6 +47,7 @@ export default function StartRideScreen() {
                 notificationTitle: "Arrived at Pickup",
                 notificationBody: "Waiting for passenger and OTP...",
                 notificationColor: "#FFD700",
+                killServiceOnDestroy: false,
             },
         });
 
