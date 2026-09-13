@@ -35,7 +35,8 @@ module.exports = ({ config }) => {
   const mapsApiKey =
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
     process.env.GOOGLE_MAPS_API_KEY ||
-    "";
+    config.android?.config?.googleMaps?.apiKey ||
+    "AIzaSyChfzWHWK0Gk8oNeqK2_6HoxOpBf78YTJ8";
 
   config = withRazorpayManifestFix(config);
 

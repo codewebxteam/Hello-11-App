@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hello11 Driver",
     "slug": "driverSection",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -16,8 +16,13 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "versionCode": 16,
+      "versionCode": 17,
       "package": "com.pmup53.driversection",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyChfzWHWK0Gk8oNeqK2_6HoxOpBf78YTJ8"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#F5A623",
         "foregroundImage": "./assets/DriverIcon.png"
