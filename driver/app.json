@@ -15,6 +15,7 @@
       "supportsTablet": true
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "versionCode": 16,
       "package": "com.pmup53.driversection",
       "adaptiveIcon": {
@@ -48,6 +49,16 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Hello 11 Driver to use your location to track rides in the background.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/DriverIcon.png",
+          "color": "#F5A623",
+          "sounds": [
+            "./assets/sounds/ring.mp3"
+          ]
         }
       ],
       [

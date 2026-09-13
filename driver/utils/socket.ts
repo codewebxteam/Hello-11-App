@@ -35,9 +35,7 @@ export const initSocket = async () => {
             reconnectionAttempts: Infinity,   // Never stop trying
             reconnectionDelay: 1000,          // Start with 1s delay
             reconnectionDelayMax: 10000,      // Max 10s delay between retries
-            // --- Keepalive / heartbeat ---
-            pingInterval: 10000,              // Ping every 10s to detect dead connections
-            pingTimeout: 5000,                // 5s timeout for pong response
+            timeout: 10000,                   // Connection timeout (10s) before connect_error
         });
 
         // ✅ Auto room re-join on EVERY connect (initial + reconnect)

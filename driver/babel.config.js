@@ -6,7 +6,6 @@ module.exports = function (api) {
       "nativewind/babel",
     ],
     plugins: [
-      "react-native-reanimated/plugin",
       ["module-resolver", {
         root: ["."],
         alias: {
@@ -16,7 +15,8 @@ module.exports = function (api) {
           "xdate": "./node_modules/xdate",
           "prop-types": "./node_modules/prop-types"
         }
-      }]
+      }],
+      "react-native-reanimated/plugin"
     ],
   };
 };

@@ -458,7 +458,7 @@ export default function DriverDashboard() {
         timeInterval: 60000, // Update every 60 seconds when idle
         foregroundService: {
           notificationTitle: "🟢 Hello-11 Driver Online",
-          notificationBody: "Waiting for ride requests...",
+          notificationBody: "Aap online hain • Ride requests aane par ring bajegi",
           notificationColor: "#FFD700",
         },
       });
@@ -467,30 +467,13 @@ export default function DriverDashboard() {
       console.error("Foreground location error:", e);
     }
 
-    // Show a persistent "Driver Online" notification using notifee.
-    // ongoing: true → User CANNOT swipe or clear it. Only removed by going offline.
+    // Cancel any stale static notification so only the true OS foreground service notification shows
     try {
-      if (notifee && typeof notifee.createChannel === 'function') {
-        await notifee.createChannel({
-          id: 'driver_online_status',
-          name: 'Driver Online Status',
-          importance: AndroidImportance.DEFAULT || 3,
-        });
-        await notifee.displayNotification({
-          id: 'driver-online-persistent',
-          title: '🟢 Driver is Online',
-          body: 'You are live and receiving ride requests',
-          android: {
-            channelId: 'driver_online_status',
-            ongoing: true,
-            pressAction: { id: 'default', launchActivity: 'default' },
-            color: '#FFD700',
-          },
-        });
-        console.log("Notifee ongoing notification shown");
+      if (notifee && typeof notifee.cancelNotification === 'function') {
+        await notifee.cancelNotification('driver-online-persistent');
       }
     } catch (e) {
-      console.log("Notifee ongoing notification error:", e);
+      // ignore
     }
 
     // Start foreground watcher for real-time updates while app is open
@@ -547,6 +530,20 @@ export default function DriverDashboard() {
       console.log("Cancelled driver online notification");
     } catch (e) {
       console.log("Error cancelling online notification:", e);
+    }
+
+    // Show "Aap offline ho gaye hain" alert notification
+    try {
+      await ExpoNotifications.scheduleNotificationAsync({
+        content: {
+          title: "🔴 Aap Offline ho gaye hain",
+          body: "Hello-11: Nayi ride requests paane ke liye app open karke Online switch karein.",
+          data: { type: 'driver_offline' },
+        },
+        trigger: null,
+      });
+    } catch (e) {
+      console.log("Error showing offline notification:", e);
     }
   };
 

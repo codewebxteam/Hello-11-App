@@ -95,12 +95,10 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }: any
   }
 });
 
-// Register background task immediately at root level
-try {
-  Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-} catch (e) {
-  console.log("Failed to register background notification task", e);
-}
+// Register background task safely at root level
+Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK).catch((e: any) => {
+  console.log("Failed to register background notification task:", e?.message || e);
+});
 
 // --- REMOVED REDUNDANT EXPO TASKS ---
 
