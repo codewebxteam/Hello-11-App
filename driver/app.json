@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hello11 Driver",
     "slug": "driverSection",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -16,7 +16,7 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "versionCode": 17,
+      "versionCode": 18,
       "package": "com.pmup53.driversection",
       "config": {
         "googleMaps": {

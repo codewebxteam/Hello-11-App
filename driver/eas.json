@@ -14,11 +14,19 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.hello11.in",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyChfzWHWK0Gk8oNeqK2_6HoxOpBf78YTJ8"
       }
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.hello11.in",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyChfzWHWK0Gk8oNeqK2_6HoxOpBf78YTJ8"
+      }
     }
   },
   "submit": {
