@@ -8,7 +8,7 @@ import jwt from "jsonwebtoken";
 import Payout from "../models/Payout.js";
 import Transaction from "../models/Transaction.js";
 import { serverLog } from "../utils/logger.js";
-import { getIO } from "../utils/socketLogic.js";
+import { getIO, cancelDriverDisconnectTimer } from "../utils/socketLogic.js";
 
 import { sendPushNotification } from "../utils/notifications.js";
 import { uploadToImageKit } from "../utils/imagekit.js";
@@ -844,6 +844,7 @@ export const toggleOnlineStatus = async (req, res) => {
       driver.online = false;
       driver.available = false;
       driver.lastOnlineToggle = now;
+      cancelDriverDisconnectTimer(driver._id);
     } else {
       // Transitioning from OFFLINE to ONLINE
       if (!driver.isVerified) {

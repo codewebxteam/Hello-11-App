@@ -34,7 +34,7 @@ import * as Location from 'expo-location';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { useDriverAuth } from '../context/DriverAuthContext';
 import * as ExpoNotifications from 'expo-notifications';
-import { notifee, AndroidImportance } from '../utils/notifee-helper';
+import { notifee, AndroidImportance, AndroidVisibility } from '../utils/notifee-helper';
 import RazorpayCheckout from 'react-native-razorpay';
 import * as IntentLauncher from 'expo-intent-launcher';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -85,6 +85,25 @@ export default function DriverDashboard() {
   const hasNavigatedRef = useRef(false);
   const isAutoEnablingSearchRef = useRef(false);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  const isInitialMountRef = useRef(true);
+  const prevOnlineRef = useRef(false);
+
+  // Restore cached online state on app launch to eliminate toggle flicker and false offline alerts
+  useEffect(() => {
+    AsyncStorage.getItem('@driver_cached_online').then((val) => {
+      if (val !== null && isInitialMountRef.current) {
+        const cached = val === 'true';
+        setIsOnline(cached);
+        prevOnlineRef.current = cached;
+      }
+    }).catch(() => {});
+  }, []);
+
+  const updateOnlineState = (newVal: boolean) => {
+    setIsOnline(newVal);
+    AsyncStorage.setItem('@driver_cached_online', String(newVal)).catch(() => {});
+  };
 
   const { rideEnded } = useLocalSearchParams();
 
@@ -143,7 +162,7 @@ export default function DriverDashboard() {
         
         // Skip updating online status if we are in the middle of a toggle to avoid flip-back flicker
         if (!isChangingOnline) {
-          setIsOnline(driver.online || false);
+          updateOnlineState(driver.online || false);
         }
         
         setIsSearching(driver.available || false);
@@ -231,15 +250,32 @@ export default function DriverDashboard() {
   );
 
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      prevOnlineRef.current = isOnline;
+      if (isOnline && driverId) {
+        setSocketDriverId(driverId);
+        startLocationTracking();
+        initSocket();
+        ensureSocketConnected();
+      }
+      return;
+    }
+
     if (isOnline && driverId) {
+      prevOnlineRef.current = true;
       setSocketDriverId(driverId);
       startLocationTracking();
       initSocket();
       ensureSocketConnected();
-    } else {
-      stopLocationTracking();
-      disconnectSocket();
-      setIsSearching(false);
+    } else if (!isOnline) {
+      // Only stop tracking and trigger offline alert if driver was previously online
+      if (prevOnlineRef.current) {
+        prevOnlineRef.current = false;
+        stopLocationTracking(true);
+        disconnectSocket();
+        setIsSearching(false);
+      }
     }
   }, [isOnline, driverId]);
 
@@ -527,7 +563,7 @@ export default function DriverDashboard() {
     }
   };
 
-  const stopLocationTracking = async () => {
+  const stopLocationTracking = async (showNotification = false) => {
     try {
       const hasStarted = await Location.hasStartedLocationUpdatesAsync('BACKGROUND_LOCATION_TASK');
       if (hasStarted) {
@@ -556,18 +592,20 @@ export default function DriverDashboard() {
       console.log("Error cancelling online notification:", e);
     }
 
-    // Show "Aap offline ho gaye hain" alert notification
-    try {
-      await ExpoNotifications.scheduleNotificationAsync({
-        content: {
-          title: "🔴 Aap Offline ho gaye hain",
-          body: "Hello-11: Nayi ride requests paane ke liye app open karke Online switch karein.",
-          data: { type: 'driver_offline' },
-        },
-        trigger: null,
-      });
-    } catch (e) {
-      console.log("Error showing offline notification:", e);
+    // Show "Aap offline ho gaye hain" alert notification ONLY if explicitly requested
+    if (showNotification) {
+      try {
+        await ExpoNotifications.scheduleNotificationAsync({
+          content: {
+            title: "🔴 Aap Offline ho gaye hain",
+            body: "Hello-11: Nayi ride requests paane ke liye app open karke Online switch karein.",
+            data: { type: 'driver_offline' },
+          },
+          trigger: null,
+        });
+      } catch (e) {
+        console.log("Error showing offline notification:", e);
+      }
     }
   };
 
@@ -727,7 +765,7 @@ export default function DriverDashboard() {
         isTogglingOnlineRef.current = true;
         setIsTogglingOnline(true);
         const res = await driverAPI.toggleOnline();
-        setIsOnline(res.data.online);
+        updateOnlineState(res.data.online);
         await refreshProfile();
         applySearchState(false);
       } catch (err) {
@@ -1009,7 +1047,7 @@ export default function DriverDashboard() {
                     }
 
                     const res = await driverAPI.toggleOnline();
-                    setIsOnline(res.data.online);
+                    updateOnlineState(res.data.online);
                     await refreshProfile();
                     if (!res.data.online) {
                       applySearchState(false);
@@ -1109,7 +1147,7 @@ export default function DriverDashboard() {
                   }
 
                   const res = await driverAPI.toggleOnline();
-                  setIsOnline(res.data.online);
+                  updateOnlineState(res.data.online);
                   await refreshProfile();
                   
                   if (res.data.online) {
@@ -1229,7 +1267,7 @@ export default function DriverDashboard() {
                     isTogglingOnlineRef.current = true;
                     setIsTogglingOnline(true);
                     const res = await driverAPI.toggleOnline();
-                    setIsOnline(res.data.online);
+                    updateOnlineState(res.data.online);
                     await refreshProfile();
                     if (!res.data.online) {
                       setIsSearching(false);
